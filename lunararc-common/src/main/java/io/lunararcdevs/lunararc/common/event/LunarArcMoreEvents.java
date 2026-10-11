@@ -458,7 +458,9 @@ public final class LunarArcMoreEvents {
         java.util.UUID targetId = piglin.getPersistentAngerTarget();
         net.minecraft.world.entity.Entity target = targetId == null ? null : level.getEntity(targetId);
         org.bukkit.event.entity.PigZombieAngerEvent event = new org.bukkit.event.entity.PigZombieAngerEvent(found, bukkit(target), anger);
-        return fire(event) ? -1 : event.getNewAnger();
+        if (!fire(event)) return event.getNewAnger();
+        piglin.setPersistentAngerTarget(null);
+        return -1;
     }
 
     public static boolean deepSleep(net.minecraft.world.entity.player.Player who) {
@@ -534,5 +536,42 @@ public final class LunarArcMoreEvents {
         boolean explode = reason == io.papermc.paper.event.player.PlayerBedFailEnterEvent.FailReason.NOT_POSSIBLE_HERE;
         fire(new io.papermc.paper.event.player.PlayerBedFailEnterEvent(player, reason, CraftBlock.at(who.serverLevel(), pos), explode,
                 message == null ? null : io.papermc.paper.adventure.PaperAdventure.asAdventure(message)));
+    }
+
+    public static boolean recipeDiscover(net.minecraft.server.level.ServerPlayer who, net.minecraft.resources.ResourceLocation recipe) {
+        org.bukkit.entity.Player player = player(who);
+        if (player == null || !listened(org.bukkit.event.player.PlayerRecipeDiscoverEvent.getHandlerList())) return true;
+        return !fire(new org.bukkit.event.player.PlayerRecipeDiscoverEvent(player, org.bukkit.craftbukkit.util.CraftNamespacedKey.fromMinecraft(recipe)));
+    }
+
+    public static boolean attackCooldownReset(net.minecraft.world.entity.player.Player who, net.minecraft.world.entity.Entity target) {
+        org.bukkit.entity.Player player = player(who);
+        if (player == null || !listened(com.destroystokyo.paper.event.player.PlayerAttackEntityCooldownResetEvent.getHandlerList())
+                || bukkit(target) == null) return true;
+        return !fire(new com.destroystokyo.paper.event.player.PlayerAttackEntityCooldownResetEvent(player, bukkit(target), who.getAttackStrengthScale(0.0F)));
+    }
+
+    public static net.minecraft.world.effect.MobEffectInstance beaconEffect(net.minecraft.world.level.Level level, BlockPos pos,
+            net.minecraft.world.entity.player.Player who, net.minecraft.world.effect.MobEffectInstance effect, boolean primary) {
+        org.bukkit.entity.Player player = player(who);
+        if (player == null || !(level instanceof ServerLevel serverLevel)
+                || !listened(com.destroystokyo.paper.event.block.BeaconEffectEvent.getHandlerList())) return effect;
+        net.minecraft.resources.ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
+        org.bukkit.potion.PotionEffectType type = id == null ? null
+                : org.bukkit.potion.PotionEffectType.getByKey(new org.bukkit.NamespacedKey(id.getNamespace(), id.getPath()));
+        if (type == null) return effect;
+        org.bukkit.potion.PotionEffect bukkitEffect = new org.bukkit.potion.PotionEffect(type, effect.getDuration(), effect.getAmplifier(),
+                effect.isAmbient(), effect.isVisible(), effect.showIcon());
+        com.destroystokyo.paper.event.block.BeaconEffectEvent event = new com.destroystokyo.paper.event.block.BeaconEffectEvent(
+                CraftBlock.at(serverLevel, pos), bukkitEffect, player, primary);
+        if (fire(event)) return null;
+        org.bukkit.potion.PotionEffect changed = event.getEffect();
+        if (changed.equals(bukkitEffect)) return effect;
+        java.util.Optional<net.minecraft.core.Holder.Reference<net.minecraft.world.effect.MobEffect>> holder =
+                net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getHolder(
+                        net.minecraft.resources.ResourceLocation.parse(changed.getType().getKey().toString()));
+        if (holder.isEmpty()) return effect;
+        return new net.minecraft.world.effect.MobEffectInstance(holder.get(), changed.getDuration(), changed.getAmplifier(),
+                changed.isAmbient(), changed.hasParticles(), changed.hasIcon());
     }
 }

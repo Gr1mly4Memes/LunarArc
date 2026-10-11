@@ -36,7 +36,8 @@ public abstract class EntityTypeMixin<T extends Entity> {
         if (entity == null) return;
         EntityBridge bridge = (EntityBridge) entity;
         if (bridge.lunararc$getSpawnReason() == null) {
-            bridge.lunararc$setSpawnReason(lunararc$toBukkitReason(spawnType));
+            CreatureSpawnEvent.SpawnReason override = io.lunararcdevs.lunararc.common.event.LunarArcSpawnReasons.get();
+            bridge.lunararc$setSpawnReason(override != null ? override : lunararc$toBukkitReason(spawnType));
         }
     }
 

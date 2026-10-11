@@ -91,8 +91,13 @@ public final class BukkitCommandWrapper {
             String argumentText = hasArgumentInput ? commandText.substring(label.length()) : "";
             if (argumentText.startsWith(" ")) argumentText = argumentText.substring(1);
             String[] args = hasArgumentInput ? argumentText.split(" ", -1) : new String[0];
-            completions = command == null ? List.of() : command.tabComplete(sender, label, args);
-            if (command != null) completions = LunarArcEssentialsItemBridge.withModdedItems(command, args, completions);
+            List<String> fast = command == null ? null : LunarArcEssentialsItemBridge.itemSuggestions(command, args, MAX_SUGGESTIONS);
+            if (fast != null) {
+                completions = fast;
+            } else {
+                completions = command == null ? List.of() : command.tabComplete(sender, label, args);
+                if (command != null) completions = LunarArcEssentialsItemBridge.withModdedItems(command, args, completions);
+            }
         } catch (org.bukkit.command.CommandException exception) {
             throw exception;
         } catch (Throwable throwable) {

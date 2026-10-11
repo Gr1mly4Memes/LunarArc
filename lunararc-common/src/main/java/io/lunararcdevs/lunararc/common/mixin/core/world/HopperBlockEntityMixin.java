@@ -130,6 +130,10 @@ public abstract class HopperBlockEntityMixin implements HopperBlockEntityBridge 
     private static ItemStack lunararc$moveItem(Container source, Container destination, ItemStack stack,
             boolean sourceInitiated) {
         if (InventoryMoveItemEvent.getHandlerList().getRegisteredListeners().length == 0) return stack;
+        net.minecraft.world.level.Level hopperLevel = source instanceof net.minecraft.world.level.block.entity.BlockEntity sourceEntity
+                ? sourceEntity.getLevel()
+                : destination instanceof net.minecraft.world.level.block.entity.BlockEntity destinationEntity ? destinationEntity.getLevel() : null;
+        if (hopperLevel != null && io.lunararcdevs.lunararc.common.server.LunarArcServerSettings.tuning(hopperLevel).hopperDisableMoveEvent) return stack;
 
         Inventory sourceInventory = lunararc$transferInventory(source);
         Inventory destinationInventory = lunararc$transferInventory(destination);

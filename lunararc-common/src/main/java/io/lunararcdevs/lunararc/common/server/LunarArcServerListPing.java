@@ -108,9 +108,28 @@ public final class LunarArcServerListPing {
         }
         Optional<ServerStatus.Favicon> favicon = event.getServerIcon() instanceof CraftIconCache icon && icon.getValue() != null
                 ? Optional.of(new ServerStatus.Favicon(icon.getValue())) : Optional.empty();
-        connection.send(new ClientboundStatusResponsePacket(new ServerStatus(PaperAdventure.asVanilla(event.motd()), players,
+        connection.send(new ClientboundStatusResponsePacket(rebuild(status, PaperAdventure.asVanilla(event.motd()), players,
                 Optional.of(new ServerStatus.Version(event.getVersion(), event.getProtocolVersion())), favicon,
                 server.enforceSecureProfile())));
         return true;
+    }
+
+    private static ServerStatus rebuild(ServerStatus original, net.minecraft.network.chat.Component motd,
+                                        Optional<ServerStatus.Players> players, Optional<ServerStatus.Version> version,
+                                        Optional<ServerStatus.Favicon> favicon, boolean secure) {
+        java.lang.reflect.RecordComponent[] parts = ServerStatus.class.getRecordComponents();
+        if (parts.length == 5) return new ServerStatus(motd, players, version, favicon, secure);
+        try {
+            Object[] args = new Object[parts.length];
+            Class<?>[] types = new Class<?>[parts.length];
+            Object[] own = {motd, players, version, favicon, secure};
+            for (int i = 0; i < parts.length; i++) {
+                types[i] = parts[i].getType();
+                args[i] = i < own.length ? own[i] : parts[i].getAccessor().invoke(original);
+            }
+            return (ServerStatus) ServerStatus.class.getDeclaredConstructor(types).newInstance(args);
+        } catch (ReflectiveOperationException failure) {
+            throw new IllegalStateException("Could not rebuild the server status", failure);
+        }
     }
 }

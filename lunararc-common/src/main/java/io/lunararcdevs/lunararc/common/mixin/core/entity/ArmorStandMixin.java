@@ -24,7 +24,12 @@ public abstract class ArmorStandMixin implements io.lunararcdevs.lunararc.common
 
     @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
     private void lunararc$skipTick(CallbackInfo ci) {
-        if (!this.canTick) ci.cancel();
+        if (!this.canTick) {
+            ci.cancel();
+            return;
+        }
+        ArmorStand self = (ArmorStand) (Object) this;
+        if (!this.canTickSetByAPI && !io.lunararcdevs.lunararc.common.server.LunarArcServerSettings.tuning(self.level()).armorStandTick) ci.cancel();
     }
 
     @Inject(method = "swapItem", cancellable = true, at = @At(value = "INVOKE",

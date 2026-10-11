@@ -103,7 +103,84 @@ public final class PaperConfigurations {
             throw new IllegalArgumentException("anticheat.anti-xray.hidden-blocks must be a list of block names");
         }
         antiXray.hiddenBlocks = java.util.List.copyOf(config.getStringList("anticheat.anti-xray.hidden-blocks"));
+        parseTuning(config, result.tuning);
         return result;
+    }
+
+    private static final java.util.List<String> MOB_CATEGORIES = java.util.List.of("ambient", "axolotls", "creature", "misc",
+            "monster", "underground_water_creature", "water_ambient", "water_creature");
+
+    private static void parseTuning(YamlConfiguration config, WorldConfiguration.Tuning tuning) {
+        tuning.altItemDespawnEnabled = lenientBool(config, "entities.spawning.alt-item-despawn-rate.enabled", false);
+        ConfigurationSection items = config.getConfigurationSection("entities.spawning.alt-item-despawn-rate.items");
+        if (items != null) {
+            java.util.Map<String, Integer> map = new java.util.HashMap<>();
+            for (String key : items.getKeys(false)) {
+                Object value = items.get(key);
+                if (value instanceof Number number && number.intValue() > 0) {
+                    String id = key.contains(":") ? key.substring(key.indexOf(':') + 1) : key;
+                    map.put(id.toLowerCase(java.util.Locale.ROOT), number.intValue());
+                }
+            }
+            tuning.altItemDespawn = java.util.Map.copyOf(map);
+        }
+        java.util.Map<String, int[]> ranges = new java.util.HashMap<>();
+        java.util.Map<String, Integer> limits = new java.util.HashMap<>();
+        for (String category : MOB_CATEGORIES) {
+            int soft = lenientInt(config, "entities.spawning.despawn-ranges." + category + ".soft", 0);
+            int hard = lenientInt(config, "entities.spawning.despawn-ranges." + category + ".hard", 0);
+            if (soft > 0 || hard > 0) ranges.put(category, new int[] {soft, hard});
+            int limit = lenientInt(config, "entities.spawning.spawn-limits." + category, -1);
+            if (limit >= 0) limits.put(category, limit);
+        }
+        tuning.despawnRanges = java.util.Map.copyOf(ranges);
+        tuning.spawnLimits = java.util.Map.copyOf(limits);
+        tuning.nonPlayerArrowDespawnRate = lenientRate(config, "entities.spawning.non-player-arrow-despawn-rate");
+        tuning.creativeArrowDespawnRate = lenientRate(config, "entities.spawning.creative-arrow-despawn-rate");
+        tuning.hopperDisableMoveEvent = lenientBool(config, "hopper.disable-move-event", false);
+        tuning.armorStandTick = lenientBool(config, "entities.armor-stands.tick", true);
+        tuning.piglinsGuardChests = lenientBool(config, "entities.behavior.piglins-guard-chests", true);
+        tuning.pillagerPatrolsDisabled = lenientBool(config, "entities.behavior.pillager-patrols.disable", false);
+        tuning.pillagerPatrolSpawnChance = lenientDouble(config, "entities.behavior.pillager-patrols.spawn-chance", 0.2);
+        tuning.pillagerPatrolSpawnDelay = lenientInt(config, "entities.behavior.pillager-patrols.spawn-delay.ticks", 12000);
+        tuning.pillagerPatrolStartDay = lenientInt(config, "entities.behavior.pillager-patrols.start.day", 5);
+        tuning.phantomMinSeconds = lenientInt(config, "entities.behavior.phantoms-spawn-attempt-min-seconds", 60);
+        tuning.phantomMaxSeconds = lenientInt(config, "entities.behavior.phantoms-spawn-attempt-max-seconds", 119);
+        tuning.phantomsSkipCreative = lenientBool(config, "entities.behavior.phantoms-do-not-spawn-on-creative-players", true);
+        tuning.phantomsOnlyInsomniacs = lenientBool(config, "entities.behavior.phantoms-only-attack-insomniacs", true);
+        tuning.insomniaStartTicks = lenientInt(config, "entities.behavior.player-insomnia-start-ticks", 72000);
+        tuning.zombieVillagerInfectionChance = lenientDouble(config, "entities.behavior.zombie-villager-infection-chance", -1);
+        tuning.traderMinuteLength = lenientInt(config, "entities.spawning.wandering-trader.spawn-minute-length", 1200);
+        tuning.traderDayLength = lenientInt(config, "entities.spawning.wandering-trader.spawn-day-length", 24000);
+        tuning.traderChanceMin = lenientInt(config, "entities.spawning.wandering-trader.spawn-chance-min", 25);
+        tuning.traderChanceMax = lenientInt(config, "entities.spawning.wandering-trader.spawn-chance-max", 75);
+        tuning.traderChanceIncrement = lenientInt(config, "entities.spawning.wandering-trader.spawn-chance-failure-increment", 25);
+        tuning.mobSpawnerRate = lenientInt(config, "tick-rates.mob-spawner", 1);
+        tuning.grassSpreadRate = lenientInt(config, "tick-rates.grass-spread", 1);
+        tuning.dryFarmlandRate = lenientInt(config, "tick-rates.dry-farmland", 1);
+        tuning.wetFarmlandRate = lenientInt(config, "tick-rates.wet-farmland", 1);
+        tuning.nerfPigmenFromNetherPortals = lenientBool(config, "entities.behavior.nerf-pigmen-from-nether-portals", false);
+    }
+
+    private static boolean lenientBool(YamlConfiguration config, String key, boolean fallback) {
+        Object value = config.get(key);
+        return value instanceof Boolean flag ? flag : fallback;
+    }
+
+    private static double lenientDouble(YamlConfiguration config, String key, double fallback) {
+        Object value = config.get(key);
+        return value instanceof Number number ? number.doubleValue() : fallback;
+    }
+
+    private static int lenientInt(YamlConfiguration config, String key, int fallback) {
+        Object value = config.get(key);
+        return value instanceof Number number ? number.intValue() : fallback;
+    }
+
+    private static int lenientRate(YamlConfiguration config, String key) {
+        Object value = config.get(key);
+        if (value instanceof Number number && number.intValue() > 0) return number.intValue();
+        return -1;
     }
 
     private static boolean bool(YamlConfiguration config, String key, boolean fallback) {

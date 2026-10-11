@@ -39,6 +39,7 @@ public abstract class FireBlockMixin {
 
     @WrapOperation(
             method = "tick",
+            require = 0,
             at = @At(
                     value = "INVOKE",
                     target = "Lnet/minecraft/server/level/ServerLevel;setBlock("
@@ -49,10 +50,13 @@ public abstract class FireBlockMixin {
             BlockPos target,
             BlockState newState,
             int flags,
-            Operation<Boolean> original) {
-        BlockPos source = this.lunararc$tickingFire;
-        if (source == null || target.equals(source)) {
+            Operation<Boolean> original,
+            @Local(argsOnly = true) BlockPos source) {
+        if (target.equals(source) || !newState.is(Blocks.FIRE) || !org.bukkit.Bukkit.isPrimaryThread()) {
             return original.call(level, target, newState, flags);
+        }
+        if (level.getBlockState(target).is(Blocks.FIRE)) {
+            return false;
         }
         if (CraftEventFactory.callBlockIgniteEvent(level, target, source).isCancelled()) {
             return false;
@@ -68,11 +72,28 @@ public abstract class FireBlockMixin {
         return original.call(level, pos, moving);
     }
 
-    @Inject(method = "checkBurnOut", cancellable = true,
+    @Inject(method = "checkBurnOut", cancellable = true, require = 0,
             at = @At(value = "INVOKE", ordinal = 1, target = "Lnet/minecraft/util/RandomSource;nextInt(I)I"))
     private void lunararc$blockBurn(CallbackInfo ci, @Local(argsOnly = true) Level level, @Local(argsOnly = true) BlockPos pos) {
         BlockPos source = this.lunararc$tickingFire;
         if (!(level instanceof ServerLevel serverLevel) || source == null || !org.bukkit.Bukkit.isPrimaryThread()) return;
+        var event = new org.bukkit.event.block.BlockBurnEvent(CraftBlock.at(serverLevel, pos), CraftBlock.at(serverLevel, source));
+        org.bukkit.Bukkit.getPluginManager().callEvent(event);
+        if (event.isCancelled()) {
+            ci.cancel();
+            return;
+        }
+        if (level.getBlockState(pos).getBlock() instanceof TntBlock
+                && !CraftEventFactory.callTNTPrimeEvent(level, pos, org.bukkit.event.block.TNTPrimeEvent.PrimeCause.FIRE, null, source)) {
+            ci.cancel();
+        }
+    }
+
+    @Inject(method = "tryCatchFire", cancellable = true, require = 0,
+            at = @At(value = "INVOKE", ordinal = 1, target = "Lnet/minecraft/world/level/Level;getBlockState(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/block/state/BlockState;"))
+    private void lunararc$blockBurnWithFace(Level level, BlockPos pos, int chance, RandomSource random, int age, Direction face, CallbackInfo ci) {
+        if (!(level instanceof ServerLevel serverLevel) || !org.bukkit.Bukkit.isPrimaryThread()) return;
+        BlockPos source = pos.relative(face);
         var event = new org.bukkit.event.block.BlockBurnEvent(CraftBlock.at(serverLevel, pos), CraftBlock.at(serverLevel, source));
         org.bukkit.Bukkit.getPluginManager().callEvent(event);
         if (event.isCancelled()) {

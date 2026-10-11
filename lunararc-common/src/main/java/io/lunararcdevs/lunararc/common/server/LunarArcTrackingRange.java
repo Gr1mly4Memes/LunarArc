@@ -14,8 +14,6 @@ import net.minecraft.world.entity.decoration.Painting;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.monster.Monster;
 import net.minecraft.world.entity.raid.Raider;
-import org.bukkit.Bukkit;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -85,14 +83,13 @@ public final class LunarArcTrackingRange {
     }
 
     private static Ranges read(String worldName) {
-        YamlConfiguration spigot = spigotConfig();
         Ranges ranges = new Ranges(
-                value(spigot, worldName, "players", DEFAULT_PLAYERS),
-                value(spigot, worldName, "animals", DEFAULT_ANIMALS),
-                value(spigot, worldName, "monsters", DEFAULT_MONSTERS),
-                value(spigot, worldName, "misc", DEFAULT_MISC),
-                value(spigot, worldName, "display", DEFAULT_DISPLAY),
-                value(spigot, worldName, "other", DEFAULT_OTHER));
+                LunarArcServerSettings.intValue(worldName, "entity-tracking-range.players", DEFAULT_PLAYERS),
+                LunarArcServerSettings.intValue(worldName, "entity-tracking-range.animals", DEFAULT_ANIMALS),
+                LunarArcServerSettings.intValue(worldName, "entity-tracking-range.monsters", DEFAULT_MONSTERS),
+                LunarArcServerSettings.intValue(worldName, "entity-tracking-range.misc", DEFAULT_MISC),
+                LunarArcServerSettings.intValue(worldName, "entity-tracking-range.display", DEFAULT_DISPLAY),
+                LunarArcServerSettings.intValue(worldName, "entity-tracking-range.other", DEFAULT_OTHER));
         if (!announced) {
             announced = true;
             LOGGER.info("Entity tracking ranges in effect (blocks): players {}, animals {}, monsters {}, "
@@ -102,23 +99,6 @@ public final class LunarArcTrackingRange {
                     ranges.misc(), ranges.display(), ranges.other());
         }
         return ranges;
-    }
-
-    private static int value(YamlConfiguration spigot, String worldName, String key, int fallback) {
-        if (spigot == null) return fallback;
-        String perWorld = "world-settings." + worldName + ".entity-tracking-range." + key;
-        if (spigot.isInt(perWorld)) return spigot.getInt(perWorld);
-        String shared = "world-settings.default.entity-tracking-range." + key;
-        if (spigot.isInt(shared)) return spigot.getInt(shared);
-        return fallback;
-    }
-
-    private static YamlConfiguration spigotConfig() {
-        try {
-            return Bukkit.getServer().spigot().getSpigotConfig();
-        } catch (Throwable unavailable) {
-            return null;
-        }
     }
 
     /** Forget cached values, so a reload picks up an edited spigot.yml. */

@@ -7,6 +7,7 @@ public final class WorldConfiguration {
     public final Lootables lootables = new Lootables();
     public final Entities entities = new Entities();
     public final Anticheat anticheat = new Anticheat();
+    public final Tuning tuning = new Tuning();
 
     public static WorldConfiguration forLevel(net.minecraft.world.level.Level level) {
         return ((io.lunararcdevs.lunararc.common.bridge.LevelBridge) level).lunararc$getPaperConfiguration();
@@ -21,11 +22,6 @@ public final class WorldConfiguration {
             public int maxBlockHeight = 64;
             public int updateRadius = 2;
             public boolean lavaObscures;
-            // Vanilla ores match real Paper's own default hidden-blocks list. Chests (vanilla and
-            // lootr's own, since this pack ships it - confirmed present via a real crash report's
-            // block_entities listing) are LunarArc's own addition: an x-ray hack that reveals ANY
-            // non-air block through walls finds loot chests exactly the same way it finds ore,
-            // and real Paper's own default list only ever covered ores, never storage.
             public java.util.List<String> hiddenBlocks = java.util.List.of(
                     "minecraft:coal_ore", "minecraft:deepslate_coal_ore",
                     "minecraft:iron_ore", "minecraft:deepslate_iron_ore",
@@ -67,5 +63,37 @@ public final class WorldConfiguration {
         public io.papermc.paper.configuration.type.Duration refreshMin = io.papermc.paper.configuration.type.Duration.of("12h");
         public io.papermc.paper.configuration.type.Duration refreshMax = io.papermc.paper.configuration.type.Duration.of("2d");
         public boolean resetSeedOnFill = true;
+    }
+
+    public static final class Tuning {
+        public boolean altItemDespawnEnabled;
+        public java.util.Map<String, Integer> altItemDespawn = java.util.Map.of();
+        public java.util.Map<String, int[]> despawnRanges = java.util.Map.of();
+        public java.util.Map<String, Integer> spawnLimits = java.util.Map.of();
+        public int nonPlayerArrowDespawnRate = -1;
+        public int creativeArrowDespawnRate = -1;
+        public boolean hopperDisableMoveEvent;
+        public boolean nerfPigmenFromNetherPortals;
+        public boolean armorStandTick = true;
+        public boolean piglinsGuardChests = true;
+        public boolean pillagerPatrolsDisabled;
+        public double pillagerPatrolSpawnChance = 0.2;
+        public int pillagerPatrolSpawnDelay = 12000;
+        public int pillagerPatrolStartDay = 5;
+        public int phantomMinSeconds = 60;
+        public int phantomMaxSeconds = 119;
+        public boolean phantomsSkipCreative = true;
+        public boolean phantomsOnlyInsomniacs = true;
+        public int insomniaStartTicks = 72000;
+        public double zombieVillagerInfectionChance = -1;
+        public int traderMinuteLength = 1200;
+        public int traderDayLength = 24000;
+        public int traderChanceMin = 25;
+        public int traderChanceMax = 75;
+        public int traderChanceIncrement = 25;
+        public int mobSpawnerRate = 1;
+        public int grassSpreadRate = 1;
+        public int dryFarmlandRate = 1;
+        public int wetFarmlandRate = 1;
     }
 }

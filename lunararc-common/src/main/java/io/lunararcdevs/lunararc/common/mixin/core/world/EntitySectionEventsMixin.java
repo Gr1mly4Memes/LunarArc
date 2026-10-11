@@ -26,7 +26,7 @@ public abstract class EntitySectionEventsMixin<T extends EntityAccess> {
     @Shadow @Final EntitySectionStorage<T> sectionStorage;
 
     @Inject(method = "processPendingLoads", require = 0,
-            at = @At(value = "INVOKE", target = "Lit/unimi/dsi/fastutil/longs/Long2ObjectMap;put(JLjava/lang/Object;)Ljava/lang/Object;"))
+            at = @At(value = "INVOKE", target = "Lit/unimi/dsi/fastutil/longs/Long2ObjectMap;put(JLjava/lang/Object;)Ljava/lang/Object;", remap = false))
     private void lunararc$loaded(CallbackInfo ci, @Local ChunkEntities<T> chunk) {
         List<Entity> entities = new ArrayList<>();
         chunk.getEntities().forEach(access -> {

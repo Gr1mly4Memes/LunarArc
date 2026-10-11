@@ -3,8 +3,6 @@ package io.lunararcdevs.lunararc.common.mixin.core.entity;
 import io.lunararcdevs.lunararc.common.LunarArcServerAccess;
 import net.minecraft.world.entity.item.PrimedTnt;
 import net.minecraft.world.level.Level;
-import org.bukkit.Bukkit;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -113,7 +111,7 @@ public abstract class PrimedTntMixin {
             if (state[0] != gameTime) {
                 state[0] = gameTime;
                 state[2] = 0;
-                state[3] = lunararc$readLimit(world.getName(), "max-tnt-per-tick", lunararc$DEFAULT_MAX_PER_TICK);
+                state[3] = io.lunararcdevs.lunararc.common.server.LunarArcServerSettings.intValue(world.getName(), "max-tnt-per-tick", lunararc$DEFAULT_MAX_PER_TICK);
             }
             if (state[2] >= state[3]) return false;
             long now = System.nanoTime();
@@ -138,7 +136,7 @@ public abstract class PrimedTntMixin {
         if (world == null) return true;
 
         Deque<PrimedTnt> active = lunararc$active.computeIfAbsent(world.getName(), name -> new ArrayDeque<>());
-        int max = lunararc$readLimit(world.getName(), "max-tnt-active", lunararc$DEFAULT_MAX_ACTIVE);
+        int max = io.lunararcdevs.lunararc.common.server.LunarArcServerSettings.intValue(world.getName(), "max-tnt-active", lunararc$DEFAULT_MAX_ACTIVE);
         synchronized (active) {
             while (!active.isEmpty() && active.peekFirst().isRemoved()) {
                 active.pollFirst();
@@ -147,21 +145,5 @@ public abstract class PrimedTntMixin {
             active.addLast(tnt);
             return true;
         }
-    }
-
-    @Unique
-    private static int lunararc$readLimit(String worldName, String key, int fallback) {
-        YamlConfiguration spigot;
-        try {
-            spigot = Bukkit.getServer().spigot().getSpigotConfig();
-        } catch (Throwable unavailable) {
-            return fallback;
-        }
-        if (spigot == null) return fallback;
-        String perWorld = "world-settings." + worldName + "." + key;
-        if (spigot.isInt(perWorld)) return spigot.getInt(perWorld);
-        String shared = "world-settings.default." + key;
-        if (spigot.isInt(shared)) return spigot.getInt(shared);
-        return fallback;
     }
 }

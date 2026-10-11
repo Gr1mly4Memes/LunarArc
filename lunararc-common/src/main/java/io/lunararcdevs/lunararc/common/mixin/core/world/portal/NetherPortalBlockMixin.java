@@ -48,6 +48,25 @@ public abstract class NetherPortalBlockMixin {
         if (event.isCancelled()) ci.cancel();
     }
 
+    @WrapOperation(method = "randomTick", require = 0,
+            at = @At(value = "INVOKE",
+                    target = "Lnet/minecraft/world/entity/EntityType;spawn(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/entity/MobSpawnType;)Lnet/minecraft/world/entity/Entity;"))
+    private Entity lunararc$portalPiglinReason(net.minecraft.world.entity.EntityType<?> type, ServerLevel level, BlockPos pos,
+                                               net.minecraft.world.entity.MobSpawnType spawnType, Operation<Entity> original) {
+        if (!io.lunararcdevs.lunararc.common.server.LunarArcServerSettings.flag(level, "enable-zombie-pigmen-portal-spawns", true)) return null;
+        io.lunararcdevs.lunararc.common.event.LunarArcSpawnReasons.set(org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.NETHER_PORTAL);
+        try {
+            Entity spawned = original.call(type, level, pos, spawnType);
+            if (spawned instanceof io.lunararcdevs.lunararc.common.bridge.MobBridge mob
+                    && io.lunararcdevs.lunararc.common.server.LunarArcServerSettings.tuning(level).nerfPigmenFromNetherPortals) {
+                mob.lunararc$setAware(false);
+            }
+            return spawned;
+        } finally {
+            io.lunararcdevs.lunararc.common.event.LunarArcSpawnReasons.set(null);
+        }
+    }
+
     @WrapOperation(method = "getPortalDestination",
             at = @At(value = "INVOKE",
                     target = "Lnet/minecraft/world/level/block/NetherPortalBlock;getExitPortal(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/BlockPos;ZLnet/minecraft/world/level/border/WorldBorder;)Lnet/minecraft/world/level/portal/DimensionTransition;"),
