@@ -316,6 +316,13 @@ public class CraftServer implements Server {
             spigotConfig.addDefault("messages.restart", "Server is restarting");
             spigotConfig.addDefault("advancements.disable-saving", false);
             spigotConfig.addDefault("advancements.disabled", Collections.singletonList("minecraft:story/disabled"));
+            spigotConfig.addDefault("world-settings.default.enable-zombie-pigmen-portal-spawns", true);
+            spigotConfig.addDefault("world-settings.default.merge-radius.item", 2.5);
+            spigotConfig.addDefault("world-settings.default.merge-radius.exp", 3.0);
+            spigotConfig.addDefault("world-settings.default.item-despawn-rate", 6000);
+            spigotConfig.addDefault("world-settings.default.arrow-despawn-rate", 1200);
+            for (String crop : new String[] {"wheat", "carrot", "potato", "beetroot", "melon", "pumpkin", "cactus", "cane", "wart", "cocoa", "vine", "sweetberry", "kelp", "bamboo", "mushroom", "sapling"})
+                spigotConfig.addDefault("world-settings.default.growth." + crop + "-modifier", 100);
             spigotConfig.options().copyDefaults(true);
             spigotConfig.save(spigotFile);
 
@@ -338,6 +345,28 @@ public class CraftServer implements Server {
             paperWorldConfig.addDefault("anticheat.obfuscation.items.hide-itemmeta", false);
             paperWorldConfig.addDefault("anticheat.obfuscation.items.hide-durability", false);
             paperWorldConfig.addDefault("anticheat.obfuscation.items.hide-itemmeta-with-visual-effects", false);
+            paperWorldConfig.addDefault("entities.spawning.alt-item-despawn-rate.enabled", false);
+            paperWorldConfig.addDefault("entities.spawning.alt-item-despawn-rate.items.cobblestone", 300);
+            paperWorldConfig.addDefault("entities.spawning.alt-item-despawn-rate.items.netherrack", 300);
+            paperWorldConfig.addDefault("entities.spawning.alt-item-despawn-rate.items.sand", 300);
+            paperWorldConfig.addDefault("entities.spawning.alt-item-despawn-rate.items.red_sand", 300);
+            paperWorldConfig.addDefault("entities.spawning.alt-item-despawn-rate.items.gravel", 600);
+            paperWorldConfig.addDefault("entities.spawning.alt-item-despawn-rate.items.dirt", 600);
+            paperWorldConfig.addDefault("entities.spawning.alt-item-despawn-rate.items.short_grass", 600);
+            paperWorldConfig.addDefault("entities.spawning.alt-item-despawn-rate.items.pumpkin", 600);
+            paperWorldConfig.addDefault("entities.spawning.alt-item-despawn-rate.items.melon_slice", 600);
+            paperWorldConfig.addDefault("entities.spawning.alt-item-despawn-rate.items.kelp", 600);
+            paperWorldConfig.addDefault("entities.spawning.alt-item-despawn-rate.items.bamboo", 600);
+            paperWorldConfig.addDefault("entities.spawning.alt-item-despawn-rate.items.sugar_cane", 600);
+            for (String category : new String[] {"ambient", "axolotls", "creature", "misc", "monster",
+                    "underground_water_creature", "water_ambient", "water_creature"}) {
+                paperWorldConfig.addDefault("entities.spawning.despawn-ranges." + category + ".soft", 32);
+                paperWorldConfig.addDefault("entities.spawning.despawn-ranges." + category + ".hard", 128);
+                if (!category.equals("misc")) paperWorldConfig.addDefault("entities.spawning.spawn-limits." + category, -1);
+            }
+            paperWorldConfig.addDefault("entities.spawning.non-player-arrow-despawn-rate", "default");
+            paperWorldConfig.addDefault("entities.spawning.creative-arrow-despawn-rate", "default");
+            paperWorldConfig.addDefault("hopper.disable-move-event", false);
             paperWorldConfig.addDefault("anticheat.anti-xray.enabled", false);
             paperWorldConfig.addDefault("anticheat.anti-xray.engine-mode", 1);
             paperWorldConfig.addDefault("anticheat.anti-xray.max-block-height", 64);
@@ -947,6 +976,8 @@ public class CraftServer implements Server {
         commandMap.clearCommands();
         helpMap.clear();
         loadBukkitSideConfiguration();
+        io.lunararcdevs.lunararc.common.server.LunarArcServerSettings.invalidate();
+        io.lunararcdevs.lunararc.common.server.LunarArcTrackingRange.invalidate();
 
         bridge.lunararc$loaderUnlockRegistries();
         try {

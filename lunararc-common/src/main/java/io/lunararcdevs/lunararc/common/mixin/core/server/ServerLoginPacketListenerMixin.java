@@ -37,7 +37,7 @@ import java.net.SocketAddress;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ThreadLocalRandom;
 
-@Mixin(ServerLoginPacketListenerImpl.class)
+@Mixin(value = ServerLoginPacketListenerImpl.class, priority = 500)
 public abstract class ServerLoginPacketListenerMixin implements ServerLoginPacketListenerBridge {
 
     @Shadow @Final MinecraftServer server;
@@ -67,7 +67,7 @@ public abstract class ServerLoginPacketListenerMixin implements ServerLoginPacke
             return;
         }
 
-        this.lunararc$velocityLoginId = ThreadLocalRandom.current().nextInt();
+        this.lunararc$velocityLoginId = VelocitySupport.QUERY_ID;
         this.connection.send(new ClientboundCustomQueryPacket(
                 this.lunararc$velocityLoginId,
                 (net.minecraft.network.protocol.login.custom.CustomQueryPayload) VelocitySupport.createPacket()));
@@ -77,14 +77,13 @@ public abstract class ServerLoginPacketListenerMixin implements ServerLoginPacke
     @Inject(
             method = "handleCustomQueryPacket",
             cancellable = true,
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/server/network/ServerLoginPacketListenerImpl;disconnect(Lnet/minecraft/network/chat/Component;)V"))
+            at = @At("HEAD"))
     private void lunararc$velocityResponse(ServerboundCustomQueryAnswerPacket packet, CallbackInfo ci) {
         if (!LunarArcConfig.isVelocityEnabled() || packet.transactionId() != this.lunararc$velocityLoginId) {
             return;
         }
 
+        VelocitySupport.releaseFabricLoginQuery(this, packet.transactionId());
         var payload = packet.payload();
         if (payload == null) {
             this.disconnect(Component.literal("This server requires you to connect with Velocity."));

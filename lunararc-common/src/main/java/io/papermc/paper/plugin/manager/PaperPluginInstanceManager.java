@@ -212,12 +212,6 @@ class PaperPluginInstanceManager {
         }
 
         try {
-            String enableMsg = "Enabling " + pluginDisplayName;
-            if (plugin.getPluginMeta() instanceof PluginDescriptionFile descriptionFile && CraftMagicNumbers.isLegacy(descriptionFile)) {
-                enableMsg += "*";
-            }
-            plugin.getLogger().info(enableMsg);
-
             JavaPlugin jPlugin = (JavaPlugin) plugin;
 
             if (jPlugin.getClass().getClassLoader() instanceof ConfiguredPluginClassLoader classLoader) { // Paper
@@ -259,8 +253,6 @@ class PaperPluginInstanceManager {
         String pluginName = plugin.getPluginMeta().getDisplayName();
 
         try {
-            plugin.getLogger().info("Disabling %s".formatted(pluginName));
-
             this.server.getPluginManager().callEvent(new PluginDisableEvent(plugin));
             try {
                 javaPlugin.setEnabled(false);

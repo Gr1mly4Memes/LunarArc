@@ -112,7 +112,10 @@ public class CraftWorld implements World {
             return io.papermc.paper.configuration.PaperConfigurations.loadWorldConfiguration(
                     java.nio.file.Path.of("config", "paper-world-defaults.yml"), getWorldFolder().toPath());
         } catch (java.io.IOException error) {
-            throw new java.io.UncheckedIOException("Cannot load Paper settings for world " + name, error);
+            org.slf4j.LoggerFactory.getLogger("LunarArc").warn("Cannot load Paper settings for world {}: {}. "
+                    + "Using built-in defaults for this world until it is fixed.", name, error.getMessage());
+            return io.papermc.paper.configuration.PaperConfigurations.parseWorldConfiguration(
+                    new org.bukkit.configuration.file.YamlConfiguration());
         }
     }
 

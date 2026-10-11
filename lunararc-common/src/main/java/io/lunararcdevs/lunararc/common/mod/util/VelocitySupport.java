@@ -17,6 +17,25 @@ public class VelocitySupport {
 
     public static final ResourceLocation PLAYER_INFO_CHANNEL = ResourceLocation.parse("velocity:player_info");
     public static final int MAX_SUPPORTED_FORWARDING_VERSION = 4;
+    public static final int QUERY_ID = 0x56454C4F;
+
+    public static void releaseFabricLoginQuery(Object listener, int queryId) {
+        try {
+            Class<?> extensions = Class.forName("net.fabricmc.fabric.impl.networking.NetworkHandlerExtensions", false, listener.getClass().getClassLoader());
+            if (!extensions.isInstance(listener)) return;
+            Object addon = extensions.getMethod("getAddon").invoke(listener);
+            for (Class<?> type = addon.getClass(); type != null; type = type.getSuperclass()) {
+                try {
+                    java.lang.reflect.Field channels = type.getDeclaredField("channels");
+                    channels.setAccessible(true);
+                    ((java.util.Map<?, ?>) channels.get(addon)).remove(queryId);
+                    return;
+                } catch (NoSuchFieldException notHere) {
+                }
+            }
+        } catch (ReflectiveOperationException | RuntimeException absent) {
+        }
+    }
 
     public static Object createPacket() {
         FriendlyByteBuf buf = new FriendlyByteBuf(Unpooled.buffer());

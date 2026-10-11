@@ -4,11 +4,13 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import org.jetbrains.annotations.NotNull;
 
-public record VelocityForwardQuery(FriendlyByteBuf data) {
+public record VelocityForwardQuery(FriendlyByteBuf data) implements net.minecraft.network.protocol.login.custom.CustomQueryPayload {
+    @Override
     public @NotNull ResourceLocation id() {
         return VelocitySupport.PLAYER_INFO_CHANNEL;
     }
 
+    @Override
     public void write(@NotNull FriendlyByteBuf buf) {
         buf.writeBytes(this.data.slice());
     }

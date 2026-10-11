@@ -61,6 +61,11 @@ public class LunarArcConfig {
         }
     }
 
-    public static boolean isVelocityEnabled() { return velocityEnabled; }
-    public static byte[] getVelocitySecret() { return velocitySecret; }
+    public static boolean isVelocityEnabled() {
+        return velocityEnabled || io.lunararcdevs.lunararc.common.server.LunarArcServerSettings.paperGlobalBoolean("proxies.velocity.enabled", false);
+    }
+    public static byte[] getVelocitySecret() {
+        String paper = io.lunararcdevs.lunararc.common.server.LunarArcServerSettings.paperGlobalString("proxies.velocity.secret", "");
+        return paper.isEmpty() ? velocitySecret : paper.getBytes(StandardCharsets.UTF_8);
+    }
 }

@@ -17,7 +17,7 @@ public final class CraftSpawnCategory {
             case WATER_CREATURE -> SpawnCategory.WATER_ANIMAL;
             case WATER_AMBIENT -> SpawnCategory.WATER_AMBIENT;
             case UNDERGROUND_WATER_CREATURE -> SpawnCategory.WATER_UNDERGROUND_CREATURE;
-            case MISC -> SpawnCategory.MISC;
+            default -> SpawnCategory.MISC;
         };
     }
 

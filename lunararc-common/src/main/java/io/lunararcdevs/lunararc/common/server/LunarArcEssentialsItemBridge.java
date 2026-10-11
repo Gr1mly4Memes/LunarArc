@@ -28,10 +28,18 @@ public final class LunarArcEssentialsItemBridge {
 
     private LunarArcEssentialsItemBridge() {}
 
+    private static volatile Plugin essentialsPlugin;
+    private static volatile String[] essentialsNames = new String[0];
+    private static volatile long essentialsNamesBuiltAt;
+    private static final long REINDEX_NANOS = java.util.concurrent.TimeUnit.MINUTES.toNanos(2);
+    private static final java.util.concurrent.atomic.AtomicBoolean INDEXING = new java.util.concurrent.atomic.AtomicBoolean();
+
     public static void populateModdedItems(CraftServer craftServer) {
         MODDED_ITEM_ALIASES.refresh();
         Plugin essentials = findEssentials(craftServer);
         if (essentials == null) return;
+        essentialsPlugin = essentials;
+        indexEssentialsNamesAsync();
 
         try {
             stripGeneratedEntries(essentials);
@@ -115,6 +123,65 @@ public final class LunarArcEssentialsItemBridge {
             return constructor.newInstance(material);
         } catch (ReflectiveOperationException error) {
             return null;
+        }
+    }
+
+    private static void indexEssentialsNamesAsync() {
+        if (!INDEXING.compareAndSet(false, true)) return;
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                Plugin essentials = essentialsPlugin;
+                if (essentials == null) return;
+                Object itemDb = getItemDb(essentials);
+                java.util.Collection<?> names = (java.util.Collection<?>) itemDb.getClass().getMethod("listNames").invoke(itemDb);
+                java.util.TreeSet<String> sorted = new java.util.TreeSet<>();
+                for (Object name : new ArrayList<>(names)) {
+                    if (name != null) sorted.add(name.toString().toLowerCase(Locale.ROOT));
+                }
+                essentialsNames = sorted.toArray(new String[0]);
+                essentialsNamesBuiltAt = System.nanoTime();
+            } catch (Throwable error) {
+                LOGGER.debug("[LunarArc] Could not index Essentials item names: {}", error.toString());
+            } finally {
+                INDEXING.set(false);
+            }
+        });
+    }
+
+    /** Fast item-name completion for Essentials give/item, or null when this command or argument is not one. */
+    public static List<String> itemSuggestions(org.bukkit.command.Command command, String[] args, int limit) {
+        if (args.length == 0 || !(command instanceof org.bukkit.command.PluginIdentifiableCommand owned)
+                || !ESSENTIALS_CLASS.equals(owned.getPlugin().getClass().getName())) {
+            return null;
+        }
+        String name = command.getName();
+        int itemArgument = name.equals("give") ? 1 : name.equals("item") ? 0 : -1;
+        if (args.length - 1 != itemArgument) return null;
+        String[] names = essentialsNames;
+        if (names.length == 0) {
+            indexEssentialsNamesAsync();
+            return null;
+        }
+        if (System.nanoTime() - essentialsNamesBuiltAt > REINDEX_NANOS) indexEssentialsNamesAsync();
+
+        String prefix = args[args.length - 1].toLowerCase(Locale.ROOT);
+        MODDED_ITEM_ALIASES.refresh();
+        java.util.TreeSet<String> merged = new java.util.TreeSet<>();
+        collectPrefix(names, prefix, limit, merged);
+        for (String alias : MODDED_ITEM_ALIASES.withPrefix(prefix, limit)) merged.add(alias);
+        List<String> result = new ArrayList<>(Math.min(limit, merged.size()));
+        for (String match : merged) {
+            if (result.size() >= limit) break;
+            result.add(match);
+        }
+        return result;
+    }
+
+    private static void collectPrefix(String[] sorted, String prefix, int limit, java.util.Collection<String> out) {
+        int index = java.util.Arrays.binarySearch(sorted, prefix);
+        if (index < 0) index = -index - 1;
+        for (int taken = 0; index < sorted.length && taken < limit && sorted[index].startsWith(prefix); index++, taken++) {
+            out.add(sorted[index]);
         }
     }
 
