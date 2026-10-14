@@ -187,7 +187,9 @@ dependencies {
 
     compileOnly libs.paper.api
     paperApiReference libs.paper.api
-    compileOnly fileTree(dir: rootProject.ext.paperDir, include: "paper-server-*.jar")
+    // Only the jar for the pinned Minecraft/Paper build. A restored CI cache can still hold paper-server jars from
+    // older versions, and a glob would put those (compiled against ResourceLocation) next to the current one.
+    compileOnly files(rootProject.ext.paperServerJar)
     compileOnly libs.joml
     compileOnly libs.log4j.api
     compileOnly libs.fastutil
