@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 /** Saves and restores a raid's Bukkit PersistentDataContainer next to the raid itself, as Paper does. */
-@Mixin(targets = "net.minecraft.world.entity.raid.Raids$RaidWithId", remap = false)
+@Mixin(value = Raids.RaidWithId.class, remap = false)
 public abstract class RaidPersistentDataMixin {
     private static final String LUNARARC_KEY = "BukkitValues";
 

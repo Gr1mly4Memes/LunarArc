@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 
-@Mixin(targets = "net.minecraft.server.packs.metadata.pack.PackFormat$IntermediaryFormat")
+@Mixin(PackFormat.IntermediaryFormat.class)
 public abstract class PackFormatLenientMixin {
     @Shadow public abstract Optional<PackFormat> min();
     @Shadow public abstract Optional<PackFormat> max();

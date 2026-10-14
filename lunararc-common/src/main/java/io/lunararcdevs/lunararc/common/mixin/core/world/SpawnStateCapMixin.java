@@ -5,11 +5,12 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import io.lunararcdevs.lunararc.common.server.LunarArcServerSettings;
 import net.minecraft.world.entity.MobCategory;
+import net.minecraft.world.level.NaturalSpawner;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 
 /** Paper's per-category spawn limits and ticks-per-spawn cadence, applied where NaturalSpawner asks "may this category spawn". */
-@Mixin(targets = "net.minecraft.world.level.NaturalSpawner$SpawnState", remap = false)
+@Mixin(value = NaturalSpawner.SpawnState.class, remap = false)
 public abstract class SpawnStateCapMixin {
     @WrapOperation(method = "canSpawnForCategoryGlobal", remap = true, require = 1,
             at = @At(value = "INVOKE", remap = true,
