@@ -3,15 +3,12 @@ package io.lunararcdevs.lunararc.forge.mixin.core.server;
 import io.lunararcdevs.lunararc.common.bridge.MinecraftServerBridge;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.ForcedChunksSavedData;
-import net.minecraftforge.common.world.ForgeChunkManager;
 import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.ForgeRegistry;
 import net.minecraftforge.registries.IForgeRegistry;
 import org.spongepowered.asm.mixin.Shadow;
 
 import java.util.List;
-import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.level.LevelEvent;
 import org.spongepowered.asm.mixin.Mixin;
 
@@ -22,22 +19,17 @@ public abstract class MinecraftServerMixin_Forge implements MinecraftServerBridg
 
     @Override
     public void lunararc$loaderLevelLoad(ServerLevel level) {
-        MinecraftForge.EVENT_BUS.post(new LevelEvent.Load(level));
+        LevelEvent.Load.BUS.post(new LevelEvent.Load(level));
     }
 
     @Override
     public void lunararc$loaderLevelUnload(ServerLevel level) {
-        MinecraftForge.EVENT_BUS.post(new LevelEvent.Unload(level));
+        LevelEvent.Unload.BUS.post(new LevelEvent.Unload(level));
     }
 
     @Override
     public void lunararc$loaderMarkLevelsDirty() {
         this.markWorldsDirty();
-    }
-
-    @Override
-    public void lunararc$loaderReinstatePersistentChunks(ServerLevel level, ForcedChunksSavedData savedData) {
-        ForgeChunkManager.reinstatePersistentChunks(level, savedData);
     }
 
     private static List<IForgeRegistry<?>> lunararc$mutableRegistries() {

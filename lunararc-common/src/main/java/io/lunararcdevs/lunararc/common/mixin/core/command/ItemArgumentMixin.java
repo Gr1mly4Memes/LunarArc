@@ -5,7 +5,7 @@ import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import net.minecraft.commands.arguments.item.ItemArgument;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -22,7 +22,7 @@ public abstract class ItemArgumentMixin {
                                                             CallbackInfoReturnable<CompletableFuture<Suggestions>> cir) {
         if (builder.getRemaining().isEmpty()) {
             Set<String> namespaces = new TreeSet<>();
-            for (ResourceLocation key : BuiltInRegistries.ITEM.keySet()) {
+            for (Identifier key : BuiltInRegistries.ITEM.keySet()) {
                 namespaces.add(key.getNamespace() + ":");
             }
             for (String namespace : namespaces) {

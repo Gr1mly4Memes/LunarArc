@@ -15,7 +15,7 @@ public final class NeoForgeBlockBreakEvents {
         org.bukkit.event.block.BlockBreakEvent bukkit = LunarArcBlockBreakCapture.matching(player, neoEvent.getPos());
         if (bukkit == null) {
             bukkit = org.bukkit.craftbukkit.event.CraftEventFactory.callBlockBreakEvent(
-                    player.serverLevel(), neoEvent.getPos(), player);
+                    player.level(), neoEvent.getPos(), player);
         }
         neoEvent.setCanceled(bukkit.isCancelled());
     }

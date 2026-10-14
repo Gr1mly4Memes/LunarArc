@@ -178,7 +178,7 @@ public final class LunarArcCommandRouter {
         net.kyori.adventure.text.Component message = net.kyori.adventure.text.Component.translatable(
                 "command.unknown.command", net.kyori.adventure.text.format.NamedTextColor.RED);
         org.bukkit.event.command.UnknownCommandEvent event =
-                new org.bukkit.event.command.UnknownCommandEvent(sender, bare, message);
+                new org.bukkit.event.command.UnknownCommandEvent((io.papermc.paper.command.brigadier.CommandSourceStack) (Object) source(craftServer, sender), bare, message);
         server.getPluginManager().callEvent(event);
         if (event.message() != null) sender.sendMessage(event.message());
         return true;
@@ -206,7 +206,7 @@ public final class LunarArcCommandRouter {
             return server.getServer().createCommandSourceStack();
         }
         if (sender instanceof org.bukkit.craftbukkit.entity.CraftEntity entity) {
-            return entity.getHandle().createCommandSourceStack();
+            return entity.getHandle().createCommandSourceStackForNameResolution((net.minecraft.server.level.ServerLevel) entity.getHandle().level());
         }
         throw new IllegalArgumentException("Unsupported native command sender: " + sender.getClass().getName());
     }

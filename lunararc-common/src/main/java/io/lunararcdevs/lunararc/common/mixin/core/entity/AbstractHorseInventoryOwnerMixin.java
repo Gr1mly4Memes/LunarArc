@@ -2,7 +2,7 @@ package io.lunararcdevs.lunararc.common.mixin.core.entity;
 
 import io.lunararcdevs.lunararc.common.event.LunarArcContainerOwners;
 import net.minecraft.world.SimpleContainer;
-import net.minecraft.world.entity.animal.horse.AbstractHorse;
+import net.minecraft.world.entity.animal.equine.AbstractHorse;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;

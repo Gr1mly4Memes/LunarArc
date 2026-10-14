@@ -127,7 +127,7 @@ public final class CraftChatMessage {
                             this.appendNewComponent(matcher.end(groupId));
                         } else {
                             String target = match.startsWith("http://") || match.startsWith("https://") ? match : "http://" + match;
-                            this.modifier = this.modifier.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, target));
+                            this.modifier = this.modifier.withClickEvent(new ClickEvent.OpenUrl(java.net.URI.create(target)));
                             this.appendNewComponent(matcher.end(groupId));
                             this.modifier = this.modifier.withClickEvent((ClickEvent) null);
                         }
@@ -198,15 +198,99 @@ public final class CraftChatMessage {
     }
 
     public static String toJSON(Component component) {
-        return Component.Serializer.toJson(component, lookupProvider());
+        return new com.google.gson.Gson().toJson(net.minecraft.network.chat.ComponentSerialization.CODEC
+                .encodeStart(lookupProvider().createSerializationContext(com.mojang.serialization.JsonOps.INSTANCE), component)
+                .getOrThrow(com.google.gson.JsonParseException::new));
     }
 
     public static String toJSONOrNull(Component component) {
         return component == null ? null : toJSON(component);
     }
 
+    /**
+     * Rewrites pre-1.21.5 component JSON ("clickEvent"/"hoverEvent" with "value"/"contents") into the
+     * "click_event"/"hover_event" layout the 1.21.11 codec reads. Bungee-chat and older plugins still emit
+     * the old keys, which the codec silently ignores, leaving links unclickable.
+     */
+    private static com.google.gson.JsonElement modernizeJson(com.google.gson.JsonElement element) {
+        if (element == null) return null;
+        if (element.isJsonArray()) {
+            for (com.google.gson.JsonElement child : element.getAsJsonArray()) modernizeJson(child);
+            return element;
+        }
+        if (!element.isJsonObject()) return element;
+        com.google.gson.JsonObject object = element.getAsJsonObject();
+
+        if (object.has("clickEvent") && object.get("clickEvent").isJsonObject()) {
+            com.google.gson.JsonObject old = object.remove("clickEvent").getAsJsonObject();
+            if (!object.has("click_event") && old.has("action")) {
+                String action = old.get("action").getAsString();
+                com.google.gson.JsonElement value = old.get("value");
+                com.google.gson.JsonObject click = new com.google.gson.JsonObject();
+                click.addProperty("action", action);
+                if (value != null) {
+                    switch (action) {
+                        case "open_url" -> click.add("url", value);
+                        case "open_file" -> click.add("path", value);
+                        case "run_command", "suggest_command" -> click.add("command", value);
+                        case "change_page" -> {
+                            try { click.addProperty("page", Integer.parseInt(value.getAsString())); }
+                            catch (NumberFormatException ignored) { click.add("page", value); }
+                        }
+                        default -> click.add("value", value);
+                    }
+                }
+                object.add("click_event", click);
+            }
+        }
+
+        if (object.has("hoverEvent") && object.get("hoverEvent").isJsonObject()) {
+            com.google.gson.JsonObject old = object.remove("hoverEvent").getAsJsonObject();
+            if (!object.has("hover_event") && old.has("action")) {
+                String action = old.get("action").getAsString();
+                com.google.gson.JsonElement contents = old.has("contents") ? old.get("contents") : old.get("value");
+                com.google.gson.JsonObject hover = new com.google.gson.JsonObject();
+                hover.addProperty("action", action);
+                if (contents != null) {
+                    switch (action) {
+                        case "show_text" -> hover.add("value", contents);
+                        case "show_item" -> {
+                            if (contents.isJsonObject()) {
+                                com.google.gson.JsonObject item = contents.getAsJsonObject();
+                                if (item.has("id")) hover.add("id", item.get("id"));
+                                if (item.has("count")) hover.add("count", item.get("count"));
+                                if (item.has("components")) hover.add("components", item.get("components"));
+                            } else {
+                                hover.add("id", contents);
+                            }
+                        }
+                        case "show_entity" -> {
+                            if (contents.isJsonObject()) {
+                                com.google.gson.JsonObject entity = contents.getAsJsonObject();
+                                if (entity.has("type")) hover.add("id", entity.get("type"));
+                                if (entity.has("id")) hover.add("uuid", entity.get("id"));
+                                if (entity.has("name")) hover.add("name", entity.get("name"));
+                            }
+                        }
+                        default -> hover.add("value", contents);
+                    }
+                }
+                object.add("hover_event", hover);
+            }
+        }
+
+        for (java.util.Map.Entry<String, com.google.gson.JsonElement> entry : object.entrySet()) {
+            modernizeJson(entry.getValue());
+        }
+        return object;
+    }
+
     public static MutableComponent fromJSON(String jsonMessage) throws JsonParseException {
-        return Component.Serializer.fromJson(jsonMessage, lookupProvider());
+        com.google.gson.JsonElement element = modernizeJson(com.google.gson.JsonParser.parseString(jsonMessage));
+        Component parsed = net.minecraft.network.chat.ComponentSerialization.CODEC
+                .parse(lookupProvider().createSerializationContext(com.mojang.serialization.JsonOps.INSTANCE), element)
+                .getOrThrow(com.google.gson.JsonParseException::new);
+        return parsed instanceof MutableComponent mutable ? mutable : parsed.copy();
     }
 
     public static MutableComponent fromJSONOrNull(String jsonMessage) {
@@ -275,7 +359,7 @@ public final class CraftChatMessage {
                     if (!(target.startsWith("http://") || target.startsWith("https://"))) target = "http://" + target;
                     extras.add(Component.literal(msg.substring(pos, matcher.start())).setStyle(modifier));
                     extras.add(Component.literal(matcher.group()).setStyle(
-                            modifier.withClickEvent(new ClickEvent(ClickEvent.Action.OPEN_URL, target))));
+                            modifier.withClickEvent(new ClickEvent.OpenUrl(java.net.URI.create(target)))));
                     pos = matcher.end();
                 }
                 extras.add(Component.literal(msg.substring(pos)).setStyle(modifier));

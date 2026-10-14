@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class IceBlockMixin {
     @Inject(method = "melt", at = @At("HEAD"), cancellable = true)
     private void lunararc$melt(BlockState state, Level level, BlockPos pos, CallbackInfo ci) {
-        BlockState melted = level.dimensionType().ultraWarm() ? Blocks.AIR.defaultBlockState() : Blocks.WATER.defaultBlockState();
+        BlockState melted = level.environmentAttributes().getValue(net.minecraft.world.attribute.EnvironmentAttributes.WATER_EVAPORATES, pos) ? Blocks.AIR.defaultBlockState() : Blocks.WATER.defaultBlockState();
         if (CraftEventFactory.callBlockFadeCancelled(level, pos, melted)) ci.cancel();
     }
 }

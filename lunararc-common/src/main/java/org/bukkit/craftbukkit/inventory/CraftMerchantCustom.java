@@ -61,6 +61,7 @@ public final class CraftMerchantCustom implements Merchant, org.bukkit.craftbukk
         @Override public org.bukkit.inventory.Merchant lunararc$getBukkitMerchant() { return CraftMerchantCustom.this; }
         @Override public void setTradingPlayer(@Nullable Player player) { this.tradingPlayer = player; }
         @Override public @Nullable Player getTradingPlayer() { return this.tradingPlayer; }
+        @Override public boolean stillValid(Player player) { return this.tradingPlayer == player; }
         @Override public MerchantOffers getOffers() { return this.offers; }
         @Override public void overrideOffers(MerchantOffers offers) { this.offers = Preconditions.checkNotNull(offers); }
         @Override public void notifyTrade(MerchantOffer offer) { offer.increaseUses(); }

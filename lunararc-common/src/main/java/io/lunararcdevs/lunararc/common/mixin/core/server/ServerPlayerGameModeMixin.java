@@ -74,7 +74,7 @@ public abstract class ServerPlayerGameModeMixin implements ServerPlayerGameModeB
 
         if (event.useInteractedBlock() == org.bukkit.event.Event.Result.DENY) {
             player.connection.send(new net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket(
-                    player.serverLevel(), hitResult.getBlockPos()));
+                    player.level(), hitResult.getBlockPos()));
             Object bukkit = ((io.lunararcdevs.lunararc.common.bridge.EntityBridge) player).lunararc$getBukkitEntity();
             if (bukkit instanceof org.bukkit.craftbukkit.entity.CraftPlayer craftPlayer) craftPlayer.updateInventory();
             cir.setReturnValue(event.useItemInHand() != org.bukkit.event.Event.Result.ALLOW
@@ -127,13 +127,13 @@ public abstract class ServerPlayerGameModeMixin implements ServerPlayerGameModeB
                     || event.useInteractedBlock() == org.bukkit.event.Event.Result.DENY
                     || event.useItemInHand() == org.bukkit.event.Event.Result.DENY)) {
                 this.player.connection.send(new net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket(
-                        this.player.serverLevel(), pos));
+                        this.player.level(), pos));
                 ci.cancel();
             }
             // Real Paper's onPlayerLeftClickBlock anti-xray hook: starting to break a block near a
             // hidden ore reveals it, the same as actually breaking a neighbouring block would.
-            io.lunararcdevs.lunararc.common.server.LunarArcAntiXrayEngine.forLevel(this.player.serverLevel())
-                    .onBlockInteractStart(this.player.serverLevel(), pos);
+            io.lunararcdevs.lunararc.common.server.LunarArcAntiXrayEngine.forLevel(this.player.level())
+                    .onBlockInteractStart(this.player.level(), pos);
         } finally {
             io.lunararcdevs.lunararc.common.server.LunarArcContext.clear();
         }
@@ -153,13 +153,13 @@ public abstract class ServerPlayerGameModeMixin implements ServerPlayerGameModeB
         org.bukkit.event.block.BlockBreakEvent event =
                 io.lunararcdevs.lunararc.common.mod.util.LunarArcBlockBreakCapture.matching(player, pos);
         if (event == null) {
-            event = org.bukkit.craftbukkit.event.CraftEventFactory.callBlockBreakEvent(player.serverLevel(), pos, player);
+            event = org.bukkit.craftbukkit.event.CraftEventFactory.callBlockBreakEvent(player.level(), pos, player);
             io.lunararcdevs.lunararc.common.mod.util.LunarArcBlockBreakCapture.capture(player, pos, event);
         }
         boolean loaderOwnsCancellation = ((io.lunararcdevs.lunararc.common.bridge.MinecraftServerBridge) (Object) player.server)
                 .lunararc$loaderHandlesBlockBreakEvent();
         if (event.isCancelled() && !loaderOwnsCancellation) {
-            player.connection.send(new net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket(player.serverLevel(), pos));
+            player.connection.send(new net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket(player.level(), pos));
             cir.setReturnValue(false);
         } else {
             io.lunararcdevs.lunararc.common.event.LunarArcPaperEvents.beginBlockDrops(player, pos);

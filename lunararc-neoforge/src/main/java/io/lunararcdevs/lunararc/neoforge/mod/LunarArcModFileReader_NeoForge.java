@@ -1,10 +1,6 @@
 package io.lunararcdevs.lunararc.neoforge.mod;
 
-import cpw.mods.jarhandling.JarContents;
-import cpw.mods.jarhandling.JarContentsBuilder;
-import cpw.mods.jarhandling.SecureJar;
-import cpw.mods.jarhandling.impl.JarContentsImpl;
-import io.lunararcdevs.lunararc.api.Unsafe;
+import net.neoforged.fml.jarcontents.JarContents;
 import net.neoforged.fml.loading.moddiscovery.readers.JarModsDotTomlModFileReader;
 import net.neoforged.neoforgespi.locating.IModFile;
 import net.neoforged.neoforgespi.locating.IModFileReader;
@@ -13,7 +9,10 @@ import net.neoforged.neoforgespi.locating.ModFileDiscoveryAttributes;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.invoke.VarHandle;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
@@ -25,21 +24,9 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class LunarArcModFileReader_NeoForge implements IModFileReader {
     private static final Logger LOGGER = LoggerFactory.getLogger("LunarArc");
     private static final String SERVICES = "META-INF/services/";
-    private static final VarHandle PACKAGES = cacheHandle("packages", Set.class);
-    private static final VarHandle PROVIDERS = cacheHandle("providers", List.class);
-
     private final Set<String> libraryPackages = collectLibraryPackages();
     private final Set<String> reported = ConcurrentHashMap.newKeySet();
     private final IModFileReader delegate = new JarModsDotTomlModFileReader();
-
-    private static VarHandle cacheHandle(String field, Class<?> type) {
-        try {
-            return Unsafe.lookup().findVarHandle(JarContentsImpl.class, field, type);
-        } catch (ReflectiveOperationException unavailable) {
-            LOGGER.warn("Could not access FML's jar contents cache; nested libraries that clash with LunarArc's own cannot be adjusted", unavailable);
-            return null;
-        }
-    }
 
     private static Set<String> collectLibraryPackages() {
         Set<String> packages = new HashSet<>();
@@ -84,24 +71,12 @@ public final class LunarArcModFileReader_NeoForge implements IModFileReader {
         if (primary == null || ownedByLunarArc(primary)) return null;
 
         Set<String> clashing = new TreeSet<>();
-        for (String name : jar.getPackages()) {
-            if (libraryPackages.contains(name)) clashing.add(name);
-        }
         Set<String> staleServiceFiles = new TreeSet<>();
-        for (SecureJar.Provider provider : jar.getMetaInfServices()) {
-            for (String implementation : provider.providers()) {
-                String implementationPackage = packageOfClass(implementation);
-                if (libraryPackages.contains(implementationPackage)) {
-                    staleServiceFiles.add(SERVICES + provider.serviceName());
-                    clashing.add(implementationPackage);
-                    break;
-                }
-            }
-        }
+        scan(jar, clashing, staleServiceFiles);
         if (clashing.isEmpty()) return null;
 
         IModFile modFile = readWithoutClashingEntries(primary, attributes, clashing, staleServiceFiles);
-        if (modFile == null && !hideInCache(jar, clashing)) return null;
+        if (modFile == null) return null;
         String description = describe(primary, attributes);
         String examples = String.join(", ", clashing.stream().limit(3).toList());
         if (reported.add(description + ": " + examples)) {
@@ -110,39 +85,45 @@ public final class LunarArcModFileReader_NeoForge implements IModFileReader {
         return modFile;
     }
 
+    /** Collects the packages (and the service files naming them) that clash with LunarArc's own libraries. */
+    private void scan(JarContents jar, Set<String> clashing, Set<String> staleServiceFiles) {
+        jar.visitContent((entry, resource) -> {
+            String name = stripLeadingSlash(entry);
+            if (name.endsWith(".class")) {
+                String pkg = packageOf(name);
+                if (libraryPackages.contains(pkg)) clashing.add(pkg);
+            } else if (name.startsWith(SERVICES) && name.length() > SERVICES.length()) {
+                try (BufferedReader reader = resource.bufferedReader(StandardCharsets.UTF_8)) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        int comment = line.indexOf('#');
+                        String implementation = (comment < 0 ? line : line.substring(0, comment)).trim();
+                        if (implementation.isEmpty()) continue;
+                        String implementationPackage = packageOfClass(implementation);
+                        if (libraryPackages.contains(implementationPackage)) {
+                            staleServiceFiles.add(name);
+                            clashing.add(implementationPackage);
+                            break;
+                        }
+                    }
+                } catch (IOException unreadable) {
+                    LOGGER.debug("Could not read service file {}", name, unreadable);
+                }
+            }
+        });
+    }
+
     private IModFile readWithoutClashingEntries(Path primary, ModFileDiscoveryAttributes attributes, Set<String> clashing, Set<String> staleServiceFiles) {
         try {
             if (!Files.isRegularFile(primary)) return null;
-            JarContents filtered = new JarContentsBuilder()
-                    .paths(primary)
-                    .pathFilter((entry, base) -> !clashing.contains(packageOf(entry)) && !staleServiceFiles.contains(stripLeadingSlash(entry)))
-                    .build();
+            JarContents filtered = JarContents.ofFilteredPaths(Collections.singletonList(new JarContents.FilteredPath(primary,
+                    entry -> !clashing.contains(packageOf(entry)) && !staleServiceFiles.contains(stripLeadingSlash(entry)))));
             IModFile modFile = delegate.read(filtered, attributes);
             if (modFile == null) filtered.close();
             return modFile;
         } catch (Throwable failure) {
             LOGGER.warn("Could not reopen {} without the packages that clash with LunarArc's own", primary.getFileName(), failure);
             return null;
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private static boolean hideInCache(JarContents jar, Set<String> clashing) {
-        if (PACKAGES == null || PROVIDERS == null || !(jar instanceof JarContentsImpl impl)) return false;
-        try {
-            impl.getPackages();
-            impl.getMetaInfServices();
-            Set<String> packages = new HashSet<>((Set<String>) PACKAGES.get(impl));
-            packages.removeAll(clashing);
-            PACKAGES.set(impl, packages);
-            List<SecureJar.Provider> providers = ((List<SecureJar.Provider>) PROVIDERS.get(impl)).stream()
-                    .filter(provider -> provider.providers().stream().noneMatch(implementation -> clashing.contains(packageOfClass(implementation))))
-                    .toList();
-            PROVIDERS.set(impl, providers);
-            return true;
-        } catch (Throwable failure) {
-            LOGGER.warn("Could not adjust the packages of a library that clashes with LunarArc's own", failure);
-            return false;
         }
     }
 

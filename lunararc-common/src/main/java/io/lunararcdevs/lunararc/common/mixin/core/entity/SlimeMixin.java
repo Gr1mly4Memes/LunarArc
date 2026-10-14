@@ -12,8 +12,8 @@ public abstract class SlimeMixin implements SlimeBridge {
     @Unique private boolean lunararc$canWander = true;
     @Override public boolean lunararc$canWander() { return lunararc$canWander; }
     @Override public void lunararc$setCanWander(boolean value) { lunararc$canWander = value; }
-    @Inject(method="addAdditionalSaveData", at=@At("TAIL"))
-    private void lunararc$saveWander(CompoundTag tag, CallbackInfo ci) { tag.putBoolean("Paper.canWander", lunararc$canWander); }
-    @Inject(method="readAdditionalSaveData", at=@At("TAIL"))
-    private void lunararc$loadWander(CompoundTag tag, CallbackInfo ci) { if (tag.contains("Paper.canWander")) lunararc$canWander = tag.getBoolean("Paper.canWander"); }
+    @Inject(method = "addAdditionalSaveData", at = @At("TAIL"), require = 1)
+    private void lunararc$saveWander(net.minecraft.world.level.storage.ValueOutput output, CallbackInfo ci) { output.putBoolean("Paper.canWander", lunararc$canWander); }
+    @Inject(method = "readAdditionalSaveData", at = @At("TAIL"), require = 1)
+    private void lunararc$loadWander(net.minecraft.world.level.storage.ValueInput input, CallbackInfo ci) { lunararc$canWander = input.getBooleanOr("Paper.canWander", true); }
 }

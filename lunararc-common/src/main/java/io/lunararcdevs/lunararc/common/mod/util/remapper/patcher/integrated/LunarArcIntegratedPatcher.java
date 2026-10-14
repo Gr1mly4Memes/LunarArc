@@ -16,10 +16,6 @@ public final class LunarArcIntegratedPatcher implements PluginPatcher {
 
     private static final Map<String, BiConsumer<ClassNode, ClassRepo>> SPECIFIC = new HashMap<>();
 
-    // See LunarArcWorldEditRegenLevel for why this exists: WorldEdit's PaperweightAdapter builds
-    // a throwaway ServerLevel for //regen through a Paper-only constructor overload this platform
-    // doesn't have and Mixin can't add. Retargeting the NEW/INVOKESPECIAL pair to our subclass at
-    // plugin-load time keeps WorldEdit's own bytecode otherwise untouched.
     private static final String WORLDEDIT_REGEN_ADAPTER = "com/sk89q/worldedit/bukkit/adapter/impl/v1_21/PaperweightAdapter";
     private static final String SERVER_LEVEL_MOJANG = "net/minecraft/server/level/ServerLevel";
     private static final String REGEN_LEVEL = "io/lunararcdevs/lunararc/common/compat/worldedit/LunarArcWorldEditRegenLevel";
@@ -35,7 +31,6 @@ public final class LunarArcIntegratedPatcher implements PluginPatcher {
                     + "Lnet/minecraft/world/level/storage/PrimaryLevelData;"
                     + "Lnet/minecraft/resources/ResourceKey;"
                     + "Lnet/minecraft/world/level/dimension/LevelStem;"
-                    + "Lnet/minecraft/server/level/progress/ChunkProgressListener;"
                     + "ZJLjava/util/List;ZLnet/minecraft/world/RandomSequences;"
                     + "Lorg/bukkit/World$Environment;"
                     + "Lorg/bukkit/generator/ChunkGenerator;"
@@ -67,6 +62,8 @@ public final class LunarArcIntegratedPatcher implements PluginPatcher {
     @Override
     public void handleClass(ClassNode node, ClassRepo classRepo) {
         BiConsumer<ClassNode, ClassRepo> consumer = SPECIFIC.get(node.name);
+        // WorldEdit ships one adapter per Minecraft release (v1_21, v1_21_4, ... v1_21_11); every one builds its //regen level the same way.
+        if (consumer == null && isWorldEditRegenAdapter(node.name)) consumer = LunarArcIntegratedPatcher::patchWorldEditRegen;
         if (consumer != null) {
             consumer.accept(node, classRepo);
         }
@@ -75,6 +72,10 @@ public final class LunarArcIntegratedPatcher implements PluginPatcher {
         if (node.name.startsWith(WORLDEDIT_ADAPTER_PREFIX) && node.name.endsWith(WORLDEDIT_PROPERTY_LOADER_SUFFIX)) {
             patchWorldEditUnknownProperties(node);
         }
+    }
+
+    private static boolean isWorldEditRegenAdapter(String name) {
+        return name.startsWith(WORLDEDIT_ADAPTER_PREFIX + "v1_21") && name.endsWith("/PaperweightAdapter");
     }
 
     public static java.util.List<String> worldEditPropertyValueNames(Object property) {
@@ -137,6 +138,7 @@ public final class LunarArcIntegratedPatcher implements PluginPatcher {
             replacement.add(new MethodInsnNode(Opcodes.INVOKESPECIAL, WORLDEDIT_ENUM_PROPERTY, "<init>", enumInit.desc, false));
             replacement.add(new org.objectweb.asm.tree.InsnNode(Opcodes.ARETURN));
 
+            AbstractInsnNode anchor = end.getNext();
             AbstractInsnNode removeCursor = illegalNew;
             while (removeCursor != null) {
                 AbstractInsnNode following = removeCursor.getNext();
@@ -145,7 +147,8 @@ public final class LunarArcIntegratedPatcher implements PluginPatcher {
                 if (last) break;
                 removeCursor = following;
             }
-            method.instructions.add(replacement);
+            if (anchor != null) method.instructions.insertBefore(anchor, replacement);
+            else method.instructions.add(replacement);
         }
     }
 
@@ -211,7 +214,7 @@ public final class LunarArcIntegratedPatcher implements PluginPatcher {
                     String replacement;
                     if (serverLevel.equals(call.owner) && regenCtorDesc.equals(call.desc)) {
                         replacement = REGEN_LEVEL;
-                    } else if (WORLDEDIT_NOOP_LISTENER.equals(call.owner) && "()V".equals(call.desc)) {
+                    } else if ((WORLDEDIT_NOOP_LISTENER.equals(call.owner) || call.owner.startsWith(node.name + "$NoOp")) && "()V".equals(call.desc)) {
                         replacement = LUNARARC_NOOP_LISTENER;
                     } else {
                         continue;

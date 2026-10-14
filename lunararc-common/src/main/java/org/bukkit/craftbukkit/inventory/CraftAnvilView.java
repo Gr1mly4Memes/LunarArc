@@ -40,4 +40,9 @@ public final class CraftAnvilView extends CraftInventoryView implements AnvilVie
     }
     @Override public boolean bypassesEnchantmentLevelRestriction() { return bridge().lunararc$bypassesEnchantmentLevelRestriction(); }
     @Override public void bypassEnchantmentLevelRestriction(boolean value) { bridge().lunararc$setBypassEnchantmentLevelRestriction(value); }
+
+    @Override
+    public void open() {
+        getPlayer().openInventory(this);
+    }
 }

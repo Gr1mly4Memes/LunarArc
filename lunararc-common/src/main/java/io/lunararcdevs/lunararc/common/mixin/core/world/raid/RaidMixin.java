@@ -30,23 +30,15 @@ public abstract class RaidMixin implements RaidBridge {
     @Shadow @Final private Set<UUID> heroesOfTheVillage;
     @Shadow @Final private Map<Integer, Set<Raider>> groupRaiderMap;
     @Shadow @Final private ServerBossEvent raidEvent;
-    @Shadow @Final private ServerLevel level;
+    @Unique private ServerLevel lunararc$lastLevel;
 
     @Unique private static final String LUNARARC_PDC_KEY = "BukkitValues";
     @Unique private CraftPersistentDataContainer lunararc$pdc = new CraftPersistentDataContainer();
 
-    @Inject(method = "<init>(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/nbt/CompoundTag;)V", at = @At("TAIL"), require = 0)
-    private void lunararc$readPersistentData(ServerLevel level, CompoundTag tag, CallbackInfo ci) {
-        if (tag.contains(LUNARARC_PDC_KEY, net.minecraft.nbt.Tag.TAG_COMPOUND)) {
-            this.lunararc$pdc.putAll(tag.getCompound(LUNARARC_PDC_KEY));
-        }
-    }
-
-    @Inject(method = "save", at = @At("RETURN"), require = 0)
-    private void lunararc$writePersistentData(CompoundTag tag, CallbackInfoReturnable<CompoundTag> cir) {
-        if (!this.lunararc$pdc.isEmpty()) {
-            tag.put(LUNARARC_PDC_KEY, this.lunararc$pdc.toTagCompound());
-        }
+    /** Raids no longer hold their level; remember the one that ticks them. */
+    @Inject(method = "tick", at = @At("HEAD"), require = 1)
+    private void lunararc$rememberLevel(ServerLevel level, CallbackInfo ci) {
+        this.lunararc$lastLevel = level;
     }
 
     @Override public long lunararc$activeTicks() { return this.ticksActive; }
@@ -55,7 +47,7 @@ public abstract class RaidMixin implements RaidBridge {
     @Override public int lunararc$numGroups() { return this.numGroups; }
     @Override public Set<UUID> lunararc$heroes() { return this.heroesOfTheVillage; }
     @Override public ServerBossEvent lunararc$bossEvent() { return this.raidEvent; }
-    @Override public ServerLevel lunararc$level() { return this.level; }
+    @Override public ServerLevel lunararc$level() { return this.lunararc$lastLevel; }
     @Override public CraftPersistentDataContainer lunararc$persistentData() { return this.lunararc$pdc; }
 
     @Override

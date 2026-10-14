@@ -142,7 +142,7 @@ public abstract class ItemEntityMixin implements ItemEntityBridge {
         }
 
         int capacity = 0;
-        for (ItemStack existing : inventory.items) {
+        for (ItemStack existing : inventory.getNonEquipmentItems()) {
             if (existing.isEmpty()) {
                 capacity += stack.getMaxStackSize();
             } else if (ItemStack.isSameItemSameComponents(existing, stack) && existing.isStackable()) {
@@ -159,23 +159,24 @@ public abstract class ItemEntityMixin implements ItemEntityBridge {
         return Math.max(0, count - capacity);
     }
 
-    @Inject(method = "addAdditionalSaveData", at = @At("TAIL"), require = 0)
-    private void lunararc$savePaperItemState(CompoundTag tag, CallbackInfo ci) {
-        if (!lunararc$canMobPickup) tag.putBoolean("Paper.CanMobPickup", false);
+    @Inject(method = "addAdditionalSaveData", at = @At("TAIL"), require = 1)
+    private void lunararc$savePaperItemState(net.minecraft.world.level.storage.ValueOutput output, CallbackInfo ci) {
+        if (!lunararc$canMobPickup) output.putBoolean("Paper.CanMobPickup", false);
         if (lunararc$frictionState != TriState.NOT_SET) {
-            tag.putString("Paper.FrictionState", lunararc$frictionState.toString());
+            output.putString("Paper.FrictionState", lunararc$frictionState.toString());
         }
     }
 
-    @Inject(method = "readAdditionalSaveData", at = @At("TAIL"), require = 0)
-    private void lunararc$loadPaperItemState(CompoundTag tag, CallbackInfo ci) {
-        if (tag.contains("Paper.CanMobPickup")) lunararc$canMobPickup = tag.getBoolean("Paper.CanMobPickup");
-        if (tag.contains("Paper.FrictionState")) {
+    @Inject(method = "readAdditionalSaveData", at = @At("TAIL"), require = 1)
+    private void lunararc$loadPaperItemState(net.minecraft.world.level.storage.ValueInput input, CallbackInfo ci) {
+        lunararc$canMobPickup = input.getBooleanOr("Paper.CanMobPickup", true);
+        lunararc$frictionState = TriState.NOT_SET;
+        input.getString("Paper.FrictionState").ifPresent(name -> {
             try {
-                lunararc$frictionState = TriState.valueOf(tag.getString("Paper.FrictionState"));
+                lunararc$frictionState = TriState.valueOf(name);
             } catch (IllegalArgumentException ignored) {
                 lunararc$frictionState = TriState.NOT_SET;
             }
-        }
+        });
     }
 }

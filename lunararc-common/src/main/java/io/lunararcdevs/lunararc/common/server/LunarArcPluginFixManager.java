@@ -21,14 +21,21 @@ public final class LunarArcPluginFixManager {
 
     private LunarArcPluginFixManager() {}
 
-    public static void applyPluginProperties(String pluginName) {
-        if (pluginName == null) return;
-
-        if (pluginName.equals("WorldEdit")) {
-            if (System.getProperty("worldedit.bukkit.adapter") == null) {
-                System.setProperty("worldedit.bukkit.adapter",
-                        "com.sk89q.worldedit.bukkit.adapter.impl.v1_21.PaperweightAdapter");
+    public static void applyPluginProperties(String pluginName, java.io.File pluginFile) {
+        if (pluginName == null || !pluginName.equals("WorldEdit") || pluginFile == null) return;
+        if (System.getProperty("worldedit.bukkit.adapter") != null) return;
+        // WorldEdit swallows every adapter that fails to construct, so a broken adapter just reads as "unsupported
+        // version". Naming the adapter for this exact Minecraft version makes WorldEdit report why it failed.
+        try {
+            String version = net.minecraft.SharedConstants.getCurrentVersion().id();
+            String adapter = "com.sk89q.worldedit.bukkit.adapter.impl.v" + version.replace('.', '_') + ".PaperweightAdapter";
+            try (java.util.jar.JarFile jar = new java.util.jar.JarFile(pluginFile)) {
+                if (jar.getEntry(adapter.replace('.', '/') + ".class") != null) {
+                    System.setProperty("worldedit.bukkit.adapter", adapter);
+                }
             }
+        } catch (Throwable ignored) {
+            // Not a jar, or no adapter for this version: WorldEdit falls back to its own search.
         }
     }
 
@@ -40,7 +47,8 @@ public final class LunarArcPluginFixManager {
             case "com.sk89q.worldedit.util.translation.TranslationManager" ->
                     LunarArcPluginFixManager::fixEmptyWorldEditTranslations;
             case "com.sk89q.worldedit.bukkit.adapter.impl.v1_21.PaperweightAdapter",
-                 "com.sk89q.worldedit.bukkit.adapter.ext.fawe.v1_21_R1.PaperweightAdapter" ->
+                 "com.sk89q.worldedit.bukkit.adapter.impl.v1_21_11.PaperweightAdapter",
+                 "com.sk89q.worldedit.bukkit.adapter.ext.fawe.v1_21_R7.PaperweightAdapter" ->
                     node -> helloWorld(node, "org.spigotmc.WatchdogThread", REPLACEMENT);
             case "com.fastasyncworldedit.bukkit.util.MinecraftVersion" ->
                     node -> redirectMethodToGetNMSVersion(node, "getPackageVersion");
@@ -268,8 +276,8 @@ public final class LunarArcPluginFixManager {
         String requested = itemName.trim().toLowerCase(Locale.ROOT);
         if (requested.startsWith("minecraft:") || requested.indexOf(':') <= 0) return itemName;
 
-        net.minecraft.resources.ResourceLocation id =
-                net.minecraft.resources.ResourceLocation.tryParse(requested);
+        net.minecraft.resources.Identifier id =
+                net.minecraft.resources.Identifier.tryParse(requested);
         if (id == null || LunarArcDynamicBukkitEnums.material(id) == null) return itemName;
 
         return (id.getNamespace() + "_" + id.getPath()).toLowerCase(Locale.ROOT);
@@ -308,7 +316,7 @@ public final class LunarArcPluginFixManager {
     }
 
     public static String getNMSVersion() {
-        return "v1_21_R1";
+        return "v1_21_R7";
     }
 
     private static byte[] patch(byte[] basicClass, Consumer<ClassNode> handler) {

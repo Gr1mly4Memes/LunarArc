@@ -69,8 +69,8 @@ public final class LunarArcServerListPing {
                     status.version().map(ServerStatus.Version::protocol).orElse(-1), craft.getServerIcon());
             this.server = server;
             status.players().ifPresent(players -> {
-                for (GameProfile profile : players.sample()) {
-                    getListedPlayers().add(new ListedPlayerInfo(profile.getName(), profile.getId()));
+                for (net.minecraft.server.players.NameAndId profile : players.sample()) {
+                    getListedPlayers().add(new ListedPlayerInfo(profile.name(), profile.id()));
                 }
             });
         }
@@ -100,9 +100,9 @@ public final class LunarArcServerListPing {
 
         Optional<ServerStatus.Players> players = Optional.empty();
         if (!event.shouldHidePlayers()) {
-            List<GameProfile> sample = new ArrayList<>();
+            List<net.minecraft.server.players.NameAndId> sample = new ArrayList<>();
             for (PaperServerListPingEvent.ListedPlayerInfo info : event.getListedPlayers()) {
-                sample.add(new GameProfile(info.id(), info.name()));
+                sample.add(new net.minecraft.server.players.NameAndId(info.id(), info.name()));
             }
             players = Optional.of(new ServerStatus.Players(event.getMaxPlayers(), event.getNumPlayers(), sample));
         }

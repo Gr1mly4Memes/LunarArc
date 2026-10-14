@@ -14,20 +14,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(InventoryMenu.class)
 public abstract class InventoryMenuMixin implements io.lunararcdevs.lunararc.common.bridge.access.InventoryMenuAccessBridge {
     @Shadow @Final private Player owner;
-    @Shadow @Final private net.minecraft.world.inventory.CraftingContainer craftSlots;
-    @Shadow @Final private net.minecraft.world.inventory.ResultContainer resultSlots;
 
     @Override public Player lunararc$getOwner() { return this.owner; }
-    @Override public net.minecraft.world.inventory.CraftingContainer lunararc$getCraftSlots() { return this.craftSlots; }
-    @Override public net.minecraft.world.inventory.ResultContainer lunararc$getResultSlots() { return this.resultSlots; }
+    @Override public net.minecraft.world.inventory.CraftingContainer lunararc$getCraftSlots() { return ((net.minecraft.world.inventory.AbstractCraftingMenu) (Object) this).craftSlots; }
+    @Override public net.minecraft.world.inventory.ResultContainer lunararc$getResultSlots() { return ((net.minecraft.world.inventory.AbstractCraftingMenu) (Object) this).resultSlots; }
     @Inject(method = "slotsChanged", at = @At("RETURN"), require = 0)
     private void lunararc$preparePlayerCraft(Container ignored, CallbackInfo ci) {
         InventoryMenu menu = (InventoryMenu) (Object) this;
         io.lunararcdevs.lunararc.common.bridge.access.InventoryMenuAccessBridge access = (io.lunararcdevs.lunararc.common.bridge.access.InventoryMenuAccessBridge) (Object) this;
         if (!(access.lunararc$getOwner() instanceof ServerPlayer serverPlayer) || !menu.active) return;
-        var recipe = serverPlayer.serverLevel().getRecipeManager().getRecipeFor(
+        var recipe = serverPlayer.level().recipeAccess().getRecipeFor(
                 net.minecraft.world.item.crafting.RecipeType.CRAFTING,
-                access.lunararc$getCraftSlots().asCraftInput(), serverPlayer.serverLevel()).orElse(null);
+                access.lunararc$getCraftSlots().asCraftInput(), serverPlayer.level()).orElse(null);
         Object bukkit = ((io.lunararcdevs.lunararc.common.bridge.EntityBridge) serverPlayer).lunararc$getBukkitEntity();
         if (!(bukkit instanceof org.bukkit.craftbukkit.entity.CraftPlayer craftPlayer)) return;
         var inventory = new org.bukkit.craftbukkit.inventory.CraftInventoryCrafting(

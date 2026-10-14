@@ -38,6 +38,10 @@ public final class CraftMetaFirework extends CraftItemMeta implements FireworkMe
         nms.set(DataComponents.FIREWORKS, new Fireworks(getPower(), explosions));
     }
 
+    public static FireworkEffect getEffect(FireworkExplosion explosion) { return fromExplosion(explosion); }
+
+    public static FireworkExplosion getExplosion(FireworkEffect effect) { return toExplosion(effect); }
+
     static FireworkEffect fromExplosion(FireworkExplosion explosion) {
         FireworkEffect.Builder b = FireworkEffect.builder().flicker(explosion.hasTwinkle()).trail(explosion.hasTrail()).with(switch (explosion.shape()) {
             case SMALL_BALL -> FireworkEffect.Type.BALL;

@@ -57,7 +57,7 @@ public abstract class CreeperMixin implements CreeperBridge {
     @Unique private org.bukkit.event.entity.ExplosionPrimeEvent lunararc$primeEvent;
 
     @Inject(method = "explodeCreeper", cancellable = true, at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/world/level/Level;explode(Lnet/minecraft/world/entity/Entity;DDDFLnet/minecraft/world/level/Level$ExplosionInteraction;)Lnet/minecraft/world/level/Explosion;"))
+            target = "Lnet/minecraft/server/level/ServerLevel;explode(Lnet/minecraft/world/entity/Entity;DDDFLnet/minecraft/world/level/Level$ExplosionInteraction;)V"))
     private void lunararc$explosionPrime(CallbackInfo ci) {
         Creeper self = (Creeper) (Object) this;
         float radius = this.explosionRadius * (self.isPowered() ? 2.0F : 1.0F);
@@ -72,15 +72,15 @@ public abstract class CreeperMixin implements CreeperBridge {
     }
 
     @com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation(method = "explodeCreeper", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/world/level/Level;explode(Lnet/minecraft/world/entity/Entity;DDDFLnet/minecraft/world/level/Level$ExplosionInteraction;)Lnet/minecraft/world/level/Explosion;"))
-    private net.minecraft.world.level.Explosion lunararc$primedExplode(net.minecraft.world.level.Level level, Entity source, double x, double y, double z,
+            target = "Lnet/minecraft/server/level/ServerLevel;explode(Lnet/minecraft/world/entity/Entity;DDDFLnet/minecraft/world/level/Level$ExplosionInteraction;)V"))
+    private void lunararc$primedExplode(net.minecraft.server.level.ServerLevel level, Entity source, double x, double y, double z,
             float radius, net.minecraft.world.level.Level.ExplosionInteraction interaction,
-            com.llamalad7.mixinextras.injector.wrapoperation.Operation<net.minecraft.world.level.Explosion> original) {
+            com.llamalad7.mixinextras.injector.wrapoperation.Operation<Void> original) {
         org.bukkit.event.entity.ExplosionPrimeEvent event = this.lunararc$primeEvent;
         this.lunararc$primeEvent = null;
-        if (event == null) return original.call(level, source, x, y, z, radius, interaction);
-        if (!event.getFire()) return original.call(level, source, x, y, z, event.getRadius(), interaction);
-        return level.explode(source, x, y, z, event.getRadius(), true, interaction);
+        if (event == null) { original.call(level, source, x, y, z, radius, interaction); return; }
+        if (!event.getFire()) { original.call(level, source, x, y, z, event.getRadius(), interaction); return; }
+        level.explode(source, x, y, z, event.getRadius(), true, interaction);
     }
 
     @Inject(method = "mobInteract", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/monster/Creeper;ignite()V"))

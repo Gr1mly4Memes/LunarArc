@@ -2,7 +2,7 @@ package io.lunararcdevs.lunararc.common.mixin.core.entity;
 
 import io.lunararcdevs.lunararc.common.bridge.ThrownTridentBridge;
 import net.minecraft.network.syncher.EntityDataAccessor;
-import net.minecraft.world.entity.projectile.ThrownTrident;
+import net.minecraft.world.entity.projectile.arrow.ThrownTrident;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -47,6 +47,6 @@ public abstract class ThrownTridentMixin implements ThrownTridentBridge {
 
     @ModifyConstant(method = "onHitEntity", constant = @Constant(floatValue = 8.0F), require = 1)
     private float lunararc$useConfiguredBaseDamage(float vanillaDamage) {
-        return (float) ((ThrownTrident) (Object) this).getBaseDamage();
+        return (float) ((ThrownTrident) (Object) this).baseDamage;
     }
 }

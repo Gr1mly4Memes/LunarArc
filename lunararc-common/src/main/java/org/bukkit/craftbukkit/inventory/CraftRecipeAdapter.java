@@ -1,22 +1,24 @@
 package org.bukkit.craftbukkit.inventory;
 
 import com.google.common.collect.Maps;
-import io.lunararcdevs.lunararc.common.bridge.recipe.IngredientBridge;
-import io.lunararcdevs.lunararc.common.bridge.recipe.CopyDataComponentsBridge;
 import io.lunararcdevs.lunararc.common.bridge.access.AbstractCookingRecipeAccessBridge;
 import io.lunararcdevs.lunararc.common.bridge.access.ShapedRecipeAccessBridge;
 import io.lunararcdevs.lunararc.common.bridge.access.ShapelessRecipeAccessBridge;
 import io.lunararcdevs.lunararc.common.bridge.access.SingleItemRecipeAccessBridge;
 import io.lunararcdevs.lunararc.common.bridge.access.SmithingTransformRecipeAccessBridge;
 import io.lunararcdevs.lunararc.common.bridge.access.SmithingTrimRecipeAccessBridge;
-import net.minecraft.core.NonNullList;
-import net.minecraft.resources.ResourceLocation;
+import io.lunararcdevs.lunararc.common.bridge.recipe.CopyDataComponentsBridge;
+import io.lunararcdevs.lunararc.common.bridge.recipe.IngredientBridge;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.item.crafting.AbstractCookingRecipe;
 import net.minecraft.world.item.crafting.CookingBookCategory;
 import net.minecraft.world.item.crafting.CraftingBookCategory;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeHolder;
 import net.minecraft.world.item.crafting.ShapedRecipePattern;
+import net.minecraft.world.item.crafting.TransmuteResult;
 import org.bukkit.Keyed;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -38,23 +40,41 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Stream;
+import java.util.Optional;
 
+/**
+ * Converts between Bukkit recipes and the 1.21.11 vanilla recipe objects. Vanilla recipe state is read through the
+ * accessor mixins in {@code mixin.core.recipe}; "exact" choices are carried on the Ingredient itself.
+ */
 public final class CraftRecipeAdapter {
     private static final char[] SHAPE_SYMBOLS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".toCharArray();
 
     private CraftRecipeAdapter() {}
 
-    public static ResourceLocation toMinecraft(NamespacedKey key) {
+    public static Identifier toMinecraft(NamespacedKey key) {
         Objects.requireNonNull(key, "key");
-        return ResourceLocation.fromNamespaceAndPath(key.getNamespace(), key.getKey());
+        return Identifier.fromNamespaceAndPath(key.getNamespace(), key.getKey());
     }
 
-    public static NamespacedKey toBukkit(ResourceLocation key) {
+    public static ResourceKey<net.minecraft.world.item.crafting.Recipe<?>> toRecipeKey(NamespacedKey key) {
+        return ResourceKey.create(Registries.RECIPE, toMinecraft(key));
+    }
+
+    public static NamespacedKey toBukkit(Identifier key) {
         Objects.requireNonNull(key, "key");
         return new NamespacedKey(key.getNamespace(), key.getPath());
     }
 
+    public static NamespacedKey toBukkit(ResourceKey<net.minecraft.world.item.crafting.Recipe<?>> key) {
+        Objects.requireNonNull(key, "key");
+        return toBukkit(key.identifier());
+    }
+
+    private static net.minecraft.world.item.Item item(Material material) {
+        return CraftItemType.bukkitToMinecraft(material);
+    }
+
+    /** Convert a choice into an Ingredient; empty choices become an empty ingredient. */
     public static Ingredient toIngredient(RecipeChoice choice, boolean requireNotEmpty) {
         if (choice instanceof CraftNmsRecipeChoice nmsChoice) {
             return nmsChoice.getHandle();
@@ -62,48 +82,58 @@ public final class CraftRecipeAdapter {
 
         final Ingredient ingredient;
         if (choice == null || choice == RecipeChoice.empty()) {
-            ingredient = Ingredient.EMPTY;
+            ingredient = Ingredient.of();
         } else if (choice instanceof RecipeChoice.MaterialChoice materialChoice) {
-            Stream<net.minecraft.world.item.ItemStack> values = materialChoice.getChoices().stream()
+            ingredient = Ingredient.of(materialChoice.getChoices().stream()
                     .filter(material -> material != Material.AIR)
-                    .map(material -> CraftItemStack.asNMSCopy(new ItemStack(material)));
-            ingredient = Ingredient.of(values);
+                    .map(CraftRecipeAdapter::item));
         } else if (choice instanceof RecipeChoice.ExactChoice exactChoice) {
-            Stream<net.minecraft.world.item.ItemStack> values = exactChoice.getChoices().stream()
+            List<net.minecraft.world.item.ItemStack> stacks = exactChoice.getChoices().stream()
                     .map(CraftItemStack::asNMSCopy)
-                    .filter(stack -> !stack.isEmpty());
-            ingredient = Ingredient.of(values);
-            ((IngredientBridge) (Object) ingredient).lunararc$setExact(true);
+                    .filter(stack -> !stack.isEmpty())
+                    .toList();
+            ingredient = Ingredient.of(stacks.stream().map(net.minecraft.world.item.ItemStack::getItem));
+            ((IngredientBridge) (Object) ingredient).lunararc$setExactStacks(stacks);
+        } else if (choice instanceof RecipeChoice.ItemTypeChoice itemTypeChoice) {
+            ingredient = Ingredient.of(itemTypeChoice.itemTypes()
+                    .resolve(io.papermc.paper.registry.RegistryAccess.registryAccess().getRegistry(io.papermc.paper.registry.RegistryKey.ITEM))
+                    .stream().map(CraftItemType::bukkitToMinecraftNew));
         } else {
             throw new IllegalArgumentException("Unsupported RecipeChoice implementation: " + choice.getClass().getName());
         }
 
-        if (requireNotEmpty && ingredient.getItems().length == 0) {
+        if (requireNotEmpty && ingredient.isEmpty()) {
             throw new IllegalArgumentException("Recipe requires at least one non-air choice");
         }
         return ingredient;
     }
 
+    public static Optional<Ingredient> toOptionalIngredient(RecipeChoice choice) {
+        return choice == null || choice == RecipeChoice.empty() ? Optional.empty() : Optional.of(toIngredient(choice, false));
+    }
+
     /**
-     * Preserve the real NMS predicate for loader/custom ingredients. Exact
-     * choices retain Paper's ExactChoice API shape; all other NMS ingredients
-     * use a server-owned RecipeChoice that delegates test() to Ingredient.
+     * Preserve the real NMS predicate for loader/custom ingredients. Exact choices retain Paper's ExactChoice API
+     * shape; all other NMS ingredients use a server-owned RecipeChoice that delegates test() to Ingredient.
      */
     public static RecipeChoice toBukkit(Ingredient ingredient) {
         Objects.requireNonNull(ingredient, "ingredient");
-        net.minecraft.world.item.ItemStack[] stacks = ingredient.getItems();
-        if (stacks.length == 0 && ingredient.isEmpty()) return RecipeChoice.empty();
+        if (ingredient.isEmpty()) return RecipeChoice.empty();
 
-        boolean exact = ((IngredientBridge) (Object) ingredient).lunararc$isExact();
-        if (exact) {
-            List<ItemStack> choices = new ArrayList<>(stacks.length);
-            for (net.minecraft.world.item.ItemStack stack : stacks) {
+        List<net.minecraft.world.item.ItemStack> exact = ((IngredientBridge) (Object) ingredient).lunararc$exactStacks();
+        if (exact != null) {
+            List<ItemStack> choices = new ArrayList<>(exact.size());
+            for (net.minecraft.world.item.ItemStack stack : exact) {
                 if (!stack.isEmpty()) choices.add(CraftItemStack.asBukkitCopy(stack));
             }
             if (!choices.isEmpty()) return new RecipeChoice.ExactChoice(choices);
         }
 
         return new CraftNmsRecipeChoice(ingredient);
+    }
+
+    public static RecipeChoice toBukkit(Optional<Ingredient> ingredient) {
+        return ingredient.map(CraftRecipeAdapter::toBukkit).orElse(RecipeChoice.empty());
     }
 
     private static CraftingBookCategory craftingCategory(org.bukkit.inventory.recipe.CraftingBookCategory category) {
@@ -122,12 +152,23 @@ public final class CraftRecipeAdapter {
         return org.bukkit.inventory.recipe.CookingBookCategory.valueOf(category.name());
     }
 
+    private static TransmuteResult transmute(ItemStack result) {
+        net.minecraft.world.item.ItemStack nms = CraftItemStack.asNMSCopy(result);
+        return new TransmuteResult(nms.getItemHolder(), nms.getCount(), nms.getComponentsPatch());
+    }
+
+    private static ItemStack bukkitResult(TransmuteResult result) {
+        net.minecraft.world.item.ItemStack stack = new net.minecraft.world.item.ItemStack(result.item(), result.count());
+        stack.applyComponents(result.components());
+        return CraftItemStack.asBukkitCopy(stack);
+    }
+
     public static RecipeHolder<?> toMinecraft(Recipe recipe) {
         Objects.requireNonNull(recipe, "recipe");
         if (!(recipe instanceof Keyed keyed)) {
             throw new IllegalArgumentException("Bukkit recipe must implement Keyed: " + recipe.getClass().getName());
         }
-        ResourceLocation id = toMinecraft(keyed.getKey());
+        ResourceKey<net.minecraft.world.item.crafting.Recipe<?>> id = toRecipeKey(keyed.getKey());
 
         if (recipe instanceof ShapedRecipe shaped) {
             Map<Character, RecipeChoice> sourceChoices = new LinkedHashMap<>(shaped.getChoiceMap());
@@ -150,10 +191,9 @@ public final class CraftRecipeAdapter {
         }
 
         if (recipe instanceof ShapelessRecipe shapeless) {
-            List<RecipeChoice> choices = shapeless.getChoiceList();
-            NonNullList<Ingredient> ingredients = NonNullList.withSize(choices.size(), Ingredient.EMPTY);
-            for (int i = 0; i < choices.size(); i++) {
-                ingredients.set(i, toIngredient(choices.get(i), true));
+            List<Ingredient> ingredients = new ArrayList<>();
+            for (RecipeChoice choice : shapeless.getChoiceList()) {
+                ingredients.add(toIngredient(choice, true));
             }
             net.minecraft.world.item.crafting.ShapelessRecipe nms = new net.minecraft.world.item.crafting.ShapelessRecipe(
                     shapeless.getGroup(), craftingCategory(shapeless.getCategory()),
@@ -193,10 +233,10 @@ public final class CraftRecipeAdapter {
         if (recipe instanceof SmithingTransformRecipe smithing) {
             net.minecraft.world.item.crafting.SmithingTransformRecipe nms =
                     new net.minecraft.world.item.crafting.SmithingTransformRecipe(
-                            toIngredient(smithing.getTemplate(), false),
+                            toOptionalIngredient(smithing.getTemplate()),
                             toIngredient(smithing.getBase(), false),
-                            toIngredient(smithing.getAddition(), false),
-                            CraftItemStack.asNMSCopy(smithing.getResult()));
+                            toOptionalIngredient(smithing.getAddition()),
+                            transmute(smithing.getResult()));
             ((CopyDataComponentsBridge) (Object) nms).lunararc$copyDataComponents(smithing.willCopyDataComponents());
             return new RecipeHolder<>(id, nms);
         }
@@ -205,7 +245,8 @@ public final class CraftRecipeAdapter {
                     new net.minecraft.world.item.crafting.SmithingTrimRecipe(
                             toIngredient(smithing.getTemplate(), false),
                             toIngredient(smithing.getBase(), false),
-                            toIngredient(smithing.getAddition(), false));
+                            toIngredient(smithing.getAddition(), false),
+                            org.bukkit.craftbukkit.inventory.trim.CraftTrimPattern.bukkitToMinecraftHolder(smithing.getTrimPattern()));
             ((CopyDataComponentsBridge) (Object) nms).lunararc$copyDataComponents(smithing.willCopyDataComponents());
             return new RecipeHolder<>(id, nms);
         }
@@ -216,7 +257,7 @@ public final class CraftRecipeAdapter {
         throw new UnsupportedOperationException("Unsupported Bukkit recipe type: " + recipe.getClass().getName());
     }
 
-    /** Convert a real 1.21.1 NMS recipe into the corresponding Bukkit type. */
+    /** Convert a real 1.21.11 NMS recipe into the corresponding Bukkit type. */
     public static Recipe toBukkit(RecipeHolder<?> holder) {
         Objects.requireNonNull(holder, "holder");
         NamespacedKey key = toBukkit(holder.id());
@@ -235,7 +276,7 @@ public final class CraftRecipeAdapter {
             recipe.setGroup(access.lunararc$group());
             recipe.setCategory(bukkitCraftingCategory(access.lunararc$category()));
 
-            List<Ingredient> ingredients = pattern.ingredients();
+            List<Optional<Ingredient>> ingredients = pattern.ingredients();
             String[] shape = new String[height];
             int symbolIndex = 0;
             Map<Character, Ingredient> mapped = new LinkedHashMap<>();
@@ -243,7 +284,7 @@ public final class CraftRecipeAdapter {
                 StringBuilder row = new StringBuilder(width);
                 for (int x = 0; x < width; x++) {
                     int index = y * width + x;
-                    Ingredient ingredient = index < ingredients.size() ? ingredients.get(index) : Ingredient.EMPTY;
+                    Ingredient ingredient = index < ingredients.size() ? ingredients.get(index).orElse(null) : null;
                     if (ingredient == null || ingredient.isEmpty()) {
                         row.append(' ');
                     } else {
@@ -271,13 +312,14 @@ public final class CraftRecipeAdapter {
         }
 
         if (nms instanceof AbstractCookingRecipe cooking) {
-            AbstractCookingRecipeAccessBridge access = (AbstractCookingRecipeAccessBridge) (Object) cooking;
+            AbstractCookingRecipeAccessBridge cookingAccess = (AbstractCookingRecipeAccessBridge) (Object) cooking;
+            SingleItemRecipeAccessBridge access = (SingleItemRecipeAccessBridge) (Object) cooking;
             ItemStack result = CraftItemStack.asBukkitCopy(access.lunararc$result());
             RecipeChoice input = toBukkit(access.lunararc$ingredient());
             String group = access.lunararc$group();
-            float experience = access.lunararc$experience();
-            int time = access.lunararc$cookingTime();
-            org.bukkit.inventory.recipe.CookingBookCategory category = bukkitCookingCategory(access.lunararc$category());
+            float experience = cookingAccess.lunararc$experience();
+            int time = cookingAccess.lunararc$cookingTime();
+            org.bukkit.inventory.recipe.CookingBookCategory category = bukkitCookingCategory(cookingAccess.lunararc$category());
 
             if (nms instanceof net.minecraft.world.item.crafting.BlastingRecipe) {
                 BlastingRecipe recipe = new BlastingRecipe(key, result, input, experience, time);
@@ -309,16 +351,17 @@ public final class CraftRecipeAdapter {
         if (nms instanceof net.minecraft.world.item.crafting.SmithingTransformRecipe smithing) {
             SmithingTransformRecipeAccessBridge access = (SmithingTransformRecipeAccessBridge) (Object) smithing;
             boolean copy = ((CopyDataComponentsBridge) (Object) smithing).lunararc$copyDataComponents();
-            return new SmithingTransformRecipe(key, CraftItemStack.asBukkitCopy(access.lunararc$result()),
-                    toBukkit(access.lunararc$template()), toBukkit(access.lunararc$base()),
-                    toBukkit(access.lunararc$addition()), copy);
+            return new SmithingTransformRecipe(key, bukkitResult(access.lunararc$result()),
+                    toBukkit(smithing.templateIngredient()), toBukkit(smithing.baseIngredient()),
+                    toBukkit(smithing.additionIngredient()), copy);
         }
 
         if (nms instanceof net.minecraft.world.item.crafting.SmithingTrimRecipe smithing) {
             SmithingTrimRecipeAccessBridge access = (SmithingTrimRecipeAccessBridge) (Object) smithing;
             boolean copy = ((CopyDataComponentsBridge) (Object) smithing).lunararc$copyDataComponents();
-            return new SmithingTrimRecipe(key, toBukkit(access.lunararc$template()),
-                    toBukkit(access.lunararc$base()), toBukkit(access.lunararc$addition()), copy);
+            return new SmithingTrimRecipe(key, toBukkit(smithing.templateIngredient()),
+                    toBukkit(smithing.baseIngredient()), toBukkit(smithing.additionIngredient()),
+                    org.bukkit.craftbukkit.inventory.trim.CraftTrimPattern.minecraftHolderToBukkit(access.lunararc$pattern()), copy);
         }
 
         // Vanilla special recipes and loader-defined imperative recipes have no

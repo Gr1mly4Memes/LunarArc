@@ -5,7 +5,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.util.datafix.DataFixers;
 import net.minecraft.util.datafix.fixes.BlockStateData;
 import net.minecraft.util.datafix.fixes.ItemIdFix;
@@ -183,32 +183,32 @@ public final class CraftLegacy {
     }
 
     private static Block blockFor(Material material) {
-        ResourceLocation key = ResourceLocation.withDefaultNamespace(material.name().toLowerCase(java.util.Locale.ROOT));
-        return BuiltInRegistries.BLOCK.containsKey(key) ? BuiltInRegistries.BLOCK.get(key) : null;
+        Identifier key = Identifier.withDefaultNamespace(material.name().toLowerCase(java.util.Locale.ROOT));
+        return BuiltInRegistries.BLOCK.getOptional(key).orElse(null);
     }
 
     private static Item itemFor(Material material) {
-        ResourceLocation key = ResourceLocation.withDefaultNamespace(material.name().toLowerCase(java.util.Locale.ROOT));
-        return BuiltInRegistries.ITEM.containsKey(key) ? BuiltInRegistries.ITEM.get(key) : null;
+        Identifier key = Identifier.withDefaultNamespace(material.name().toLowerCase(java.util.Locale.ROOT));
+        return BuiltInRegistries.ITEM.getOptional(key).orElse(null);
     }
 
     private static Material materialFor(Block block) {
-        ResourceLocation key = BuiltInRegistries.BLOCK.getKey(block);
+        Identifier key = BuiltInRegistries.BLOCK.getKey(block);
         return key == null ? null : Material.matchMaterial(key.toString());
     }
 
     private static Material materialFor(Item item) {
-        ResourceLocation key = BuiltInRegistries.ITEM.getKey(item);
+        Identifier key = BuiltInRegistries.ITEM.getKey(item);
         return key == null ? null : Material.matchMaterial(key.toString());
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static BlockState applyProperties(BlockState state, CompoundTag properties) {
         StateDefinition<?, ?> definition = state.getBlock().getStateDefinition();
-        for (String name : properties.getAllKeys()) {
+        for (String name : properties.keySet()) {
             Property property = definition.getProperty(name);
             if (property == null) continue;
-            String raw = properties.getString(name);
+            String raw = properties.getStringOr(name, "");
             Optional<?> value = property.getValue(raw);
             if (value.isPresent()) state = state.setValue(property, (Comparable) value.get());
         }
@@ -216,7 +216,7 @@ public final class CraftLegacy {
     }
 
     private static int dataVersion() {
-        return net.minecraft.SharedConstants.getCurrentVersion().getDataVersion().getVersion();
+        return net.minecraft.SharedConstants.getCurrentVersion().dataVersion().version();
     }
 
     static {
@@ -230,21 +230,21 @@ public final class CraftLegacy {
                     var fixed = DataFixers.getDataFixer().update(References.BLOCK_STATE, dynamic, 100, dataVersion());
                     if (!(fixed.getValue() instanceof CompoundTag tag)) continue;
 
-                    String name = tag.getString("Name");
+                    String name = tag.getStringOr("Name", "");
                     if (name.isEmpty() || name.contains("%%FILTER_ME%%")) continue;
-                    ResourceLocation key;
+                    Identifier key;
                     try {
-                        key = ResourceLocation.parse(name);
+                        key = Identifier.parse(name);
                     } catch (RuntimeException ex) {
                         continue;
                     }
                     if (!BuiltInRegistries.BLOCK.containsKey(key)) continue;
-                    Block block = BuiltInRegistries.BLOCK.get(key);
+                    Block block = BuiltInRegistries.BLOCK.getValue(key);
                     if (block == Blocks.AIR) continue;
 
                     BlockState state = block.defaultBlockState();
                     if (tag.contains("Properties")) {
-                        state = applyProperties(state, tag.getCompound("Properties"));
+                        state = applyProperties(state, tag.getCompoundOrEmpty("Properties"));
                     }
                     MATERIAL_TO_STATE.put(legacy, state);
                     STATE_TO_MATERIAL.putIfAbsent(state, legacy);
@@ -279,17 +279,17 @@ public final class CraftLegacy {
                     continue;
                 }
                 if (!(converted.getValue() instanceof CompoundTag fixedStack)) continue;
-                String itemId = fixedStack.getString("id");
+                String itemId = fixedStack.getStringOr("id", "");
                 if ("minecraft:spawn_egg".equals(itemId)) itemId = "minecraft:pig_spawn_egg";
                 if (itemId.isEmpty()) continue;
-                ResourceLocation key;
+                Identifier key;
                 try {
-                    key = ResourceLocation.parse(itemId);
+                    key = Identifier.parse(itemId);
                 } catch (RuntimeException ex) {
                     continue;
                 }
                 if (!BuiltInRegistries.ITEM.containsKey(key)) continue;
-                Item item = BuiltInRegistries.ITEM.get(key);
+                Item item = BuiltInRegistries.ITEM.getValue(key);
                 if (item == Items.AIR) continue;
                 MATERIAL_TO_ITEM.put(legacy, item);
                 ITEM_TO_MATERIAL.putIfAbsent(item, legacy);

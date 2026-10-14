@@ -12,7 +12,19 @@ import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.ModifyConstant;
 
 @Mixin(ServerChunkCache.class)
-public abstract class ServerChunkCacheSpawnMixin {
+public abstract class ServerChunkCacheSpawnMixin implements io.lunararcdevs.lunararc.common.bridge.ServerChunkCacheBridge {
+    /** Public and un-prefixed so Paper classes compiled against patched vanilla keep linking. */
+    public boolean spawnFriendlies = true;
+
+    @Override public boolean lunararc$isSpawnFriendlies() { return this.spawnFriendlies; }
+    @Override public void lunararc$setSpawnFriendlies(boolean spawnFriendlies) { this.spawnFriendlies = spawnFriendlies; }
+
+    @org.spongepowered.asm.mixin.injection.ModifyArg(method = "tickChunks", index = 1, require = 0,
+            at = @org.spongepowered.asm.mixin.injection.At(value = "INVOKE", target = "Lnet/minecraft/world/level/NaturalSpawner;getFilteredSpawningCategories(Lnet/minecraft/world/level/NaturalSpawner$SpawnState;ZZZ)Ljava/util/List;"))
+    private boolean lunararc$spawnFriendlies(boolean vanilla) {
+        return this.spawnFriendlies;
+    }
+
     @Shadow @Final ServerLevel level;
 
     @WrapMethod(method = "tickChunks", require = 0)

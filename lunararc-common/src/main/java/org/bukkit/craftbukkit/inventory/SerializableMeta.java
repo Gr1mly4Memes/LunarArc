@@ -99,4 +99,82 @@ public final class SerializableMeta implements ConfigurationSerializable {
         Enchantment enchantment = namespaced == null ? null : Enchantment.getByKey(namespaced);
         return enchantment != null ? enchantment : Enchantment.getByName(key);
     }
+
+    public static String getString(Map<?, ?> map, Object field, boolean nullable) {
+        return SerializableMeta.getObject(String.class, map, field, nullable);
+    }
+
+    public static boolean getBoolean(Map<?, ?> map, Object field) {
+        Boolean value = SerializableMeta.getObject(Boolean.class, map, field, true);
+        return value != null && value;
+    }
+
+    public static int getInteger(Map<?, ?> map, Object field) {
+        Integer value = SerializableMeta.getObject(Integer.class, map, field, true);
+        return value != null ? value : 0;
+    }
+
+    public static <T> T getObject(Class<T> clazz, Map<?, ?> map, Object field, boolean nullable) {
+        final Object object = map.get(field);
+
+        if (clazz.isInstance(object)) {
+            return clazz.cast(object);
+        }
+
+        // SPIGOT-7675 - More lenient conversion of floating point numbers from other number types:
+        if (clazz == Float.class || clazz == Double.class) {
+            if (object instanceof Number number) {
+                if (clazz == Float.class) {
+                    return clazz.cast(number.floatValue());
+                } else {
+                    return clazz.cast(number.doubleValue());
+                }
+            }
+        }
+
+        if (object == null) {
+            if (!nullable) {
+                throw new java.util.NoSuchElementException(map + " does not contain " + field);
+            }
+            return null;
+        }
+        throw new IllegalArgumentException(field + "(" + object + ") is not a valid " + clazz);
+    }
+
+    public static <T> java.util.Optional<T> getObjectOptionally(Class<T> clazz, Map<?, ?> map, Object field, boolean nullable) {
+        return java.util.Optional.ofNullable(getObject(clazz, map, field, nullable));
+    }
+
+    public static <T> List<T> getList(Class<T> clazz, Map<?, ?> map, Object field) {
+        List<T> result = new ArrayList<>();
+
+        List<?> list = SerializableMeta.getObject(List.class, map, field, true);
+        if (list == null || list.isEmpty()) {
+            return result;
+        }
+
+        for (Object object : list) {
+            T cast = null;
+
+            if (clazz.isInstance(object)) {
+                cast = clazz.cast(object);
+            }
+
+            if (clazz == Float.class || clazz == Double.class) {
+                if (object instanceof Number number) {
+                    if (clazz == Float.class) {
+                        cast = clazz.cast(number.floatValue());
+                    } else {
+                        cast = clazz.cast(number.doubleValue());
+                    }
+                }
+            }
+
+            if (cast != null) {
+                result.add(cast);
+            }
+        }
+
+        return result;
+    }
 }

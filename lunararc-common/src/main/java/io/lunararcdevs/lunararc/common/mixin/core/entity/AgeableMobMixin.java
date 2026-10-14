@@ -42,13 +42,13 @@ public abstract class AgeableMobMixin implements AgeableMobBridge {
         if (this.lunararc$ageLocked) ci.cancel();
     }
 
-    @Inject(method = "addAdditionalSaveData", at = @At("TAIL"), require = 0)
-    private void lunararc$saveAgeLock(CompoundTag tag, CallbackInfo ci) {
-        if (this.lunararc$ageLocked) tag.putBoolean("AgeLocked", true);
+    @Inject(method = "addAdditionalSaveData", at = @At("TAIL"), require = 1)
+    private void lunararc$saveAgeLock(net.minecraft.world.level.storage.ValueOutput output, CallbackInfo ci) {
+        if (this.lunararc$ageLocked) output.putBoolean("AgeLocked", true);
     }
 
-    @Inject(method = "readAdditionalSaveData", at = @At("TAIL"), require = 0)
-    private void lunararc$loadAgeLock(CompoundTag tag, CallbackInfo ci) {
-        this.lunararc$ageLocked = tag.getBoolean("AgeLocked");
+    @Inject(method = "readAdditionalSaveData", at = @At("TAIL"), require = 1)
+    private void lunararc$loadAgeLock(net.minecraft.world.level.storage.ValueInput input, CallbackInfo ci) {
+        this.lunararc$ageLocked = input.getBooleanOr("AgeLocked", false);
     }
 }

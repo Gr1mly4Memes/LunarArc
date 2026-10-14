@@ -2,8 +2,6 @@ package io.lunararcdevs.lunararc.common.bridge;
 
 import net.minecraft.server.WorldLoader;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.ForcedChunksSavedData;
-import net.minecraft.server.level.progress.ChunkProgressListener;
 import net.minecraft.world.level.storage.PrimaryLevelData;
 import org.bukkit.craftbukkit.CraftServer;
 
@@ -13,6 +11,7 @@ public interface MinecraftServerBridge {
     void lunararc$setCraftServer(CraftServer craftServer);
     boolean lunararc$isTickingWorlds();
     double[] lunararc$getTps();
+    void lunararc$setPluginAllowingSleep(String pluginName, boolean value);
     WorldLoader.DataLoadContext lunararc$getDataLoadContext();
 
     /** Add a Bukkit-created level to the real MinecraftServer level map and notify the active loader. */
@@ -25,7 +24,7 @@ public interface MinecraftServerBridge {
     void lunararc$initializeDynamicLevel(ServerLevel level, PrimaryLevelData data, boolean bonusChest);
 
     /** Prepare forced/persistent chunks for a dynamically-created world. */
-    void lunararc$prepareDynamicLevel(ServerLevel level, ChunkProgressListener listener);
+    void lunararc$prepareDynamicLevel(ServerLevel level);
 
     /** Loader-specific world lifecycle hook implemented by a loader mixin on MinecraftServer. */
     default void lunararc$loaderLevelLoad(ServerLevel level) {}
@@ -37,7 +36,10 @@ public interface MinecraftServerBridge {
     default void lunararc$loaderMarkLevelsDirty() {}
 
     /** Forge/NeoForge hook used to restore loader persistent chunk tickets for a created level. */
-    default void lunararc$loaderReinstatePersistentChunks(ServerLevel level, ForcedChunksSavedData savedData) {}
+    default void lunararc$loaderReinstatePersistentChunks(ServerLevel level) {
+        net.minecraft.world.level.TicketStorage tickets = level.getDataStorage().get(net.minecraft.world.level.TicketStorage.TYPE);
+        if (tickets != null) tickets.activateAllDeactivatedTickets();
+    }
 
     /** True when the active loader has a native cancellable block-break event in destroyBlock. */
     default boolean lunararc$loaderHandlesBlockBreakEvent() { return false; }

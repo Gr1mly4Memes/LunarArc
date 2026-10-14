@@ -1,7 +1,7 @@
 package org.bukkit.craftbukkit.entity;
 
 import io.lunararcdevs.lunararc.common.bridge.AbstractHurtingProjectileBridge;
-import net.minecraft.world.entity.projectile.AbstractHurtingProjectile;
+import net.minecraft.world.entity.projectile.hurtingprojectile.AbstractHurtingProjectile;
 import net.minecraft.world.phys.Vec3;
 import org.bukkit.craftbukkit.CraftServer;
 import org.bukkit.entity.Fireball;

@@ -3,14 +3,13 @@ package io.lunararcdevs.lunararc.forge.server;
 import io.lunararcdevs.lunararc.common.mod.server.LunarArcServer;
 import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
 
 public final class ForgeServerLifecycle {
     private ForgeServerLifecycle() {}
 
-    public static void register(IEventBus bus) {
-        bus.addListener(ForgeServerLifecycle::onServerStarting);
-        bus.addListener(ForgeServerLifecycle::onServerStopping);
+    public static void register() {
+        ServerStartingEvent.BUS.addListener(ForgeServerLifecycle::onServerStarting);
+        ServerStoppingEvent.BUS.addListener(ForgeServerLifecycle::onServerStopping);
     }
 
     private static void onServerStarting(ServerStartingEvent event) {

@@ -15,7 +15,7 @@ public final class CraftMemoryMapper {
     public static Object fromNms(Object value) {
         if (value instanceof GlobalPos pos) {
             ServerLevel level = LunarArcServerAccess.getMinecraftServer().getLevel(pos.dimension());
-            if (level == null) throw new IllegalStateException("Memory references an unloaded dimension: " + pos.dimension().location());
+            if (level == null) throw new IllegalStateException("Memory references an unloaded dimension: " + pos.dimension().identifier());
             CraftWorld world = LunarArcServerAccess.getCraftServer().getCraftWorld(level);
             BlockPos blockPos = pos.pos();
             return new Location(world, blockPos.getX(), blockPos.getY(), blockPos.getZ());

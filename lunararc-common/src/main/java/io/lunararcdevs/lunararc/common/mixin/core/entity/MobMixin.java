@@ -1,5 +1,6 @@
 package io.lunararcdevs.lunararc.common.mixin.core.entity;
 
+import org.spongepowered.asm.mixin.injection.Redirect;
 import io.lunararcdevs.lunararc.common.bridge.EntityBridge;
 import io.lunararcdevs.lunararc.common.bridge.ItemEntityBridge;
 import io.lunararcdevs.lunararc.common.bridge.MobBridge;
@@ -22,6 +23,22 @@ public abstract class MobMixin implements MobBridge {
     @Unique private org.bukkit.event.entity.EntityTargetEvent.TargetReason lunararc$targetReason = org.bukkit.event.entity.EntityTargetEvent.TargetReason.UNKNOWN;
     @Unique private org.bukkit.event.entity.EntityTransformEvent.TransformReason lunararc$transformReason = org.bukkit.event.entity.EntityTransformEvent.TransformReason.UNKNOWN;
     @Unique private org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason lunararc$transformSpawnReason;
+
+    @Unique private net.kyori.adventure.util.TriState lunararc$despawnInPeacefulOverride = net.kyori.adventure.util.TriState.NOT_SET;
+    @Override public net.kyori.adventure.util.TriState lunararc$getDespawnInPeacefulOverride() { return lunararc$despawnInPeacefulOverride; }
+    @Override public void lunararc$setDespawnInPeacefulOverride(net.kyori.adventure.util.TriState state) { this.lunararc$despawnInPeacefulOverride = state; }
+    @Override public boolean lunararc$shouldDespawnInPeaceful() {
+        return switch (lunararc$despawnInPeacefulOverride) {
+            case TRUE -> true;
+            case FALSE -> false;
+            case NOT_SET -> !((Mob) (Object) this).getType().isAllowedInPeaceful();
+        };
+    }
+    /** Paper's Mob#setDespawnInPeacefulOverride: let the per-mob override replace vanilla's type-based peaceful despawn test. */
+    @Redirect(method = "checkDespawn", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/EntityType;isAllowedInPeaceful()Z"), require = 0)
+    private boolean lunararc$peacefulDespawnOverride(net.minecraft.world.entity.EntityType<?> type) {
+        return !lunararc$shouldDespawnInPeaceful();
+    }
 
     @Override public boolean lunararc$isAware() { return lunararc$aware; }
     @Override public void lunararc$setAware(boolean aware) { lunararc$aware = aware; }
@@ -81,18 +98,18 @@ public abstract class MobMixin implements MobBridge {
         if (!lunararc$aware) ci.cancel();
     }
 
-    @Inject(method = "addAdditionalSaveData", at = @At("TAIL"), require = 0)
-    private void lunararc$saveAware(CompoundTag tag, CallbackInfo ci) {
-        if (!lunararc$aware) tag.putBoolean("Bukkit.Aware", false);
+    @Inject(method = "addAdditionalSaveData", at = @At("TAIL"), require = 1)
+    private void lunararc$saveAware(net.minecraft.world.level.storage.ValueOutput output, CallbackInfo ci) {
+        if (!lunararc$aware) output.putBoolean("Bukkit.Aware", false);
     }
 
-    @Inject(method = "readAdditionalSaveData", at = @At("TAIL"), require = 0)
-    private void lunararc$loadAware(CompoundTag tag, CallbackInfo ci) {
-        lunararc$aware = !tag.contains("Bukkit.Aware") || tag.getBoolean("Bukkit.Aware");
+    @Inject(method = "readAdditionalSaveData", at = @At("TAIL"), require = 1)
+    private void lunararc$loadAware(net.minecraft.world.level.storage.ValueInput input, CallbackInfo ci) {
+        lunararc$aware = input.getBooleanOr("Bukkit.Aware", true);
     }
 
     @Inject(method = "pickUpItem", at = @At("HEAD"), cancellable = true)
-    private void lunararc$paperCanMobPickup(ItemEntity item, CallbackInfo ci) {
+    private void lunararc$paperCanMobPickup(net.minecraft.server.level.ServerLevel level, ItemEntity item, CallbackInfo ci) {
         if (item instanceof ItemEntityBridge bridge && !bridge.lunararc$canMobPickup()) ci.cancel();
     }
 
@@ -100,9 +117,10 @@ public abstract class MobMixin implements MobBridge {
             method = "convertTo",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerLevel;addFreshEntity(Lnet/minecraft/world/entity/Entity;)Z"),
             cancellable = true,
-            require = 0)
+            require = 1)
     private void lunararc$transformEvent(
-            net.minecraft.world.entity.EntityType<?> targetType, boolean keepEquipment,
+            net.minecraft.world.entity.EntityType<?> targetType, net.minecraft.world.entity.ConversionParams params,
+            net.minecraft.world.entity.EntitySpawnReason spawnReasonArg, net.minecraft.world.entity.ConversionParams.AfterConversion<?> after,
             org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable<Mob> cir,
             @Local Mob converted) {
         if (converted == null || !org.bukkit.Bukkit.isPrimaryThread()) return;
@@ -114,10 +132,19 @@ public abstract class MobMixin implements MobBridge {
         if (spawnReason != null) {
             ((EntityBridge) converted).lunararc$setSpawnReason(spawnReason);
         }
-        var event = new org.bukkit.event.entity.EntityTransformEvent(
-                ((EntityBridge) self).lunararc$getBukkitEntity(),
-                java.util.List.of(((EntityBridge) converted).lunararc$getBukkitEntity()),
-                reason);
+        org.bukkit.event.entity.EntityTransformEvent event;
+        net.minecraft.world.entity.LightningBolt bolt = io.lunararcdevs.lunararc.common.mod.util.LunarArcLightning.CURRENT.get();
+        if (bolt != null && reason == org.bukkit.event.entity.EntityTransformEvent.TransformReason.LIGHTNING
+                && ((EntityBridge) bolt).lunararc$getBukkitEntity() instanceof org.bukkit.entity.LightningStrike strike) {
+            // Paper reports lightning conversions as EntityZapEvent, a cancellable EntityTransformEvent.
+            event = new com.destroystokyo.paper.event.entity.EntityZapEvent(
+                    ((EntityBridge) self).lunararc$getBukkitEntity(), strike, ((EntityBridge) converted).lunararc$getBukkitEntity());
+        } else {
+            event = new org.bukkit.event.entity.EntityTransformEvent(
+                    ((EntityBridge) self).lunararc$getBukkitEntity(),
+                    java.util.List.of(((EntityBridge) converted).lunararc$getBukkitEntity()),
+                    reason);
+        }
         org.bukkit.Bukkit.getPluginManager().callEvent(event);
         if (event.isCancelled()) {
             cir.setReturnValue(null);

@@ -3,15 +3,15 @@ package io.lunararcdevs.lunararc.common.network;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 /** Raw Bukkit plugin-message payload for channels not registered as typed vanilla payloads. */
-public record LunarArcRawPayload(ResourceLocation id, byte[] data) implements CustomPacketPayload {
+public record LunarArcRawPayload(Identifier id, byte[] data) implements CustomPacketPayload {
     public static final int MAX_BYTES = 32766;
 
     @Override public Type<LunarArcRawPayload> type() { return new Type<>(id); }
 
-    public static <B extends FriendlyByteBuf> StreamCodec<B, LunarArcRawPayload> codec(ResourceLocation id, int maxBytes) {
+    public static <B extends FriendlyByteBuf> StreamCodec<B, LunarArcRawPayload> codec(Identifier id, int maxBytes) {
         return new StreamCodec<>() {
             @Override public LunarArcRawPayload decode(B buf) {
                 int size = buf.readableBytes();

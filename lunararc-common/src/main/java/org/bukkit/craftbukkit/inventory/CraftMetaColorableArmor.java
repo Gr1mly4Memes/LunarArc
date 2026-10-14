@@ -9,7 +9,6 @@ import org.bukkit.inventory.meta.ColorableArmorMeta;
 @org.bukkit.configuration.serialization.DelegateDeserialization(SerializableMeta.class)
 public final class CraftMetaColorableArmor extends CraftMetaArmor implements ColorableArmorMeta {
     private Color color;
-    private boolean showInTooltip = true;
 
     public CraftMetaColorableArmor(ItemStack stack) {
         super(stack);
@@ -17,7 +16,6 @@ public final class CraftMetaColorableArmor extends CraftMetaArmor implements Col
         DyedItemColor dyed = stack.get(DataComponents.DYED_COLOR);
         if (dyed != null) {
             color = Color.fromRGB(dyed.rgb());
-            showInTooltip = dyed.showInTooltip();
         }
     }
 
@@ -29,7 +27,7 @@ public final class CraftMetaColorableArmor extends CraftMetaArmor implements Col
     @Override public void applyToNms(ItemStack stack) {
         super.applyToNms(stack);
         if (color == null) stack.remove(DataComponents.DYED_COLOR);
-        else stack.set(DataComponents.DYED_COLOR, new DyedItemColor(color.asRGB(), showInTooltip));
+        else stack.set(DataComponents.DYED_COLOR, new DyedItemColor(color.asRGB()));
     }
 
     @Override public java.util.Map<String, Object> serialize() {

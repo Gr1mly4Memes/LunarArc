@@ -10,8 +10,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(PatrolSpawner.class)
 public abstract class PatrolSpawnerMixin {
-    @Inject(method = "tick", at = @At("HEAD"), cancellable = true, require = 0)
-    private void lunararc$disabled(ServerLevel level, boolean spawnEnemies, boolean spawnFriendlies, CallbackInfoReturnable<Integer> cir) {
-        if (LunarArcServerSettings.tuning(level).pillagerPatrolsDisabled || LunarArcServerSettings.tuning(level).pillagerPatrolSpawnChance == 0) cir.setReturnValue(0);
+    @Inject(method = "tick", at = @At("HEAD"), cancellable = true, require = 1)
+    private void lunararc$disabled(ServerLevel level, boolean spawnEnemies, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+        if (LunarArcServerSettings.tuning(level).pillagerPatrolsDisabled || LunarArcServerSettings.tuning(level).pillagerPatrolSpawnChance == 0) ci.cancel();
     }
 }

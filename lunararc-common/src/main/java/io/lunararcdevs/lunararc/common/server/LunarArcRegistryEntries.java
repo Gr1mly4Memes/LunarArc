@@ -4,7 +4,7 @@ import io.lunararcdevs.lunararc.common.LunarArcServerAccess;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import org.bukkit.Keyed;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
@@ -26,7 +26,7 @@ public final class LunarArcRegistryEntries {
         return LunarArcServerAccess.getMinecraftServer().registryAccess();
     }
 
-    private static NamespacedKey bukkitKey(ResourceLocation location) {
+    private static NamespacedKey bukkitKey(Identifier location) {
         return new NamespacedKey(location.getNamespace(), location.getPath());
     }
 
@@ -47,12 +47,12 @@ public final class LunarArcRegistryEntries {
     public static Registry<? extends Keyed> createEnchantmentRegistry() {
         return LunarArcBukkitRegistry.lazy(() -> {
             net.minecraft.core.Registry<net.minecraft.world.item.enchantment.Enchantment> nms =
-                    activeRegistries().registryOrThrow(Registries.ENCHANTMENT);
+                    activeRegistries().lookupOrThrow(Registries.ENCHANTMENT);
             List<Keyed> values = new ArrayList<>();
             for (Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.item.enchantment.Enchantment>,
                     net.minecraft.world.item.enchantment.Enchantment> entry : nms.entrySet()) {
                 values.add(new org.bukkit.craftbukkit.enchantments.CraftEnchantment(
-                        bukkitKey(entry.getKey().location()), entry.getValue(), nms));
+                        bukkitKey(entry.getKey().identifier()), entry.getValue(), nms));
             }
             return values;
         });
@@ -63,7 +63,7 @@ public final class LunarArcRegistryEntries {
             List<Keyed> values = new ArrayList<>();
             for (Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.level.gameevent.GameEvent>,
                     net.minecraft.world.level.gameevent.GameEvent> entry : BuiltInRegistries.GAME_EVENT.entrySet()) {
-                values.add(new CraftGameEvent(bukkitKey(entry.getKey().location()), entry.getValue()));
+                values.add(new CraftGameEvent(bukkitKey(entry.getKey().identifier()), entry.getValue()));
             }
             return values;
         });
@@ -92,12 +92,12 @@ public final class LunarArcRegistryEntries {
     public static Registry<? extends Keyed> createMusicInstrumentRegistry() {
         return LunarArcBukkitRegistry.lazy(() -> {
             net.minecraft.core.Registry<net.minecraft.world.item.Instrument> nms =
-                    activeRegistries().registryOrThrow(Registries.INSTRUMENT);
+                    activeRegistries().lookupOrThrow(Registries.INSTRUMENT);
             List<Keyed> values = new ArrayList<>();
             for (Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.item.Instrument>,
                     net.minecraft.world.item.Instrument> entry : nms.entrySet()) {
                 values.add(new org.bukkit.craftbukkit.CraftMusicInstrument(
-                        bukkitKey(entry.getKey().location()), entry.getValue()));
+                        bukkitKey(entry.getKey().identifier()), entry.getValue()));
             }
             return values;
         });
@@ -109,7 +109,7 @@ public final class LunarArcRegistryEntries {
             for (Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.level.levelgen.structure.StructureType<?>>,
                     net.minecraft.world.level.levelgen.structure.StructureType<?>> entry : BuiltInRegistries.STRUCTURE_TYPE.entrySet()) {
                 values.add(new org.bukkit.craftbukkit.generator.structure.CraftStructureType(
-                        bukkitKey(entry.getKey().location()), entry.getValue()));
+                        bukkitKey(entry.getKey().identifier()), entry.getValue()));
             }
             return values;
         });
@@ -118,20 +118,20 @@ public final class LunarArcRegistryEntries {
     public static Registry<? extends Keyed> createStructureRegistry() {
         return LunarArcBukkitRegistry.lazy(() -> {
             net.minecraft.core.Registry<net.minecraft.world.level.levelgen.structure.Structure> structures =
-                    activeRegistries().registryOrThrow(Registries.STRUCTURE);
+                    activeRegistries().lookupOrThrow(Registries.STRUCTURE);
             List<Keyed> values = new ArrayList<>();
             for (Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.level.levelgen.structure.Structure>,
                     net.minecraft.world.level.levelgen.structure.Structure> entry : structures.entrySet()) {
                 net.minecraft.world.level.levelgen.structure.Structure nmsStructure = entry.getValue();
-                ResourceLocation typeId = BuiltInRegistries.STRUCTURE_TYPE.getKey(nmsStructure.type());
+                Identifier typeId = BuiltInRegistries.STRUCTURE_TYPE.getKey(nmsStructure.type());
                 if (typeId == null) {
-                    throw new IllegalStateException("Unregistered StructureType for structure " + entry.getKey().location());
+                    throw new IllegalStateException("Unregistered StructureType for structure " + entry.getKey().identifier());
                 }
                 org.bukkit.generator.structure.StructureType type =
                         new org.bukkit.craftbukkit.generator.structure.CraftStructureType(
                                 bukkitKey(typeId), nmsStructure.type());
                 values.add(new org.bukkit.craftbukkit.generator.structure.CraftStructure(
-                        bukkitKey(entry.getKey().location()), nmsStructure, type));
+                        bukkitKey(entry.getKey().identifier()), nmsStructure, type));
             }
             return values;
         });
@@ -142,6 +142,23 @@ public final class LunarArcRegistryEntries {
      * Bukkit compatibility name/ordinal are derived metadata only; the handle
      * remains authoritative so modloader-added entries are not synthetic.
      */
+    /** Variant of {@link #createKeyedNmsRegistry(Class, net.minecraft.core.Registry)} for data-driven (dynamic) vanilla registries. */
+    public static Registry<? extends Keyed> createKeyedNmsRegistry(Class<? extends Keyed> apiType,
+                                                              net.minecraft.resources.ResourceKey<? extends net.minecraft.core.Registry<?>> nmsKey) {
+        return LunarArcBukkitRegistry.lazy(() -> {
+            net.minecraft.core.Registry<?> nms = activeRegistries().lookupOrThrow(nmsKey);
+            List<Keyed> values = new ArrayList<>();
+            int ordinal = 0;
+            for (Map.Entry<?, ?> raw : nms.entrySet()) {
+                Object keyObject = raw.getKey();
+                if (!(keyObject instanceof net.minecraft.resources.ResourceKey<?> resourceKey)) continue;
+                Keyed value = keyedVariant(apiType, bukkitKey(resourceKey.identifier()), ordinal++, raw.getValue());
+                if (value != null) values.add(value);
+            }
+            return values;
+        });
+    }
+
     public static Registry<? extends Keyed> createKeyedNmsRegistry(Class<? extends Keyed> apiType,
                                                               net.minecraft.core.Registry<?> nms) {
         // Bukkit's OldEnum-style registry interfaces (for example
@@ -157,7 +174,7 @@ public final class LunarArcRegistryEntries {
             for (Map.Entry<?, ?> raw : nms.entrySet()) {
                 Object keyObject = raw.getKey();
                 if (!(keyObject instanceof net.minecraft.resources.ResourceKey<?> resourceKey)) continue;
-                Keyed value = keyedVariant(apiType, bukkitKey(resourceKey.location()), ordinal++, raw.getValue());
+                Keyed value = keyedVariant(apiType, bukkitKey(resourceKey.identifier()), ordinal++, raw.getValue());
                 if (value != null) values.add(value);
             }
             return values;
@@ -167,13 +184,13 @@ public final class LunarArcRegistryEntries {
     private static Keyed keyedVariant(Class<? extends Keyed> apiType, NamespacedKey key, int ordinal, Object handle) {
         return switch (apiType.getName()) {
             case "org.bukkit.entity.Cat$Type" -> new CraftCatType(key, ordinal,
-                    (net.minecraft.world.entity.animal.CatVariant) handle);
+                    (net.minecraft.world.entity.animal.feline.CatVariant) handle);
             case "org.bukkit.entity.Frog$Variant" -> new CraftFrogVariant(key, ordinal,
-                    (net.minecraft.world.entity.animal.FrogVariant) handle);
+                    (net.minecraft.world.entity.animal.frog.FrogVariant) handle);
             case "org.bukkit.entity.Villager$Profession" -> new CraftVillagerProfession(key, ordinal,
-                    (net.minecraft.world.entity.npc.VillagerProfession) handle);
+                    (net.minecraft.world.entity.npc.villager.VillagerProfession) handle);
             case "org.bukkit.entity.Villager$Type" -> new CraftVillagerType(key, ordinal,
-                    (net.minecraft.world.entity.npc.VillagerType) handle);
+                    (net.minecraft.world.entity.npc.villager.VillagerType) handle);
             default -> null;
         };
     }
@@ -186,11 +203,11 @@ public final class LunarArcRegistryEntries {
 
     private static final class CraftCatType implements org.bukkit.entity.Cat.Type {
         private final NamespacedKey key; private final int ordinal;
-        private final net.minecraft.world.entity.animal.CatVariant handle;
-        CraftCatType(NamespacedKey key, int ordinal, net.minecraft.world.entity.animal.CatVariant handle) {
+        private final net.minecraft.world.entity.animal.feline.CatVariant handle;
+        CraftCatType(NamespacedKey key, int ordinal, net.minecraft.world.entity.animal.feline.CatVariant handle) {
             this.key = key; this.ordinal = ordinal; this.handle = handle;
         }
-        public net.minecraft.world.entity.animal.CatVariant getHandle() { return this.handle; }
+        public net.minecraft.world.entity.animal.feline.CatVariant getHandle() { return this.handle; }
         @Override public NamespacedKey getKey() { return this.key; }
         @Override public String name() { return oldEnumName(this.key); }
         @Override public int ordinal() { return this.ordinal; }
@@ -202,11 +219,11 @@ public final class LunarArcRegistryEntries {
 
     private static final class CraftFrogVariant implements org.bukkit.entity.Frog.Variant {
         private final NamespacedKey key; private final int ordinal;
-        private final net.minecraft.world.entity.animal.FrogVariant handle;
-        CraftFrogVariant(NamespacedKey key, int ordinal, net.minecraft.world.entity.animal.FrogVariant handle) {
+        private final net.minecraft.world.entity.animal.frog.FrogVariant handle;
+        CraftFrogVariant(NamespacedKey key, int ordinal, net.minecraft.world.entity.animal.frog.FrogVariant handle) {
             this.key = key; this.ordinal = ordinal; this.handle = handle;
         }
-        public net.minecraft.world.entity.animal.FrogVariant getHandle() { return this.handle; }
+        public net.minecraft.world.entity.animal.frog.FrogVariant getHandle() { return this.handle; }
         @Override public NamespacedKey getKey() { return this.key; }
         @Override public String name() { return oldEnumName(this.key); }
         @Override public int ordinal() { return this.ordinal; }
@@ -218,11 +235,11 @@ public final class LunarArcRegistryEntries {
 
     private static final class CraftVillagerType implements org.bukkit.entity.Villager.Type {
         private final NamespacedKey key; private final int ordinal;
-        private final net.minecraft.world.entity.npc.VillagerType handle;
-        CraftVillagerType(NamespacedKey key, int ordinal, net.minecraft.world.entity.npc.VillagerType handle) {
+        private final net.minecraft.world.entity.npc.villager.VillagerType handle;
+        CraftVillagerType(NamespacedKey key, int ordinal, net.minecraft.world.entity.npc.villager.VillagerType handle) {
             this.key = key; this.ordinal = ordinal; this.handle = handle;
         }
-        public net.minecraft.world.entity.npc.VillagerType getHandle() { return this.handle; }
+        public net.minecraft.world.entity.npc.villager.VillagerType getHandle() { return this.handle; }
         @Override public NamespacedKey getKey() { return this.key; }
         @Override public String name() { return oldEnumName(this.key); }
         @Override public int ordinal() { return this.ordinal; }
@@ -234,11 +251,11 @@ public final class LunarArcRegistryEntries {
 
     private static final class CraftVillagerProfession implements org.bukkit.entity.Villager.Profession {
         private final NamespacedKey key; private final int ordinal;
-        private final net.minecraft.world.entity.npc.VillagerProfession handle;
-        CraftVillagerProfession(NamespacedKey key, int ordinal, net.minecraft.world.entity.npc.VillagerProfession handle) {
+        private final net.minecraft.world.entity.npc.villager.VillagerProfession handle;
+        CraftVillagerProfession(NamespacedKey key, int ordinal, net.minecraft.world.entity.npc.villager.VillagerProfession handle) {
             this.key = key; this.ordinal = ordinal; this.handle = handle;
         }
-        public net.minecraft.world.entity.npc.VillagerProfession getHandle() { return this.handle; }
+        public net.minecraft.world.entity.npc.villager.VillagerProfession getHandle() { return this.handle; }
         @Override public NamespacedKey getKey() { return this.key; }
         @Override public String translationKey() { return "entity.minecraft.villager." + this.key.getKey(); }
         @Override public String name() { return oldEnumName(this.key); }
@@ -251,12 +268,12 @@ public final class LunarArcRegistryEntries {
 
     public static Registry<? extends Keyed> createWolfVariantRegistry() {
         return LunarArcBukkitRegistry.lazy(() -> {
-            net.minecraft.core.Registry<net.minecraft.world.entity.animal.WolfVariant> nms =
-                    activeRegistries().registryOrThrow(Registries.WOLF_VARIANT);
+            net.minecraft.core.Registry<net.minecraft.world.entity.animal.wolf.WolfVariant> nms =
+                    activeRegistries().lookupOrThrow(Registries.WOLF_VARIANT);
             List<Keyed> values = new ArrayList<>();
-            for (Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.entity.animal.WolfVariant>,
-                    net.minecraft.world.entity.animal.WolfVariant> entry : nms.entrySet()) {
-                values.add(new CraftWolfVariant(bukkitKey(entry.getKey().location()), entry.getValue()));
+            for (Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.entity.animal.wolf.WolfVariant>,
+                    net.minecraft.world.entity.animal.wolf.WolfVariant> entry : nms.entrySet()) {
+                values.add(new CraftWolfVariant(bukkitKey(entry.getKey().identifier()), entry.getValue()));
             }
             return values;
         });
@@ -264,11 +281,11 @@ public final class LunarArcRegistryEntries {
 
     private static final class CraftWolfVariant implements org.bukkit.entity.Wolf.Variant {
         private final NamespacedKey key;
-        private final net.minecraft.world.entity.animal.WolfVariant handle;
-        CraftWolfVariant(NamespacedKey key, net.minecraft.world.entity.animal.WolfVariant handle) {
+        private final net.minecraft.world.entity.animal.wolf.WolfVariant handle;
+        CraftWolfVariant(NamespacedKey key, net.minecraft.world.entity.animal.wolf.WolfVariant handle) {
             this.key = key; this.handle = handle;
         }
-        public net.minecraft.world.entity.animal.WolfVariant getHandle() { return this.handle; }
+        public net.minecraft.world.entity.animal.wolf.WolfVariant getHandle() { return this.handle; }
         @Override public NamespacedKey getKey() { return this.key; }
         @Override public boolean equals(Object other) {
             return this == other || (other instanceof org.bukkit.entity.Wolf.Variant variant && this.key.equals(variant.getKey()));
@@ -280,12 +297,12 @@ public final class LunarArcRegistryEntries {
     public static Registry<? extends Keyed> createPatternTypeRegistry() {
         return LunarArcBukkitRegistry.lazy(() -> {
             net.minecraft.core.Registry<net.minecraft.world.level.block.entity.BannerPattern> nms =
-                    activeRegistries().registryOrThrow(Registries.BANNER_PATTERN);
+                    activeRegistries().lookupOrThrow(Registries.BANNER_PATTERN);
             List<Keyed> values = new ArrayList<>();
             for (Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.level.block.entity.BannerPattern>,
                     net.minecraft.world.level.block.entity.BannerPattern> entry : nms.entrySet()) {
                 values.add(new org.bukkit.craftbukkit.block.banner.CraftPatternType(
-                        bukkitKey(entry.getKey().location()), entry.getValue()));
+                        bukkitKey(entry.getKey().identifier()), entry.getValue()));
             }
             return values;
         });
@@ -294,26 +311,26 @@ public final class LunarArcRegistryEntries {
     public static Registry<? extends Keyed> createTrimRegistry(Class<? extends Keyed> apiType) {
         if (org.bukkit.inventory.meta.trim.TrimMaterial.class.isAssignableFrom(apiType)) {
             return LunarArcBukkitRegistry.lazy(() -> {
-                net.minecraft.core.Registry<net.minecraft.world.item.armortrim.TrimMaterial> nms =
-                        activeRegistries().registryOrThrow(Registries.TRIM_MATERIAL);
+                net.minecraft.core.Registry<net.minecraft.world.item.equipment.trim.TrimMaterial> nms =
+                        activeRegistries().lookupOrThrow(Registries.TRIM_MATERIAL);
                 List<Keyed> values = new ArrayList<>();
-                for (Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.item.armortrim.TrimMaterial>,
-                        net.minecraft.world.item.armortrim.TrimMaterial> entry : nms.entrySet()) {
+                for (Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.item.equipment.trim.TrimMaterial>,
+                        net.minecraft.world.item.equipment.trim.TrimMaterial> entry : nms.entrySet()) {
                     values.add(new org.bukkit.craftbukkit.inventory.trim.CraftTrimMaterial(
-                            bukkitKey(entry.getKey().location()), entry.getValue()));
+                            bukkitKey(entry.getKey().identifier()), entry.getValue()));
                 }
                 return values;
             });
         }
         if (org.bukkit.inventory.meta.trim.TrimPattern.class.isAssignableFrom(apiType)) {
             return LunarArcBukkitRegistry.lazy(() -> {
-                net.minecraft.core.Registry<net.minecraft.world.item.armortrim.TrimPattern> nms =
-                        activeRegistries().registryOrThrow(Registries.TRIM_PATTERN);
+                net.minecraft.core.Registry<net.minecraft.world.item.equipment.trim.TrimPattern> nms =
+                        activeRegistries().lookupOrThrow(Registries.TRIM_PATTERN);
                 List<Keyed> values = new ArrayList<>();
-                for (Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.item.armortrim.TrimPattern>,
-                        net.minecraft.world.item.armortrim.TrimPattern> entry : nms.entrySet()) {
+                for (Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.item.equipment.trim.TrimPattern>,
+                        net.minecraft.world.item.equipment.trim.TrimPattern> entry : nms.entrySet()) {
                     values.add(new org.bukkit.craftbukkit.inventory.trim.CraftTrimPattern(
-                            bukkitKey(entry.getKey().location()), entry.getValue()));
+                            bukkitKey(entry.getKey().identifier()), entry.getValue()));
                 }
                 return values;
             });
@@ -324,12 +341,12 @@ public final class LunarArcRegistryEntries {
     public static Registry<? extends Keyed> createJukeboxSongRegistry() {
         return LunarArcBukkitRegistry.lazy(() -> {
             net.minecraft.core.Registry<net.minecraft.world.item.JukeboxSong> nms =
-                    activeRegistries().registryOrThrow(Registries.JUKEBOX_SONG);
+                    activeRegistries().lookupOrThrow(Registries.JUKEBOX_SONG);
             List<Keyed> values = new ArrayList<>();
             for (Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.item.JukeboxSong>,
                     net.minecraft.world.item.JukeboxSong> entry : nms.entrySet()) {
                 values.add(new org.bukkit.craftbukkit.CraftJukeboxSong(
-                        bukkitKey(entry.getKey().location()), entry.getValue()));
+                        bukkitKey(entry.getKey().identifier()), entry.getValue()));
             }
             return values;
         });
@@ -338,12 +355,12 @@ public final class LunarArcRegistryEntries {
     public static Registry<? extends Keyed> createDamageTypeRegistry() {
         return LunarArcBukkitRegistry.lazy(() -> {
             net.minecraft.core.Registry<net.minecraft.world.damagesource.DamageType> nms =
-                    activeRegistries().registryOrThrow(Registries.DAMAGE_TYPE);
+                    activeRegistries().lookupOrThrow(Registries.DAMAGE_TYPE);
             List<Keyed> values = new ArrayList<>();
             for (Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.damagesource.DamageType>,
                     net.minecraft.world.damagesource.DamageType> entry : nms.entrySet()) {
                 values.add(new org.bukkit.craftbukkit.damage.CraftDamageType(
-                        bukkitKey(entry.getKey().location()), entry.getValue()));
+                        bukkitKey(entry.getKey().identifier()), entry.getValue()));
             }
             return values;
         });
@@ -352,7 +369,7 @@ public final class LunarArcRegistryEntries {
     public static Registry<? extends Keyed> createMapCursorTypeRegistry() {
         List<Keyed> values = new ArrayList<>();
         byte index = 0;
-        for (ResourceLocation location : BuiltInRegistries.MAP_DECORATION_TYPE.keySet()) {
+        for (Identifier location : BuiltInRegistries.MAP_DECORATION_TYPE.keySet()) {
             values.add(new LunarArcMapCursorType(bukkitKey(location), index++));
         }
         return LunarArcBukkitRegistry.fromValues(values);

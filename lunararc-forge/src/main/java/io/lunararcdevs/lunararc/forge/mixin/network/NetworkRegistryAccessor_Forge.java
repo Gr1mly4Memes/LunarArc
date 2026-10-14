@@ -17,7 +17,7 @@ public abstract class NetworkRegistryAccessor_Forge {
             VarHandle handle = MethodHandles.lookup().findStaticVarHandle(NetworkRegistry.class, "lock", boolean.class);
             ForgeNetworkRegistryBridge.install(handle);
         } catch (ReflectiveOperationException exception) {
-            throw new IllegalStateException("Unable to expose Forge 1.21.1 NetworkRegistry lock", exception);
+            throw new IllegalStateException("Unable to expose Forge NetworkRegistry lock", exception);
         }
     }
 }

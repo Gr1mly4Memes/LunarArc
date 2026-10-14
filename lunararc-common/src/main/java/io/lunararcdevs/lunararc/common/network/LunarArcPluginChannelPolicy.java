@@ -1,7 +1,7 @@
 package io.lunararcdevs.lunararc.common.network;
 
 import io.lunararcdevs.lunararc.common.bridge.ServerCommonPacketListenerBridge;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import org.bukkit.Bukkit;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.plugin.Plugin;
@@ -15,8 +15,8 @@ public final class LunarArcPluginChannelPolicy {
         return StandardMessenger.validateAndCorrectChannel(channel);
     }
 
-    public static ResourceLocation channelId(String channel) {
-        return ResourceLocation.tryParse(correctedChannel(channel));
+    public static Identifier channelId(String channel) {
+        return Identifier.tryParse(correctedChannel(channel));
     }
 
     public static void validateManagedOutbound(CraftPlayer player, Plugin plugin, String channel, byte[] message) {
@@ -30,7 +30,7 @@ public final class LunarArcPluginChannelPolicy {
         return bridge.lunararc$getPluginChannels().contains(correctedChannel);
     }
 
-    public static void reportNativeConflict(String loaderName, ResourceLocation id, String nativeKind) {
+    public static void reportNativeConflict(String loaderName, Identifier id, String nativeKind) {
         Bukkit.getLogger().severe("[LunarArc] Bukkit plugin channel '" + id
                 + "' conflicts with an existing " + loaderName + " " + nativeKind
                 + "; the Bukkit channel will not replace it.");

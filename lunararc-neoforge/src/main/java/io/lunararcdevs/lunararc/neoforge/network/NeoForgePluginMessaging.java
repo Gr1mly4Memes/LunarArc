@@ -16,11 +16,12 @@ import net.minecraft.network.protocol.PacketFlow;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.neoforge.network.handling.IPayloadContext;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;
+import net.neoforged.neoforge.network.handling.IPayloadHandler;
 import net.neoforged.neoforge.network.registration.PayloadRegistration;
 import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.entity.Player;
@@ -28,22 +29,22 @@ import org.bukkit.plugin.Plugin;
 
 public final class NeoForgePluginMessaging {
     private static final String VERSION = "lunararc:bukkit/1";
-    private static final ConcurrentMap<ResourceLocation, PayloadRegistration<LunarArcRawPayload>> CHANNELS = new ConcurrentHashMap<>();
-    private static final Set<ResourceLocation> BLOCKED = ConcurrentHashMap.newKeySet();
+    private static final ConcurrentMap<Identifier, PayloadRegistration<LunarArcRawPayload>> CHANNELS = new ConcurrentHashMap<>();
+    private static final Set<Identifier> BLOCKED = ConcurrentHashMap.newKeySet();
 
     private NeoForgePluginMessaging() {}
 
     public static void ensureChannel(String channel) {
         String corrected = LunarArcPluginChannelPolicy.correctedChannel(channel);
-        ResourceLocation id = ResourceLocation.tryParse(corrected);
+        Identifier id = Identifier.tryParse(corrected);
         if (id == null || CHANNELS.containsKey(id) || BLOCKED.contains(id)) return;
 
         synchronized (NeoForgePluginMessaging.class) {
             if (CHANNELS.containsKey(id) || BLOCKED.contains(id)) return;
 
-            Map<ConnectionProtocol, Map<ResourceLocation, PayloadRegistration<?>>> registrations =
+            Map<ConnectionProtocol, Map<Identifier, PayloadRegistration<?>>> registrations =
                     NeoForgeNetworkRegistryBridge.payloadRegistrations();
-            Map<ResourceLocation, StreamCodec<net.minecraft.network.FriendlyByteBuf, ? extends CustomPacketPayload>> builtins =
+            Map<Identifier, StreamCodec<net.minecraft.network.FriendlyByteBuf, ? extends CustomPacketPayload>> builtins =
                     NeoForgeNetworkRegistryBridge.builtinPayloads();
 
             boolean occupied = builtins.containsKey(id)
@@ -59,17 +60,22 @@ public final class NeoForgePluginMessaging {
             PayloadRegistration<LunarArcRawPayload> registration = new PayloadRegistration<>(
                     type,
                     codec,
-                    (payload, context) -> receive(id, payload, context),
                     List.of(ConnectionProtocol.PLAY),
                     Optional.empty(),
                     VERSION,
                     true);
 
-            Map<ResourceLocation, PayloadRegistration<?>> play = registrations.get(ConnectionProtocol.PLAY);
+            Map<Identifier, PayloadRegistration<?>> play = registrations.get(ConnectionProtocol.PLAY);
             if (play == null) {
-                throw new IllegalStateException("NeoForge 1.21.1 has no PLAY payload registry");
+                throw new IllegalStateException("NeoForge has no PLAY payload registry");
             }
             play.put(id, registration);
+            // The outer map is immutable (computeIfAbsent always throws); only the per-protocol map is writable.
+            Map<Identifier, IPayloadHandler<?>> playHandlers = NeoForgeNetworkRegistryBridge.serverboundHandlers().get(ConnectionProtocol.PLAY);
+            if (playHandlers == null) {
+                throw new IllegalStateException("NeoForge has no PLAY serverbound handler registry");
+            }
+            playHandlers.put(id, (IPayloadHandler<LunarArcRawPayload>) (payload, context) -> receive(id, payload, context));
             CHANNELS.put(id, registration);
             io.lunararcdevs.lunararc.common.network.LunarArcPluginMessageOwnership.markNativeInbound(id);
         }
@@ -77,7 +83,7 @@ public final class NeoForgePluginMessaging {
 
     public static boolean sendIfManaged(CraftPlayer player, Plugin plugin, String channel, byte[] message) {
         String corrected = LunarArcPluginChannelPolicy.correctedChannel(channel);
-        ResourceLocation id = ResourceLocation.tryParse(corrected);
+        Identifier id = Identifier.tryParse(corrected);
         if (id == null) return false;
 
         PayloadRegistration<LunarArcRawPayload> registration = CHANNELS.get(id);
@@ -103,7 +109,7 @@ public final class NeoForgePluginMessaging {
         return true;
     }
 
-    private static void receive(ResourceLocation id, LunarArcRawPayload payload, IPayloadContext context) {
+    private static void receive(Identifier id, LunarArcRawPayload payload, IPayloadContext context) {
         if (context.flow() != PacketFlow.SERVERBOUND || context.protocol() != ConnectionProtocol.PLAY) return;
 
         byte[] data = payload.data();

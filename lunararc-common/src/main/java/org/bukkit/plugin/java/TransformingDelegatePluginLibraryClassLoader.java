@@ -72,6 +72,7 @@ final class TransformingDelegatePluginLibraryClassLoader extends ClassLoader imp
 
             CodeSource source = new CodeSource(resource, (Certificate[]) null);
             ProtectionDomain protectionDomain = new ProtectionDomain(source, null, this, null);
+            transformed = PluginClassLoader.downgradeClassVersion(transformed, name);
             return defineClass(name, transformed, 0, transformed.length, protectionDomain);
         } catch (IOException | RuntimeException error) {
             throw new ClassNotFoundException("Could not transform custom Paper library class " + name, error);

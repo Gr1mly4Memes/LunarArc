@@ -1,7 +1,7 @@
 package org.bukkit.craftbukkit.potion;
 
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.item.alchemy.Potion;
 import org.bukkit.NamespacedKey;
@@ -20,8 +20,8 @@ public final class CraftPotionType implements PotionType.InternalPotionData {
         this.key = Objects.requireNonNull(key, "key");
         var server = io.lunararcdevs.lunararc.common.mod.server.LunarArcServer.minecraftServer();
         if (server == null) throw new IllegalStateException("MinecraftServer has not been attached to LunarArc yet");
-        var registry = server.registryAccess().registryOrThrow(Registries.POTION);
-        ResourceLocation id = ResourceLocation.parse(key.toString());
+        var registry = server.registryAccess().lookupOrThrow(Registries.POTION);
+        Identifier id = Identifier.parse(key.toString());
         this.handle = registry.getOptional(id)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown potion type " + key));
     }
@@ -64,13 +64,13 @@ public final class CraftPotionType implements PotionType.InternalPotionData {
     private boolean hasSibling(String prefix) {
         var server = io.lunararcdevs.lunararc.common.mod.server.LunarArcServer.minecraftServer();
         if (server == null) return false;
-        var registry = server.registryAccess().registryOrThrow(Registries.POTION);
-        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(this.key.getNamespace(), prefix + this.key.getKey());
+        var registry = server.registryAccess().lookupOrThrow(Registries.POTION);
+        Identifier id = Identifier.fromNamespaceAndPath(this.key.getNamespace(), prefix + this.key.getKey());
         return registry.containsKey(id);
     }
 
     private static PotionEffect toBukkit(MobEffectInstance effect) {
-        ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
+        Identifier id = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
         if (id == null) throw new IllegalStateException("Unregistered potion effect " + effect.getEffect());
         PotionEffectType type = PotionEffectType.getByKey(new NamespacedKey(id.getNamespace(), id.getPath()));
         if (type == null) throw new IllegalStateException("No Bukkit PotionEffectType for " + id);

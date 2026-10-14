@@ -5,7 +5,7 @@ import java.util.Locale;
 import java.util.Objects;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.material.FluidState;
 import org.bukkit.Fluid;
 import org.bukkit.Location;
@@ -25,7 +25,7 @@ public final class CraftFluidData implements FlowingFluidData {
 
     @Override
     public @NotNull Fluid getFluidType() {
-        ResourceLocation id = BuiltInRegistries.FLUID.getKey(state.getType());
+        Identifier id = BuiltInRegistries.FLUID.getKey(state.getType());
         if (id == null || !"minecraft".equals(id.getNamespace())) return Fluid.EMPTY;
         try { return Fluid.valueOf(id.getPath().toUpperCase(Locale.ROOT)); }
         catch (IllegalArgumentException ignored) { return Fluid.EMPTY; }

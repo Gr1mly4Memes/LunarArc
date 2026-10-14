@@ -14,7 +14,7 @@ public final class CraftShulkerBullet extends CraftProjectile implements Shulker
     public CraftShulkerBullet(CraftServer server, net.minecraft.world.entity.projectile.ShulkerBullet entity) { super(server, entity); }
     private ShulkerBulletAccessBridge access() { return (ShulkerBulletAccessBridge) (Object) getHandle(); }
     @Override public @Nullable org.bukkit.entity.Entity getTarget() {
-        net.minecraft.world.entity.Entity target = access().lunararc$getFinalTarget();
+        net.minecraft.world.entity.Entity target = net.minecraft.world.entity.EntityReference.getEntity(access().lunararc$getFinalTarget(), getHandle().level());
         return target == null ? null : CraftEntity.getEntity(this.server, target);
     }
     @Override public void setTarget(@Nullable org.bukkit.entity.Entity target) {
@@ -23,8 +23,7 @@ public final class CraftShulkerBullet extends CraftProjectile implements Shulker
             if (!(target instanceof CraftEntity craft)) throw new IllegalArgumentException("Target is not backed by LunarArc CraftEntity");
             nms = craft.getHandle();
         }
-        access().lunararc$setFinalTarget(nms);
-        access().lunararc$setTargetId(nms == null ? null : nms.getUUID());
+        access().lunararc$setFinalTarget(net.minecraft.world.entity.EntityReference.of(nms));
     }
     @Override public Vector getTargetDelta() { return new Vector(access().lunararc$getTargetDeltaX(), access().lunararc$getTargetDeltaY(), access().lunararc$getTargetDeltaZ()); }
     @Override public void setTargetDelta(Vector vector) {

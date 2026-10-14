@@ -19,7 +19,7 @@ import net.minecraft.nbt.NbtIo;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.StringTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.ServerAdvancementManager;
 import net.minecraft.util.datafix.DataFixers;
@@ -66,17 +66,6 @@ public final class CraftMagicNumbers implements UnsafeValues {
     public static final boolean DISABLE_OLD_API_SUPPORT = Boolean.getBoolean("paper.disableOldApiSupport");
 
     private CraftMagicNumbers() {
-    }
-
-    @Override
-    @Deprecated(forRemoval = true)
-    public void reportTimings() {
-        co.aikar.timings.TimingsExport.reportTimings();
-    }
-
-    @Override
-    public String getTimingsServerName() {
-        return "LunarArc";
     }
 
     private static final com.destroystokyo.paper.util.VersionFetcher VERSION_FETCHER =
@@ -136,7 +125,8 @@ public final class CraftMagicNumbers implements UnsafeValues {
         } else if (context instanceof org.bukkit.craftbukkit.CraftConsoleCommandSender) {
             source = requireServer().createCommandSourceStack();
         } else if (context instanceof org.bukkit.craftbukkit.entity.CraftEntity entity) {
-            source = entity.getHandle().createCommandSourceStack();
+            source = entity.getHandle().level() instanceof net.minecraft.server.level.ServerLevel serverLevel
+                    ? entity.getHandle().createCommandSourceStackForNameResolution(serverLevel) : null;
         } else if (context != null) {
             throw new IllegalArgumentException("Unsupported LunarArc command sender context: " + context.getClass().getName());
         }
@@ -198,11 +188,11 @@ public final class CraftMagicNumbers implements UnsafeValues {
         if (material.isLegacy()) {
             return org.bukkit.craftbukkit.legacy.CraftLegacy.fromLegacyData(material, (byte) 0).getBlock();
         }
-        ResourceLocation key = resourceLocation(material);
+        Identifier key = resourceLocation(material);
         if (!BuiltInRegistries.BLOCK.containsKey(key)) {
             throw new IllegalArgumentException("Material is not a block: " + material);
         }
-        return BuiltInRegistries.BLOCK.get(key);
+        return BuiltInRegistries.BLOCK.getValue(key);
     }
 
     public static Item getItem(Material material) {
@@ -210,15 +200,15 @@ public final class CraftMagicNumbers implements UnsafeValues {
         if (material.isLegacy()) {
             return org.bukkit.craftbukkit.legacy.CraftLegacy.fromLegacyData(material, (short) 0);
         }
-        ResourceLocation key = resourceLocation(material);
+        Identifier key = resourceLocation(material);
         if (!BuiltInRegistries.ITEM.containsKey(key)) {
             throw new IllegalArgumentException("Material is not an item: " + material);
         }
-        return BuiltInRegistries.ITEM.get(key);
+        return BuiltInRegistries.ITEM.getValue(key);
     }
 
     // CraftBukkit resolves a block or item to its Material through a map built once at startup.
-    // Resolving it by name instead - registry key, ResourceLocation.toString(), then
+    // Resolving it by name instead - registry key, Identifier.toString(), then
     // Material.matchMaterial's own normalisation - allocates several strings per lookup, and
     // this is the hot path behind Block.getType(): a random-teleport search calls it for every
     // candidate position it probes. Memoise it the same way, lazily rather than at class init,
@@ -233,7 +223,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
         Objects.requireNonNull(block, "block");
         Material cached = BLOCK_MATERIAL.get(block);
         if (cached != null) return cached;
-        ResourceLocation key = BuiltInRegistries.BLOCK.getKey(block);
+        Identifier key = BuiltInRegistries.BLOCK.getKey(block);
         if (key == null) throw new IllegalArgumentException("Unregistered block: " + block);
         Material material = Material.matchMaterial(key.toString());
         if (material == null) {
@@ -249,7 +239,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
         Objects.requireNonNull(item, "item");
         Material cached = ITEM_MATERIAL.get(item);
         if (cached != null) return cached;
-        ResourceLocation key = BuiltInRegistries.ITEM.getKey(item);
+        Identifier key = BuiltInRegistries.ITEM.getKey(item);
         if (key == null) throw new IllegalArgumentException("Unregistered item: " + item);
         Material material = Material.matchMaterial(key.toString());
         if (material == null) {
@@ -269,8 +259,8 @@ public final class CraftMagicNumbers implements UnsafeValues {
         return descriptionFile.getAPIVersion() == null;
     }
 
-    private static ResourceLocation resourceLocation(Material material) {
-        return ResourceLocation.fromNamespaceAndPath(material.getKey().getNamespace(), material.getKey().getKey());
+    private static Identifier resourceLocation(Material material) {
+        return Identifier.fromNamespaceAndPath(material.getKey().getNamespace(), material.getKey().getKey());
     }
 
     @Override
@@ -319,7 +309,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
 
     @Override
     public int getDataVersion() {
-        return net.minecraft.SharedConstants.getCurrentVersion().getDataVersion().getVersion();
+        return net.minecraft.SharedConstants.getCurrentVersion().dataVersion().version();
     }
 
     @Override
@@ -349,7 +339,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
             return;
         }
         if (!isSupportedApiVersion(apiVersion)) {
-            throw new InvalidPluginException("Unsupported API version " + apiVersion + " for Minecraft 1.21.1");
+            throw new InvalidPluginException("Unsupported API version " + apiVersion + " for Minecraft " + io.lunararcdevs.lunararc.common.compat.PaperCompatibility.RUNTIME_MINECRAFT);
         }
         // CraftBukkit keys this off the declared version rather than only off its absence: a
         // plugin that says api-version: 1.12 is pre-flattening just as much as one that says
@@ -377,10 +367,9 @@ public final class CraftMagicNumbers implements UnsafeValues {
             if (active == null) return bytecode;
 
             try {
-                // Paper disables loadCompatibilities() outright on 1.21.1, so activeCompatibilities is
-                // always empty there; passing an empty set matches that rather than inventing a config.
+                // The active compatibility set comes from bukkit.yml (settings.compatibility), as in Paper.
                 return active.convert(bytecode, pdf.getName(),
-                        ApiVersion.getOrCreateVersion(pdf.getAPIVersion()), java.util.Collections.emptySet());
+                        ApiVersion.getOrCreateVersion(pdf.getAPIVersion()), org.bukkit.craftbukkit.CraftServer.ACTIVE_COMPATIBILITIES);
             } catch (Throwable ex) {
                 Bukkit.getLogger().log(java.util.logging.Level.SEVERE,
                         "Fatal error trying to convert " + pdf.getFullName() + ":" + path, ex);
@@ -415,7 +404,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
             throw new IllegalStateException("MinecraftServer is not attached yet");
         }
 
-        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(key.getNamespace(), key.getKey());
+        Identifier id = Identifier.fromNamespaceAndPath(key.getNamespace(), key.getKey());
         ServerAdvancementManager manager = server.getAdvancements();
         try {
             JsonElement json = JsonParser.parseString(advancement);
@@ -426,7 +415,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
                             "Invalid advancement " + key + ": " + message));
             AdvancementHolder holder = new AdvancementHolder(id, value);
 
-            HashMap<ResourceLocation, AdvancementHolder> advancements = new HashMap<>(manager.advancements);
+            HashMap<Identifier, AdvancementHolder> advancements = new HashMap<>(manager.advancements);
             advancements.put(id, holder);
             manager.advancements = advancements;
             manager.tree().addAll(List.of(holder));
@@ -450,7 +439,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
 
             for (net.minecraft.server.level.ServerPlayer player : server.getPlayerList().getPlayers()) {
                 player.getAdvancements().reload(manager);
-                player.getAdvancements().flushDirty(player);
+                player.getAdvancements().flushDirty(player, true);
             }
 
             return Bukkit.getAdvancement(key);
@@ -497,23 +486,23 @@ public final class CraftMagicNumbers implements UnsafeValues {
     @Override
     public String getTranslationKey(EntityType entityType) {
         Objects.requireNonNull(entityType, "entityType");
-        ResourceLocation key = ResourceLocation.parse(entityType.getKey().toString());
-        net.minecraft.world.entity.EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(key);
-        return type != null ? type.getDescriptionId() : net.minecraft.Util.makeDescriptionId("entity", key);
+        Identifier key = Identifier.parse(entityType.getKey().toString());
+        net.minecraft.world.entity.EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getValue(key);
+        return type != null ? type.getDescriptionId() : net.minecraft.util.Util.makeDescriptionId("entity", key);
     }
 
     @Override
     public String getTranslationKey(ItemStack itemStack) {
         net.minecraft.world.item.ItemStack nms =
                 org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(itemStack);
-        return nms.getItem().getDescriptionId(nms);
+        return nms.getItem().getDescriptionId();
     }
 
     @Override
     public String getTranslationKey(Attribute attribute) {
         Objects.requireNonNull(attribute, "attribute");
-        ResourceLocation key = ResourceLocation.parse(attribute.getKey().toString());
-        net.minecraft.world.entity.ai.attributes.Attribute nms = BuiltInRegistries.ATTRIBUTE.get(key);
+        Identifier key = Identifier.parse(attribute.getKey().toString());
+        net.minecraft.world.entity.ai.attributes.Attribute nms = BuiltInRegistries.ATTRIBUTE.getValue(key);
         if (nms == null) throw new IllegalArgumentException("Unknown attribute " + attribute.getKey());
         return nms.getDescriptionId();
     }
@@ -523,7 +512,6 @@ public final class CraftMagicNumbers implements UnsafeValues {
         return new org.bukkit.craftbukkit.potion.CraftPotionType(key);
     }
 
-    @Override
     public DamageEffect getDamageEffect(String key) {
         Objects.requireNonNull(key, "key");
         for (net.minecraft.world.damagesource.DamageEffects effect : net.minecraft.world.damagesource.DamageEffects.values()) {
@@ -545,10 +533,10 @@ public final class CraftMagicNumbers implements UnsafeValues {
     }
 
     @Override
-    public <B extends Keyed> B get(Registry<B> registry, NamespacedKey key) {
+    public <B extends Keyed> B get(io.papermc.paper.registry.RegistryKey<B> registry, NamespacedKey key) {
         Objects.requireNonNull(registry, "registry");
         Objects.requireNonNull(key, "key");
-        return registry.get(key);
+        return io.papermc.paper.registry.RegistryAccess.registryAccess().getRegistry(registry).get(key);
     }
 
     private static boolean isPreFlattening(String apiVersion) {
@@ -577,29 +565,113 @@ public final class CraftMagicNumbers implements UnsafeValues {
         }
     }
 
+    private static final org.slf4j.Logger LUNARARC_NBT_LOGGER = org.slf4j.LoggerFactory.getLogger("LunarArc");
+
     @Override
     public byte[] serializeItem(ItemStack item) {
-        Objects.requireNonNull(item, "item");
-        if (item.getType().isAir()) throw new IllegalArgumentException("air cannot be serialized");
+        Objects.requireNonNull(item, "null cannot be serialized");
+        if (item.isEmpty()) throw new IllegalArgumentException("Empty itemstack cannot be serialized");
         MinecraftServer server = requireServer();
-        net.minecraft.world.item.ItemStack nms =
-                org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(item);
-        net.minecraft.nbt.CompoundTag compound = (net.minecraft.nbt.CompoundTag) nms.save(server.registryAccess());
+        net.minecraft.nbt.CompoundTag compound = (net.minecraft.nbt.CompoundTag) net.minecraft.world.item.ItemStack.CODEC.encodeStart(
+                server.registryAccess().createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE),
+                org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(item)).getOrThrow();
         return serializeNbt(compound);
     }
 
     @Override
     public ItemStack deserializeItem(byte[] data) {
-        net.minecraft.nbt.CompoundTag compound = deserializeNbt(data);
-        int oldVersion = compound.getInt("DataVersion");
+        return deserializeItem(deserializeNbt(data));
+    }
+
+    private ItemStack deserializeItem(net.minecraft.nbt.CompoundTag compound) {
+        final int oldVersion = compound.getIntOr("DataVersion", 0);
         if (oldVersion < getDataVersion()) {
             compound = ca.spottedleaf.dataconverter.minecraft.MCDataConverter.convertTag(
                     ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry.ITEM_STACK,
                     compound, oldVersion, getDataVersion());
         }
-        return org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(
-                net.minecraft.world.item.ItemStack.parse(requireServer().registryAccess(), compound)
-                        .orElseThrow(() -> new IllegalArgumentException("Invalid serialized ItemStack")));
+        if (compound.getStringOr("id", "minecraft:air").equals("minecraft:air")) {
+            return org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(net.minecraft.world.item.ItemStack.EMPTY);
+        }
+        return org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(net.minecraft.world.item.ItemStack.CODEC.parse(
+                requireServer().registryAccess().createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE), compound).getOrThrow());
+    }
+
+    @Override
+    public @org.jetbrains.annotations.NotNull java.util.Map<String, Object> serializeStack(final ItemStack itemStack) {
+        if (itemStack.isEmpty()) {
+            return java.util.Map.of("id", "minecraft:air", net.minecraft.SharedConstants.DATA_VERSION_TAG, this.getDataVersion(), "schema_version", 1);
+        }
+        final net.minecraft.nbt.CompoundTag tag = (net.minecraft.nbt.CompoundTag) net.minecraft.world.item.ItemStack.CODEC.encodeStart(
+                requireServer().registryAccess().createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE),
+                org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(itemStack)).getOrThrow();
+        net.minecraft.nbt.NbtUtils.addCurrentDataVersion(tag);
+
+        final java.util.Map<String, Object> ret = new java.util.LinkedHashMap<>();
+        tag.asCompound().get().forEach((key, value) -> {
+            switch (key) {
+                case "id" -> ret.put("id", value.asString().get());
+                case "count" -> ret.put("count", value.asInt().get());
+                case "components" -> {
+                    final java.util.Map<String, Object> components = new java.util.LinkedHashMap<>();
+                    value.asCompound().ifPresent(compoundTag -> compoundTag.forEach((componentKey, componentTag) -> components.put(componentKey, componentTag.toString())));
+                    ret.put("components", components);
+                }
+                case net.minecraft.SharedConstants.DATA_VERSION_TAG -> ret.put(net.minecraft.SharedConstants.DATA_VERSION_TAG, value.asInt().get());
+                default -> throw new IllegalStateException("Unexpected value: " + key);
+            }
+        });
+        ret.put("schema_version", 1);
+        return ret;
+    }
+
+    private static final net.minecraft.nbt.TagParser<net.minecraft.nbt.Tag> SNBT_REGISTRY_UNAWARE_PARSER = net.minecraft.nbt.TagParser.create(net.minecraft.nbt.NbtOps.INSTANCE);
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public @org.jetbrains.annotations.NotNull ItemStack deserializeStack(@org.jetbrains.annotations.NotNull final java.util.Map<String, Object> args) {
+        final int version = args.getOrDefault("schema_version", 1) instanceof Number val ? val.intValue() : -1;
+
+        final net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
+        args.forEach((key, value) -> {
+            switch (key) {
+                case "id" -> tag.putString("id", (String) value);
+                case "count" -> tag.putInt("count", ((Number) value).intValue());
+                case "components" -> {
+                    if (version == 1) {
+                        java.util.Map<String, String> componentMap;
+                        if (value instanceof java.util.Map) {
+                            componentMap = (java.util.Map<String, String>) value;
+                        } else if (value instanceof org.bukkit.configuration.MemorySection memory) {
+                            componentMap = new java.util.HashMap<>();
+                            for (final String memoryKey : memory.getKeys(false)) {
+                                componentMap.put(memoryKey, memory.getString(memoryKey));
+                            }
+                        } else {
+                            throw new IllegalArgumentException("components must be a Map");
+                        }
+                        final net.minecraft.nbt.CompoundTag componentsTag = new net.minecraft.nbt.CompoundTag();
+                        componentMap.forEach((componentKey, componentString) -> {
+                            final net.minecraft.nbt.Tag componentTag;
+                            try {
+                                componentTag = SNBT_REGISTRY_UNAWARE_PARSER.parseFully(componentString);
+                            } catch (final com.mojang.brigadier.exceptions.CommandSyntaxException e) {
+                                throw new RuntimeException("Error parsing item stack data components", e);
+                            }
+                            componentsTag.put(componentKey, componentTag);
+                        });
+                        tag.put("components", componentsTag);
+                    } else {
+                        throw new IllegalStateException("Unexpected version: " + version);
+                    }
+                }
+                case net.minecraft.SharedConstants.DATA_VERSION_TAG -> tag.putInt(net.minecraft.SharedConstants.DATA_VERSION_TAG, ((Number) value).intValue());
+                case "==", "schema_version" -> { }
+                default -> throw new IllegalStateException("Unexpected value: " + key);
+            }
+        });
+
+        return deserializeItem(tag);
     }
 
     @Override
@@ -637,32 +709,114 @@ public final class CraftMagicNumbers implements UnsafeValues {
 
     @Override
     public byte[] serializeEntity(org.bukkit.entity.Entity entity) {
-        Objects.requireNonNull(entity, "entity");
+        return serializeEntity(entity, new io.papermc.paper.entity.EntitySerializationFlag[0]);
+    }
+
+    @Override
+    public byte[] serializeEntity(org.bukkit.entity.Entity entity, io.papermc.paper.entity.EntitySerializationFlag... serializationFlags) {
+        Objects.requireNonNull(entity, "null cannot be serialized");
         if (!(entity instanceof org.bukkit.craftbukkit.entity.CraftEntity craft)) {
-            throw new IllegalArgumentException("Only LunarArc CraftEntity instances can be serialized");
+            throw new IllegalArgumentException("Only CraftEntities can be serialized");
         }
-        net.minecraft.nbt.CompoundTag compound = new net.minecraft.nbt.CompoundTag();
-        craft.getHandle().save(compound);
-        return serializeNbt(compound);
+
+        java.util.Set<io.papermc.paper.entity.EntitySerializationFlag> flags = java.util.Set.of(serializationFlags);
+        final boolean serializePassengers = flags.contains(io.papermc.paper.entity.EntitySerializationFlag.PASSENGERS);
+        final boolean forceSerialization = flags.contains(io.papermc.paper.entity.EntitySerializationFlag.FORCE);
+        final boolean allowPlayerSerialization = flags.contains(io.papermc.paper.entity.EntitySerializationFlag.PLAYER);
+        final boolean allowMiscSerialization = flags.contains(io.papermc.paper.entity.EntitySerializationFlag.MISC);
+
+        net.minecraft.world.entity.Entity nmsEntity = craft.getHandle();
+        (serializePassengers ? nmsEntity.getSelfAndPassengers() : java.util.stream.Stream.of(nmsEntity)).forEach(e -> {
+            org.bukkit.entity.Entity bukkit = ((io.lunararcdevs.lunararc.common.bridge.EntityBridge) e).lunararc$getBukkitEntity();
+            if (!((bukkit.isValid() && bukkit.isPersistent()) || forceSerialization)) {
+                throw new IllegalArgumentException("Cannot serialize invalid or non-persistent entity " + e.getType().toShortString() + "(" + e.getStringUUID() + ") without the FORCE flag");
+            }
+            if (e instanceof net.minecraft.world.entity.player.Player) {
+                if (!allowPlayerSerialization) throw new IllegalArgumentException("Cannot serialize player(" + e.getStringUUID() + ") without the PLAYER flag");
+            } else if (!(nmsEntity.getType().canSerialize() || allowMiscSerialization)) {
+                throw new IllegalArgumentException("Cannot serialize misc non-saveable entity " + e.getType().toShortString() + "(" + e.getStringUUID() + ") without the MISC flag");
+            }
+        });
+
+        try (net.minecraft.util.ProblemReporter.ScopedCollector reporter = new net.minecraft.util.ProblemReporter.ScopedCollector(
+                () -> "serialiseEntity@" + entity.getUniqueId(), LUNARARC_NBT_LOGGER)) {
+            net.minecraft.world.level.storage.TagValueOutput output =
+                    net.minecraft.world.level.storage.TagValueOutput.createWithContext(reporter, nmsEntity.registryAccess());
+            if (serializePassengers) {
+                if (!nmsEntity.saveAsPassenger(output)) throw new IllegalArgumentException("Couldn't serialize entity");
+            } else {
+                java.util.List<net.minecraft.world.entity.Entity> pass = new java.util.ArrayList<>(nmsEntity.getPassengers());
+                nmsEntity.passengers = com.google.common.collect.ImmutableList.of();
+                boolean serialized;
+                try {
+                    serialized = nmsEntity.saveAsPassenger(output);
+                } finally {
+                    nmsEntity.passengers = com.google.common.collect.ImmutableList.copyOf(pass);
+                }
+                if (!serialized) throw new IllegalArgumentException("Couldn't serialize entity");
+            }
+            return serializeNbt(output.buildResult());
+        }
     }
 
     @Override
     public org.bukkit.entity.Entity deserializeEntity(byte[] data, org.bukkit.World world, boolean preserveUUID) {
+        return deserializeEntity(data, world, preserveUUID, false);
+    }
+
+    @Override
+    public org.bukkit.entity.Entity deserializeEntity(byte[] data, org.bukkit.World world, boolean preserveUUID, boolean preservePassengers) {
         Objects.requireNonNull(world, "world");
         if (!(world instanceof org.bukkit.craftbukkit.CraftWorld craftWorld)) {
             throw new IllegalArgumentException("World is not backed by LunarArc CraftWorld");
         }
         net.minecraft.nbt.CompoundTag compound = deserializeNbt(data);
-        int oldVersion = compound.getInt("DataVersion");
+        int oldVersion = compound.getIntOr("DataVersion", 0);
         if (oldVersion < getDataVersion()) {
             compound = ca.spottedleaf.dataconverter.minecraft.MCDataConverter.convertTag(
                     ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry.ENTITY,
                     compound, oldVersion, getDataVersion());
         }
-        if (!preserveUUID) compound.remove("UUID");
-        net.minecraft.world.entity.Entity nms = net.minecraft.world.entity.EntityType.create(compound, craftWorld.getHandle())
-                .orElseThrow(() -> new IllegalArgumentException("Serialized entity has no valid id"));
+        if (!preservePassengers) compound.remove("Passengers");
+        net.minecraft.world.entity.Entity nms = deserializeEntity(compound, craftWorld.getHandle(), preserveUUID);
         return ((io.lunararcdevs.lunararc.common.bridge.EntityBridge) nms).lunararc$getBukkitEntity();
+    }
+
+    private net.minecraft.world.entity.Entity deserializeEntity(net.minecraft.nbt.CompoundTag compound, net.minecraft.server.level.ServerLevel world, boolean preserveUUID) {
+        if (!preserveUUID) {
+            // Generate a new UUID, so we don't have to worry about deserializing the same entity twice
+            compound.remove("UUID");
+        }
+
+        final net.minecraft.world.entity.Entity nmsEntity;
+        try (net.minecraft.util.ProblemReporter.ScopedCollector reporter = new net.minecraft.util.ProblemReporter.ScopedCollector(
+                () -> "deserialiseEntity", LUNARARC_NBT_LOGGER)) {
+            nmsEntity = net.minecraft.world.entity.EntityType.create(
+                    net.minecraft.world.level.storage.TagValueInput.create(reporter, world.registryAccess(), compound),
+                    world,
+                    net.minecraft.world.entity.EntitySpawnReason.LOAD
+            ).orElseThrow(() -> new IllegalArgumentException("An ID was not found for the data. Did you downgrade?"));
+        }
+
+        compound.getList("Passengers").ifPresent(passengers -> {
+            for (final net.minecraft.nbt.Tag tag : passengers) {
+                if (!(tag instanceof final net.minecraft.nbt.CompoundTag serializedPassenger)) continue;
+                final net.minecraft.world.entity.Entity passengerEntity = deserializeEntity(serializedPassenger, world, preserveUUID);
+                passengerEntity.startRiding(nmsEntity, true, true);
+            }
+        });
+        return nmsEntity;
+    }
+
+    @Override
+    public ItemStack deserializeItemHover(final net.kyori.adventure.text.event.HoverEvent.ShowItem itemHover) {
+        // Round-trip through the vanilla component so the item data components are decoded with the server registries.
+        net.minecraft.network.chat.Component vanilla = io.papermc.paper.adventure.PaperAdventure.asVanilla(
+                net.kyori.adventure.text.Component.empty().hoverEvent(net.kyori.adventure.text.event.HoverEvent.showItem(itemHover)));
+        if (vanilla.getStyle().getHoverEvent() instanceof net.minecraft.network.chat.HoverEvent.ShowItem showItem) {
+            return org.bukkit.craftbukkit.inventory.CraftItemStack.asBukkitCopy(showItem.item());
+        }
+        throw new IllegalStateException("Could not decode show_item hover event");
     }
 
     @Override
@@ -681,7 +835,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
 
     @Override
     public int getProtocolVersion() {
-        return net.minecraft.SharedConstants.getCurrentVersion().getProtocolVersion();
+        return net.minecraft.SharedConstants.getCurrentVersion().protocolVersion();
     }
 
     @Override
@@ -691,13 +845,13 @@ public final class CraftMagicNumbers implements UnsafeValues {
         if (!itemToBeRepaired.getType().isItem() || !repairMaterial.getType().isItem()) return false;
         net.minecraft.world.item.ItemStack item = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(itemToBeRepaired);
         net.minecraft.world.item.ItemStack repair = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(repairMaterial);
-        return item.getItem().isValidRepairItem(item, repair);
+        return item.isValidRepairItem(repair);
     }
 
     @Override
     public boolean hasDefaultEntityAttributes(NamespacedKey entityKey) {
         Objects.requireNonNull(entityKey, "entityKey");
-        net.minecraft.world.entity.EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.get(ResourceLocation.parse(entityKey.toString()));
+        net.minecraft.world.entity.EntityType<?> type = BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.parse(entityKey.toString()));
         return type != null && net.minecraft.world.entity.ai.attributes.DefaultAttributes.hasSupplier(type);
     }
 
@@ -705,8 +859,8 @@ public final class CraftMagicNumbers implements UnsafeValues {
     @SuppressWarnings("unchecked")
     public org.bukkit.attribute.Attributable getDefaultEntityAttributes(NamespacedKey entityKey) {
         Objects.requireNonNull(entityKey, "entityKey");
-        ResourceLocation id = ResourceLocation.tryParse(entityKey.toString());
-        net.minecraft.world.entity.EntityType<?> type = id == null ? null : BuiltInRegistries.ENTITY_TYPE.get(id);
+        Identifier id = Identifier.tryParse(entityKey.toString());
+        net.minecraft.world.entity.EntityType<?> type = id == null ? null : BuiltInRegistries.ENTITY_TYPE.getValue(id);
         if (type == null || !net.minecraft.world.entity.ai.attributes.DefaultAttributes.hasSupplier(type)) {
             throw new IllegalArgumentException(entityKey + " doesn't have default attributes");
         }
@@ -726,7 +880,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
         } else {
             throw new IllegalArgumentException("Unsupported RegionAccessor implementation: " + accessor.getClass().getName());
         }
-        var key = holder.unwrapKey().orElseThrow(() -> new IllegalStateException("Biome has no registry key")).location();
+        var key = holder.unwrapKey().orElseThrow(() -> new IllegalStateException("Biome has no registry key")).identifier();
         return new NamespacedKey(key.getNamespace(), key.getPath());
     }
 
@@ -734,15 +888,15 @@ public final class CraftMagicNumbers implements UnsafeValues {
     public void setBiomeKey(org.bukkit.RegionAccessor accessor, int x, int y, int z, NamespacedKey biomeKey) {
         Objects.requireNonNull(accessor, "accessor");
         Objects.requireNonNull(biomeKey, "biomeKey");
-        net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+        net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.fromNamespaceAndPath(
                 biomeKey.getNamespace(), biomeKey.getKey());
         net.minecraft.resources.ResourceKey<net.minecraft.world.level.biome.Biome> key =
                 net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.BIOME, id);
 
         if (accessor instanceof org.bukkit.craftbukkit.CraftWorld world) {
             net.minecraft.core.Registry<net.minecraft.world.level.biome.Biome> registry =
-                    world.getHandle().registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.BIOME);
-            net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> holder = registry.getHolder(key)
+                    world.getHandle().registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.BIOME);
+            net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> holder = registry.get(key)
                     .orElseThrow(() -> new IllegalArgumentException("Unknown biome " + biomeKey));
 
             net.minecraft.world.level.chunk.LevelChunk chunk = world.getHandle().getChunk(x >> 4, z >> 4);
@@ -759,13 +913,13 @@ public final class CraftMagicNumbers implements UnsafeValues {
             net.minecraft.world.level.chunk.PalettedContainer<net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome>> mutable =
                     (net.minecraft.world.level.chunk.PalettedContainer<net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome>>) raw;
             mutable.set((x >> 2) & 3, (y >> 2) & 3, (z >> 2) & 3, holder);
-            chunk.setUnsaved(true);
+            chunk.markUnsaved();
             return;
         }
         if (accessor instanceof org.bukkit.craftbukkit.generator.CraftLimitedRegion region) {
             net.minecraft.core.Registry<net.minecraft.world.level.biome.Biome> registry =
-                    region.getHandle().registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.BIOME);
-            net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> holder = registry.getHolder(key)
+                    region.getHandle().registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.BIOME);
+            net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> holder = registry.get(key)
                     .orElseThrow(() -> new IllegalArgumentException("Unknown biome " + biomeKey));
             net.minecraft.world.level.chunk.ChunkAccess chunk =
                     region.getHandle().getChunk(x >> 4, z >> 4, net.minecraft.world.level.chunk.status.ChunkStatus.EMPTY);
@@ -779,7 +933,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
             net.minecraft.world.level.chunk.PalettedContainer<net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome>> mutable =
                     (net.minecraft.world.level.chunk.PalettedContainer<net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome>>) raw;
             mutable.set((x >> 2) & 3, (y >> 2) & 3, (z >> 2) & 3, holder);
-            chunk.setUnsaved(true);
+            chunk.markUnsaved();
             return;
         }
         throw new IllegalArgumentException("Unsupported RegionAccessor implementation: " + accessor.getClass().getName());
@@ -791,7 +945,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
         if (statistic.getType() != org.bukkit.Statistic.Type.UNTYPED) {
             return "minecraft.custom:minecraft." + statistic.getKey().getKey();
         }
-        ResourceLocation key = ResourceLocation.fromNamespaceAndPath(
+        Identifier key = Identifier.fromNamespaceAndPath(
                 statistic.getKey().getNamespace(), statistic.getKey().getKey());
         return net.minecraft.stats.Stats.CUSTOM.get(key).getName();
     }
@@ -799,11 +953,12 @@ public final class CraftMagicNumbers implements UnsafeValues {
     @Override
     public org.bukkit.Color getSpawnEggLayerColor(EntityType entityType, int layer) {
         Objects.requireNonNull(entityType, "entityType");
-        net.minecraft.world.entity.EntityType<?> nmsType = BuiltInRegistries.ENTITY_TYPE.get(
-                ResourceLocation.parse(entityType.getKey().toString()));
+        net.minecraft.world.entity.EntityType<?> nmsType = BuiltInRegistries.ENTITY_TYPE.getValue(
+                Identifier.parse(entityType.getKey().toString()));
         if (nmsType == null) return null;
         net.minecraft.world.item.SpawnEggItem egg = net.minecraft.world.item.SpawnEggItem.byId(nmsType);
-        return egg == null ? null : org.bukkit.Color.fromRGB(egg.getColor(layer));
+        if (egg != null) throw new UnsupportedOperationException();
+        return null;
     }
 
     @Override
@@ -837,24 +992,23 @@ public final class CraftMagicNumbers implements UnsafeValues {
                 .toList();
     }
 
-    @Override
     public <A extends Keyed, M> io.papermc.paper.registry.tag.Tag<A> getTag(
             io.papermc.paper.registry.tag.TagKey<A> tagKey) {
         Objects.requireNonNull(tagKey, "tagKey");
         net.kyori.adventure.key.Key registryId = tagKey.registryKey().key();
-        net.minecraft.resources.ResourceLocation registryLocation = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+        net.minecraft.resources.Identifier registryLocation = net.minecraft.resources.Identifier.fromNamespaceAndPath(
                 registryId.namespace(), registryId.value());
         @SuppressWarnings({"rawtypes", "unchecked"})
         net.minecraft.resources.ResourceKey<? extends net.minecraft.core.Registry<M>> nmsRegistryKey =
                 (net.minecraft.resources.ResourceKey) net.minecraft.resources.ResourceKey.createRegistryKey(registryLocation);
-        java.util.Optional<net.minecraft.core.Registry<M>> nmsRegistry = requireServer().registryAccess().registry(nmsRegistryKey);
+        java.util.Optional<net.minecraft.core.Registry<M>> nmsRegistry = requireServer().registryAccess().lookup(nmsRegistryKey);
         if (nmsRegistry.isEmpty()) return null;
 
         net.kyori.adventure.key.Key tagId = tagKey.key();
-        net.minecraft.resources.ResourceLocation tagLocation = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+        net.minecraft.resources.Identifier tagLocation = net.minecraft.resources.Identifier.fromNamespaceAndPath(
                 tagId.namespace(), tagId.value());
         net.minecraft.tags.TagKey<M> nmsTagKey = net.minecraft.tags.TagKey.create(nmsRegistryKey, tagLocation);
-        return nmsRegistry.get().getTag(nmsTagKey)
+        return nmsRegistry.get().get(nmsTagKey)
                 .<io.papermc.paper.registry.tag.Tag<A>>map(named ->
                         new io.lunararcdevs.lunararc.common.server.registry.LunarArcNamedRegistryTag<>(tagKey, named))
                 .orElse(null);
@@ -887,7 +1041,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
         if (data.length == 0) throw new IllegalArgumentException("cannot deserialize nothing");
         try (ByteArrayInputStream input = new ByteArrayInputStream(data)) {
             net.minecraft.nbt.CompoundTag compound = NbtIo.readCompressed(input, NbtAccounter.unlimitedHeap());
-            if (compound.getInt("DataVersion") > getDataVersion()) {
+            if (compound.getIntOr("DataVersion", 0) > getDataVersion()) {
                 throw new IllegalArgumentException("Newer version! Server downgrades are not supported");
             }
             return compound;
@@ -915,7 +1069,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
                     // reroute lookup. CraftBukkit drives this from the server once its
                     // compatibility set is known; Paper disables that set outright and leaves it
                     // permanently empty, so nothing is enabled here either.
-                    created.updateReroute(compatibility -> false);
+                    created.updateReroute(compatibility -> org.bukkit.craftbukkit.CraftServer.ACTIVE_COMPATIBILITIES.contains(compatibility));
                     commodore = created;
                 } catch (Throwable ex) {
                     commodoreUnavailable = true;
@@ -928,7 +1082,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
         }
     }
 
-    public static net.minecraft.resources.ResourceLocation key(Material mat) {
+    public static net.minecraft.resources.Identifier key(Material mat) {
         return org.bukkit.craftbukkit.util.CraftNamespacedKey.toMinecraft(mat.getKey());
     }
 }

@@ -2,6 +2,7 @@ package io.lunararcdevs.lunararc.common.mixin.core.world.blockentity;
 
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BeehiveBlockEntity;
@@ -43,13 +44,12 @@ public abstract class BeehiveBlockEntityMixin {
         }
     }
 
-    @WrapOperation(method = "releaseOccupant", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;isNight()Z"))
-    private static boolean lunararc$forceNight(Level level, Operation<Boolean> original) {
-        return !lunararc$forceRelease && original.call(level);
-    }
-
-    @WrapOperation(method = "releaseOccupant", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;isRaining()Z"))
-    private static boolean lunararc$forceRain(Level level, Operation<Boolean> original) {
-        return !lunararc$forceRelease && original.call(level);
+    /** Paper's forced release: ignore the "bees stay in the hive" environment attribute (night / rain). */
+    @WrapOperation(method = "releaseOccupant", require = 1, at = @At(value = "INVOKE",
+            target = "Lnet/minecraft/world/attribute/EnvironmentAttributeSystem;getValue(Lnet/minecraft/world/attribute/EnvironmentAttribute;Lnet/minecraft/core/BlockPos;)Ljava/lang/Object;"))
+    private static Object lunararc$forceRelease(net.minecraft.world.attribute.EnvironmentAttributeSystem system,
+            net.minecraft.world.attribute.EnvironmentAttribute<?> attribute, BlockPos pos, Operation<Object> original) {
+        if (lunararc$forceRelease && attribute == net.minecraft.world.attribute.EnvironmentAttributes.BEES_STAY_IN_HIVE) return Boolean.FALSE;
+        return original.call(system, attribute, pos);
     }
 }

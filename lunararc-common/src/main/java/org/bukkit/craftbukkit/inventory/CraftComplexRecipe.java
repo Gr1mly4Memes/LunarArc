@@ -25,8 +25,8 @@ public final class CraftComplexRecipe implements ComplexRecipe {
 
     @Override
     public @NotNull ItemStack getResult() {
-        return CraftItemStack.asBukkitCopy(this.handle.value().getResultItem(
-                LunarArcServerAccess.getMinecraftServer().registryAccess()));
+        // Special (imperative) recipes compute their output from the crafting input; there is no static result.
+        return ItemStack.empty();
     }
 
     @Override

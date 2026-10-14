@@ -5,7 +5,7 @@ import com.mojang.authlib.GameProfile;
 import com.mojang.authlib.properties.Property;
 import io.netty.buffer.Unpooled;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.net.InetAddress;
@@ -15,7 +15,7 @@ import java.security.NoSuchAlgorithmException;
 
 public class VelocitySupport {
 
-    public static final ResourceLocation PLAYER_INFO_CHANNEL = ResourceLocation.parse("velocity:player_info");
+    public static final Identifier PLAYER_INFO_CHANNEL = Identifier.parse("velocity:player_info");
     public static final int MAX_SUPPORTED_FORWARDING_VERSION = 4;
     public static final int QUERY_ID = 0x56454C4F;
 
@@ -76,7 +76,7 @@ public class VelocitySupport {
             final String name = buf.readUtf(Short.MAX_VALUE);
             final String value = buf.readUtf(Short.MAX_VALUE);
             final String signature = buf.readBoolean() ? buf.readUtf(Short.MAX_VALUE) : null;
-            profile.getProperties().put(name, new Property(name, value, signature));
+            profile.properties().put(name, new Property(name, value, signature));
         }
     }
 }

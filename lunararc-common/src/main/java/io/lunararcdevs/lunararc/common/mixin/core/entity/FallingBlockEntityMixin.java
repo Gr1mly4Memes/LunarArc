@@ -57,13 +57,13 @@ public abstract class FallingBlockEntityMixin implements FallingBlockBridge {
         return this.lunararc$autoExpire ? original : Integer.MAX_VALUE;
     }
 
-    @Inject(method = "addAdditionalSaveData", at = @At("RETURN"), require = 0)
-    private void lunararc$saveAutoExpire(CompoundTag tag, CallbackInfo ci) {
-        if (!this.lunararc$autoExpire) tag.putBoolean("Paper.AutoExpire", false);
+    @Inject(method = "addAdditionalSaveData", at = @At("RETURN"), require = 1)
+    private void lunararc$saveAutoExpire(net.minecraft.world.level.storage.ValueOutput output, CallbackInfo ci) {
+        if (!this.lunararc$autoExpire) output.putBoolean("Paper.AutoExpire", false);
     }
 
-    @Inject(method = "readAdditionalSaveData", at = @At("RETURN"), require = 0)
-    private void lunararc$loadAutoExpire(CompoundTag tag, CallbackInfo ci) {
-        if (tag.contains("Paper.AutoExpire")) this.lunararc$autoExpire = tag.getBoolean("Paper.AutoExpire");
+    @Inject(method = "readAdditionalSaveData", at = @At("RETURN"), require = 1)
+    private void lunararc$loadAutoExpire(net.minecraft.world.level.storage.ValueInput input, CallbackInfo ci) {
+        this.lunararc$autoExpire = input.getBooleanOr("Paper.AutoExpire", true);
     }
 }

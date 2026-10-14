@@ -36,6 +36,7 @@ public final class PaperHelperRegressionTest {
                 new org.bukkit.craftbukkit.persistence.CraftPersistentDataTypeRegistry()) {
             @Override public net.minecraft.nbt.Tag getTag(String key) { return data.get(key); }
             @Override public CompoundTag toTagCompound() { return data; }
+            @Override public int getSize() { return data.size(); }
         };
         NamespacedKey key = new NamespacedKey("test", "value");
         check(view.get(key, PersistentDataType.INTEGER) == 42, "persistent integer lost");

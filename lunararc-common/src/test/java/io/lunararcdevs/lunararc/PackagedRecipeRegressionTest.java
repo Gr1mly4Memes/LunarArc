@@ -9,7 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.jar.JarFile;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 public final class PackagedRecipeRegressionTest {
     public static void main(String[] args) throws Exception {
@@ -28,12 +28,12 @@ public final class PackagedRecipeRegressionTest {
                 return found;
             }
         }) {
-            var id = ResourceLocation.parse("farmingforblockheads:market/optional");
-            var recipes = new LinkedHashMap<ResourceLocation, com.google.gson.JsonElement>();
+            var id = Identifier.parse("farmingforblockheads:market/optional");
+            var recipes = new LinkedHashMap<Identifier, com.google.gson.JsonElement>();
             recipes.put(id, JsonParser.parseString("{\"type\":\"farmingforblockheads:market\",\"result\":{\"item\":\"optional:missing\"}}"));
             var method = loader.loadClass(name).getMethod("filter", Map.class, Predicate.class);
-            Map<?, ?> removed = (Map<?, ?>) method.invoke(null, recipes, (Predicate<ResourceLocation>) item -> false);
-            Map<?, ?> retained = (Map<?, ?>) method.invoke(null, recipes, (Predicate<ResourceLocation>) item -> true);
+            Map<?, ?> removed = (Map<?, ?>) method.invoke(null, recipes, (Predicate<Identifier>) item -> false);
+            Map<?, ?> retained = (Map<?, ?>) method.invoke(null, recipes, (Predicate<Identifier>) item -> true);
             if (!removed.isEmpty() || retained.size() != 1 || recipes.size() != 1) throw new AssertionError("packaged recipe filtering failed");
             System.out.println("Packaged recipe Gson boundary passed");
         }

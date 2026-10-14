@@ -28,9 +28,9 @@ public final class CraftNmsRecipeChoice implements RecipeChoice {
     @Override
     @Deprecated
     public @NotNull ItemStack getItemStack() {
-        net.minecraft.world.item.ItemStack[] choices = this.handle.getItems();
-        if (choices.length == 0) return new ItemStack(Material.AIR);
-        return CraftItemStack.asBukkitCopy(choices[0]);
+        return this.handle.items().findFirst()
+                .map(holder -> CraftItemStack.asBukkitCopy(new net.minecraft.world.item.ItemStack(holder)))
+                .orElseGet(() -> new ItemStack(Material.AIR));
     }
 
     @Override

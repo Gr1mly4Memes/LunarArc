@@ -15,14 +15,14 @@ public final class DonorDoubleInventory implements MenuProvider {
     private final ChestBlockEntity second;
     public final CompoundContainer inventorylargechest;
 
-    public DonorDoubleInventory(@javax.annotation.Nonnull ChestBlockEntity first, @javax.annotation.Nonnull ChestBlockEntity second) {
+    public DonorDoubleInventory(@org.jetbrains.annotations.NotNull ChestBlockEntity first, @org.jetbrains.annotations.NotNull ChestBlockEntity second) {
         this.first = first;
         this.second = second;
         this.inventorylargechest = new CompoundContainer(first, second);
     }
 
     @Override
-    public @Nullable AbstractContainerMenu createMenu(int containerId, @javax.annotation.Nonnull Inventory inventory, @javax.annotation.Nonnull Player player) {
+    public @Nullable AbstractContainerMenu createMenu(int containerId, @org.jetbrains.annotations.NotNull Inventory inventory, @org.jetbrains.annotations.NotNull Player player) {
         if (!first.canOpen(player) || !second.canOpen(player)) return null;
         first.unpackLootTable(inventory.player);
         second.unpackLootTable(inventory.player);

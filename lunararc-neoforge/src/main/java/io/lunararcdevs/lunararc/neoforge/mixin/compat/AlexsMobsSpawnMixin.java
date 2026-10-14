@@ -18,14 +18,14 @@ public abstract class AlexsMobsSpawnMixin {
     private static void lunararc$correctSkreecherCategory(Holder<Biome> biome,
             ModifiableBiomeInfo.BiomeInfo.Builder builder, CallbackInfo ci) {
         var settings = builder.getMobSpawnSettings();
-        var iterator = settings.getSpawner(MobCategory.MONSTER).iterator();
-        while (iterator.hasNext()) {
-            var spawn = iterator.next();
-            var key = BuiltInRegistries.ENTITY_TYPE.getKey(spawn.type);
+        var monsters = settings.getSpawner(MobCategory.MONSTER);
+        for (var weighted : java.util.List.copyOf(monsters.getList())) {
+            var spawn = weighted.value();
+            var key = BuiltInRegistries.ENTITY_TYPE.getKey(spawn.type());
             if (key != null && key.getNamespace().equals("alexsmobs") && key.getPath().equals("skreecher")
-                    && spawn.type.getCategory() != MobCategory.MONSTER) {
-                iterator.remove();
-                settings.getSpawner(spawn.type.getCategory()).add(spawn);
+                    && spawn.type().getCategory() != MobCategory.MONSTER) {
+                monsters.remove(weighted);
+                settings.getSpawner(spawn.type().getCategory()).add(weighted);
             }
         }
     }

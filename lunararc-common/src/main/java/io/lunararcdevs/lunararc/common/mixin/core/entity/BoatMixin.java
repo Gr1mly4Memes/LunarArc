@@ -1,7 +1,7 @@
 package io.lunararcdevs.lunararc.common.mixin.core.entity;
 
 import io.lunararcdevs.lunararc.common.bridge.EntityBridge;
-import net.minecraft.world.entity.vehicle.Boat;
+import net.minecraft.world.entity.vehicle.boat.Boat;
 import org.bukkit.Location;
 import org.bukkit.craftbukkit.event.CraftEventFactory;
 import org.spongepowered.asm.mixin.Mixin;
@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-@Mixin(Boat.class)
+@Mixin(net.minecraft.world.entity.vehicle.boat.AbstractBoat.class)
 public abstract class BoatMixin {
     public boolean landBoats = false;
     public double maxSpeed = 0.4D;
@@ -19,9 +19,9 @@ public abstract class BoatMixin {
 
     @Unique private Location lunararc$lastLocation;
 
-    @Inject(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/vehicle/Boat;tickBubbleColumn()V"))
+    @Inject(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/vehicle/boat/AbstractBoat;tickBubbleColumn()V"))
     private void lunararc$vehicleEvents(CallbackInfo ci) {
-        Boat self = (Boat) (Object) this;
+        net.minecraft.world.entity.vehicle.boat.AbstractBoat self = (net.minecraft.world.entity.vehicle.boat.AbstractBoat) (Object) this;
         if (self.level().isClientSide) return;
         CraftEventFactory.callVehicleUpdateAndMove(self, this.lunararc$lastLocation);
         this.lunararc$lastLocation = ((EntityBridge) self).lunararc$getBukkitEntity().getLocation();

@@ -15,7 +15,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(DedicatedServer.class)
 public abstract class DedicatedServerMixin {
-    @Inject(method = "getSpawnProtectionRadius", at = @At("HEAD"), cancellable = true)
+    @Inject(method = "spawnProtectionRadius", at = @At("HEAD"), cancellable = true, require = 1)
     private void lunararc$useBukkitSpawnRadius(CallbackInfoReturnable<Integer> cir) {
         CraftServer craftServer = ((MinecraftServerBridge) (Object) this).lunararc$getCraftServer();
         if (craftServer == null) return;

@@ -41,13 +41,14 @@ public class CraftWorld implements World {
         return new CraftChunk(this, x, z);
     }
 
+    /** Plugin chunk ticket: keeps the chunk loaded until explicitly removed. Flags are distinct from the vanilla ticket types. */
+    private static final net.minecraft.server.level.TicketType LUNARARC_PLUGIN_TICKET = new net.minecraft.server.level.TicketType(
+            net.minecraft.server.level.TicketType.NO_TIMEOUT,
+            net.minecraft.server.level.TicketType.FLAG_LOADING | net.minecraft.server.level.TicketType.FLAG_CAN_EXPIRE_IF_UNLOADED);
+
     private void lunararc$addPluginRegionTicket(int x, int z) {
         net.minecraft.world.level.ChunkPos pos = new net.minecraft.world.level.ChunkPos(x, z);
-        world.getChunkSource().addRegionTicket(
-                net.minecraft.server.level.TicketType.UNKNOWN,
-                pos,
-                0,
-                pos);
+        world.getChunkSource().addTicketWithRadius(LUNARARC_PLUGIN_TICKET, pos, 0);
     }
 
     private void lunararc$removePluginRegionTicketIfUnused(int x, int z) {
@@ -56,11 +57,7 @@ public class CraftWorld implements World {
         java.util.Set<org.bukkit.plugin.Plugin> plugins = lunararcPluginChunkTickets.get(key);
         if (plugins != null && !plugins.isEmpty()) return;
         net.minecraft.world.level.ChunkPos pos = new net.minecraft.world.level.ChunkPos(x, z);
-        world.getChunkSource().removeRegionTicket(
-                net.minecraft.server.level.TicketType.UNKNOWN,
-                pos,
-                0,
-                pos);
+        world.getChunkSource().removeTicketWithRadius(LUNARARC_PLUGIN_TICKET, pos, 0);
     }
 
     private volatile io.papermc.paper.configuration.WorldConfiguration paperConfiguration;
@@ -125,12 +122,12 @@ public class CraftWorld implements World {
     }
 
     private static String defaultWorldName(ServerLevel world) {
-        String dim = world.dimension().location().toString();
+        String dim = world.dimension().identifier().toString();
         return switch (dim) {
             case "minecraft:overworld" -> "world";
             case "minecraft:the_nether" -> "world_nether";
             case "minecraft:the_end" -> "world_the_end";
-            default -> world.dimension().location().getPath();
+            default -> world.dimension().identifier().getPath();
         };
     }
 
@@ -142,7 +139,7 @@ public class CraftWorld implements World {
         } catch (Throwable unavailable) {
             // The mixin that captures it did not apply; the legacy path below still answers.
         }
-        return loadOrCreateWorldUid(folder, bukkitName, world.dimension().location().toString());
+        return loadOrCreateWorldUid(folder, bukkitName, world.dimension().identifier().toString());
     }
 
     public static UUID loadOrCreateWorldUid(java.nio.file.Path dimensionFolder, String bukkitName,
@@ -232,7 +229,7 @@ public class CraftWorld implements World {
         UUID cached = lunararcLegacyDimensionUid;
         if (cached != null) return cached;
         cached = UUID.nameUUIDFromBytes(
-                world.dimension().location().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                world.dimension().identifier().toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
         lunararcLegacyDimensionUid = cached;
         return cached;
     }
@@ -254,7 +251,7 @@ public class CraftWorld implements World {
 
     @Override
     public @NotNull NamespacedKey getKey() {
-        net.minecraft.resources.ResourceLocation loc = world.dimension().location();
+        net.minecraft.resources.Identifier loc = world.dimension().identifier();
         return new NamespacedKey(loc.getNamespace(), loc.getPath());
     }
 
@@ -588,8 +585,8 @@ public class CraftWorld implements World {
             net.minecraft.resources.ResourceKey<net.minecraft.world.level.levelgen.feature.ConfiguredFeature<?, ?>> feature,
             net.minecraft.world.level.WorldGenLevel access, Random random, Location location) {
         net.minecraft.core.Holder<net.minecraft.world.level.levelgen.feature.ConfiguredFeature<?, ?>> holder =
-                world.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.CONFIGURED_FEATURE)
-                        .getHolder(feature).orElse(null);
+                world.registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.CONFIGURED_FEATURE)
+                        .get(feature).orElse(null);
         if (holder == null) return false;
         return holder.value().place(
                 access, world.getChunkSource().getGenerator(),
@@ -625,9 +622,9 @@ public class CraftWorld implements World {
 
     @Override
     public void setType(int x, int y, int z, @NotNull Material type) {
-        net.minecraft.resources.ResourceLocation key = net.minecraft.resources.ResourceLocation.withDefaultNamespace(
+        net.minecraft.resources.Identifier key = net.minecraft.resources.Identifier.withDefaultNamespace(
                 type.name().toLowerCase(java.util.Locale.ROOT));
-        net.minecraft.world.level.block.Block block = net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(key);
+        net.minecraft.world.level.block.Block block = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getValue(key);
         if (block != null) world.setBlock(new net.minecraft.core.BlockPos(x, y, z), block.defaultBlockState(), 3);
     }
 
@@ -643,7 +640,7 @@ public class CraftWorld implements World {
             nms = craftData.getState();
         } else {
             nms = net.minecraft.core.registries.BuiltInRegistries.BLOCK
-                    .get(net.minecraft.resources.ResourceLocation.withDefaultNamespace(
+                    .getValue(net.minecraft.resources.Identifier.withDefaultNamespace(
                             blockData.getMaterial().name().toLowerCase(java.util.Locale.ROOT)))
                     .defaultBlockState();
         }
@@ -659,7 +656,7 @@ public class CraftWorld implements World {
     public @NotNull Material getType(int x, int y, int z) {
         net.minecraft.world.level.block.state.BlockState state =
                 world.getBlockState(new net.minecraft.core.BlockPos(x, y, z));
-        net.minecraft.resources.ResourceLocation key =
+        net.minecraft.resources.Identifier key =
                 net.minecraft.core.registries.BuiltInRegistries.BLOCK.getKey(state.getBlock());
         if (key == null) return Material.AIR;
         try {
@@ -710,12 +707,12 @@ public class CraftWorld implements World {
     public void setBiome(int x, int y, int z, @NotNull org.bukkit.block.Biome biome) {
         java.util.Objects.requireNonNull(biome, "biome");
         org.bukkit.NamespacedKey bukkitKey = biome.getKey();
-        net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation.parse(bukkitKey.toString());
+        net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.parse(bukkitKey.toString());
         net.minecraft.resources.ResourceKey<net.minecraft.world.level.biome.Biome> key = net.minecraft.resources.ResourceKey.create(
                 net.minecraft.core.registries.Registries.BIOME, id);
-        net.minecraft.core.Registry<net.minecraft.world.level.biome.Biome> registry = world.registryAccess().registryOrThrow(
+        net.minecraft.core.Registry<net.minecraft.world.level.biome.Biome> registry = world.registryAccess().lookupOrThrow(
                 net.minecraft.core.registries.Registries.BIOME);
-        net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> holder = registry.getHolder(key)
+        net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> holder = registry.get(key)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown biome " + bukkitKey));
 
         net.minecraft.world.level.chunk.LevelChunk chunk = world.getChunk(x >> 4, z >> 4);
@@ -732,13 +729,13 @@ public class CraftWorld implements World {
         net.minecraft.world.level.chunk.PalettedContainer<net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome>> mutable =
                 (net.minecraft.world.level.chunk.PalettedContainer<net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome>>) raw;
         mutable.set((x >> 2) & 3, (y >> 2) & 3, (z >> 2) & 3, holder);
-        chunk.setUnsaved(true);
+        chunk.markUnsaved();
     }
 
     @Override
     public @NotNull org.bukkit.block.Biome getBiome(int x, int y, int z) {
         net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> holder = world.getBiome(new net.minecraft.core.BlockPos(x, y, z));
-        net.minecraft.resources.ResourceLocation id = holder.unwrapKey().map(net.minecraft.resources.ResourceKey::location).orElse(null);
+        net.minecraft.resources.Identifier id = holder.unwrapKey().map(net.minecraft.resources.ResourceKey::identifier).orElse(null);
         if (id != null) {
             org.bukkit.block.Biome biome = org.bukkit.Registry.BIOME.get(new org.bukkit.NamespacedKey(id.getNamespace(), id.getPath()));
             if (biome != null) return biome;
@@ -815,7 +812,7 @@ public class CraftWorld implements World {
     @Override
     public @NotNull Collection<org.bukkit.Chunk> getForceLoadedChunks() {
         java.util.List<org.bukkit.Chunk> chunks = new java.util.ArrayList<>();
-        for (long packed : world.getForcedChunks()) {
+        for (long packed : world.getForceLoadedChunks()) {
             net.minecraft.world.level.ChunkPos pos = new net.minecraft.world.level.ChunkPos(packed);
             chunks.add(getChunkAt(pos.x, pos.z));
         }
@@ -829,7 +826,7 @@ public class CraftWorld implements World {
 
     @Override
     public boolean isChunkForceLoaded(int x, int z) {
-        return world.getForcedChunks().contains(net.minecraft.world.level.ChunkPos.asLong(x, z));
+        return world.getForceLoadedChunks().contains(net.minecraft.world.level.ChunkPos.asLong(x, z));
     }
 
     @Override
@@ -944,9 +941,9 @@ public class CraftWorld implements World {
     @Override
     public void playSound(@NotNull Location location, @NotNull Sound sound, float volume, float pitch) {
         try {
-            net.minecraft.resources.ResourceLocation rl = net.minecraft.resources.ResourceLocation
+            net.minecraft.resources.Identifier rl = net.minecraft.resources.Identifier
                     .parse(sound.name().toLowerCase());
-            net.minecraft.sounds.SoundEvent se = net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.get(rl);
+            net.minecraft.sounds.SoundEvent se = net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.getValue(rl);
             if (se != null) {
                 world.playSound(null, location.getX(), location.getY(), location.getZ(),
                         net.minecraft.core.Holder.direct(se),
@@ -983,7 +980,7 @@ public class CraftWorld implements World {
 
     @Override
     public boolean hasStorm() {
-        return world.isRaining();
+        return world.getLevelData().isRaining();
     }
 
     @Override
@@ -1012,7 +1009,7 @@ public class CraftWorld implements World {
 
     @Override
     public boolean isThundering() {
-        return world.isThundering();
+        return world.getLevelData().isThundering();
     }
 
     @Override
@@ -1034,7 +1031,7 @@ public class CraftWorld implements World {
     @Override
     public @NotNull Environment getEnvironment() {
         return io.lunararcdevs.lunararc.common.server.LunarArcDynamicBukkitEnums
-                .environment(world.dimension().location());
+                .environment(world.dimension().identifier());
     }
 
     @Override
@@ -1044,7 +1041,7 @@ public class CraftWorld implements World {
 
     @Override
     public boolean getPVP() {
-        return lunararcPvpOverride != null ? lunararcPvpOverride : world.getServer().isPvpAllowed();
+        return lunararcPvpOverride != null ? lunararcPvpOverride : world.getGameRules().get(net.minecraft.world.level.gamerules.GameRules.PVP);
     }
 
     @Override
@@ -1072,26 +1069,16 @@ public class CraftWorld implements World {
             case HARD -> net.minecraft.world.Difficulty.HARD;
             default -> net.minecraft.world.Difficulty.NORMAL;
         };
-        try {
-            java.lang.reflect.Method method = world.getServer().getClass().getMethod(
-                    "setDifficulty", net.minecraft.server.level.ServerLevel.class, net.minecraft.world.Difficulty.class, boolean.class);
-            method.invoke(world.getServer(), world, nms, true);
-        } catch (ReflectiveOperationException primary) {
-            try {
-                Object levelData = world.getLevelData();
-                java.lang.reflect.Method method = levelData.getClass().getMethod("setDifficulty", net.minecraft.world.Difficulty.class);
-                method.invoke(levelData, nms);
-            } catch (ReflectiveOperationException fallback) {
-                primary.addSuppressed(fallback);
-                throw new IllegalStateException("Unable to change world difficulty on the active backend", primary);
-            }
-        }
+        // Difficulty is server-wide in vanilla 1.21.11, so this applies to every world.
+        world.getServer().setDifficulty(nms, true);
     }
 
     @Override
     public @NotNull Location getSpawnLocation() {
-        net.minecraft.core.BlockPos sp = world.getSharedSpawnPos();
-        return new Location(this, sp.getX(), sp.getY(), sp.getZ());
+        net.minecraft.world.level.storage.LevelData.RespawnData respawn = world.getLevelData() instanceof net.minecraft.world.level.storage.ServerLevelData data
+                ? data.getRespawnData() : world.getRespawnData();
+        net.minecraft.core.BlockPos sp = respawn.pos();
+        return new Location(this, sp.getX(), sp.getY(), sp.getZ(), respawn.yaw(), respawn.pitch());
     }
 
     @Override
@@ -1300,12 +1287,12 @@ public class CraftWorld implements World {
             }
             nmsSource = craftSource.getHandle();
         }
-        net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+        net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.fromNamespaceAndPath(
                 event.getKey().getNamespace(), event.getKey().getKey());
         net.minecraft.resources.ResourceKey<net.minecraft.world.level.gameevent.GameEvent> eventKey =
                 net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.GAME_EVENT, id);
         net.minecraft.core.Holder<net.minecraft.world.level.gameevent.GameEvent> nmsEvent =
-                net.minecraft.core.registries.BuiltInRegistries.GAME_EVENT.getHolder(eventKey)
+                net.minecraft.core.registries.BuiltInRegistries.GAME_EVENT.get(eventKey)
                         .orElseThrow(() -> new IllegalArgumentException("Unknown game event " + event.getKey()));
         world.gameEvent(nmsSource, nmsEvent, new net.minecraft.core.BlockPos(
                 (int) Math.floor(position.getX()), (int) Math.floor(position.getY()), (int) Math.floor(position.getZ())));
@@ -1326,7 +1313,7 @@ public class CraftWorld implements World {
 
     @Override
     public boolean isFixedTime() {
-        return world.dimensionType().fixedTime().isPresent();
+        return world.dimensionType().hasFixedTime();
     }
 
     @Override
@@ -1412,15 +1399,15 @@ public class CraftWorld implements World {
         if (structures.isEmpty()) return null;
 
         net.minecraft.core.Registry<net.minecraft.world.level.levelgen.structure.Structure> registry =
-                world.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
+                world.registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
         java.util.ArrayList<net.minecraft.core.Holder<net.minecraft.world.level.levelgen.structure.Structure>> holders =
                 new java.util.ArrayList<>(structures.size());
         for (org.bukkit.generator.structure.Structure structure : structures) {
-            net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+            net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.fromNamespaceAndPath(
                     structure.getKey().getNamespace(), structure.getKey().getKey());
             net.minecraft.resources.ResourceKey<net.minecraft.world.level.levelgen.structure.Structure> key =
                     net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.STRUCTURE, id);
-            registry.getHolder(key).ifPresent(holders::add);
+            registry.get(key).ifPresent(holders::add);
         }
         if (holders.isEmpty()) return null;
 
@@ -1490,8 +1477,8 @@ public class CraftWorld implements World {
         net.minecraft.core.particles.ParticleOptions options=lunararcParticle(particle,data);
         if(receivers==null){ world.sendParticles(options,x,y,z,count,offsetX,offsetY,offsetZ,extra); return; }
         for(org.bukkit.entity.Player receiver:receivers){
-            if(!(receiver instanceof org.bukkit.craftbukkit.entity.CraftPlayer craft) || craft.getHandle().serverLevel()!=world) continue;
-            world.sendParticles(craft.getHandle(),options,force,x,y,z,count,offsetX,offsetY,offsetZ,extra);
+            if(!(receiver instanceof org.bukkit.craftbukkit.entity.CraftPlayer craft) || craft.getHandle().level()!=world) continue;
+            world.sendParticles(craft.getHandle(),options,force,force,x,y,z,count,offsetX,offsetY,offsetZ,extra);
         }
     }
 
@@ -1571,123 +1558,97 @@ public class CraftWorld implements World {
         return java.util.Collections.unmodifiableSet(channels);
     }
 
-    private static final java.util.Map<String, net.minecraft.world.level.GameRules.Key<?>> LUNARARC_GAME_RULE_KEYS;
-    private static final java.util.Map<String, net.minecraft.world.level.GameRules.Type<?>> LUNARARC_GAME_RULE_TYPES;
-
-    static {
-        java.util.Map<String, net.minecraft.world.level.GameRules.Key<?>> keys = new java.util.LinkedHashMap<>();
-        java.util.Map<String, net.minecraft.world.level.GameRules.Type<?>> types = new java.util.LinkedHashMap<>();
-        net.minecraft.world.level.GameRules.visitGameRuleTypes(new net.minecraft.world.level.GameRules.GameRuleTypeVisitor() {
-            @Override
-            public <T extends net.minecraft.world.level.GameRules.Value<T>> void visit(
-                    net.minecraft.world.level.GameRules.Key<T> key,
-                    net.minecraft.world.level.GameRules.Type<T> type) {
-                keys.put(key.getId(), key);
-                types.put(key.getId(), type);
-            }
-        });
-        LUNARARC_GAME_RULE_KEYS = java.util.Collections.unmodifiableMap(keys);
-        LUNARARC_GAME_RULE_TYPES = java.util.Collections.unmodifiableMap(types);
-    }
-
-    private net.minecraft.world.level.GameRules.@Nullable Key<?> lunararcGameRuleKey(String name) {
-        return LUNARARC_GAME_RULE_KEYS.get(name);
-    }
-
-    @SuppressWarnings({"rawtypes", "unchecked"})
-    private net.minecraft.world.level.GameRules.@Nullable Value<?> lunararcGameRuleValueObject(String name) {
-        net.minecraft.world.level.GameRules.Key key = lunararcGameRuleKey(name);
-        return key == null ? null : world.getGameRules().getRule(key);
-    }
-
-    private static @Nullable Object lunararcGameRuleRawValue(net.minecraft.world.level.GameRules.Value<?> value) {
-        if (value instanceof net.minecraft.world.level.GameRules.BooleanValue bool) return bool.get();
-        if (value instanceof net.minecraft.world.level.GameRules.IntegerValue integer) return integer.get();
-        return null;
-    }
-
     @Override
-    public <T> boolean setGameRule(@NotNull org.bukkit.GameRule<T> rule, @NotNull T newValue) {
-        java.util.Objects.requireNonNull(rule, "rule");
-        java.util.Objects.requireNonNull(newValue, "newValue");
-        if (!io.lunararcdevs.lunararc.common.event.LunarArcPaperEvents.gameRule(this, null, rule.getName(), String.valueOf(newValue))) return false;
-        net.minecraft.world.level.GameRules.Value<?> value = lunararcGameRuleValueObject(rule.getName());
-        if (value instanceof net.minecraft.world.level.GameRules.BooleanValue bool && newValue instanceof Boolean b) {
-            bool.set(b, world.getServer());
-            return true;
-        }
-        if (value instanceof net.minecraft.world.level.GameRules.IntegerValue integer && newValue instanceof Integer i) {
-            integer.set(i, world.getServer());
-            return true;
-        }
-        return false;
+    public @Nullable String getGameRuleValue(@NotNull String rule) {
+        // In method contract for some reason
+        if (rule == null) return null;
+        org.bukkit.GameRule<?> bukkit = org.bukkit.GameRule.getByName(rule);
+        if (bukkit == null) throw new IllegalArgumentException("Unknown gamerule: " + rule);
+        return world.getGameRules().getAsString(CraftGameRule.bukkitToMinecraft(bukkit));
     }
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     @Override
-    public <T> @Nullable T getGameRuleDefault(@NotNull org.bukkit.GameRule<T> rule) {
-        java.util.Objects.requireNonNull(rule, "rule");
-        net.minecraft.world.level.GameRules.Type type = LUNARARC_GAME_RULE_TYPES.get(rule.getName());
-        if (type == null) return null;
-        Object raw = lunararcGameRuleRawValue((net.minecraft.world.level.GameRules.Value<?>) type.createRule());
-        return raw == null ? null : rule.getType().cast(raw);
-    }
-
-    @SuppressWarnings("unchecked")
-    @Override
-    public <T> @Nullable T getGameRuleValue(@NotNull org.bukkit.GameRule<T> rule) {
-        java.util.Objects.requireNonNull(rule, "rule");
-        Object raw = lunararcGameRuleRawValue(lunararcGameRuleValueObject(rule.getName()));
-        return raw == null ? null : rule.getType().cast(raw);
-    }
-
-    @Override
-    public boolean isGameRule(@NotNull String rule) {
-        java.util.Objects.requireNonNull(rule, "rule");
-        return LUNARARC_GAME_RULE_KEYS.containsKey(rule);
-    }
-
-    @Override
     public boolean setGameRuleValue(@NotNull String rule, @NotNull String value) {
-        java.util.Objects.requireNonNull(rule, "rule");
-        java.util.Objects.requireNonNull(value, "value");
-        net.minecraft.world.level.GameRules.Value<?> current = lunararcGameRuleValueObject(rule);
-        try {
-            if (current instanceof net.minecraft.world.level.GameRules.BooleanValue bool) {
-                if (!"true".equalsIgnoreCase(value) && !"false".equalsIgnoreCase(value)) return false;
-                bool.set(Boolean.parseBoolean(value), world.getServer());
-                return true;
-            }
-            if (current instanceof net.minecraft.world.level.GameRules.IntegerValue integer) {
-                integer.set(Integer.parseInt(value), world.getServer());
-                return true;
-            }
-            return false;
-        } catch (NumberFormatException ex) {
-            return false;
-        }
+        // No null values allowed
+        if (rule == null || value == null) return false;
+        org.bukkit.GameRule<?> bukkit = org.bukkit.GameRule.getByName(rule);
+        if (bukkit == null) return false;
+        net.minecraft.world.level.gamerules.GameRule nms = CraftGameRule.bukkitToMinecraft(bukkit);
+        if (!lunararcHasGameRule(nms)) return false;
+        return !org.bukkit.craftbukkit.event.CraftEventFactory.handleGameRuleSet(nms, nms.deserialize(value).getOrThrow(), world, null).cancelled();
     }
 
-    @Override
-    public @Nullable String getGameRuleValue(@NotNull String rule) {
-        java.util.Objects.requireNonNull(rule, "rule");
-        net.minecraft.world.level.GameRules.Value<?> value = lunararcGameRuleValueObject(rule);
-        return value == null ? null : value.serialize();
+    private boolean lunararcHasGameRule(net.minecraft.world.level.gamerules.GameRule<?> rule) {
+        return world.getGameRules().availableRules().anyMatch(available -> available == rule);
     }
 
     @Override
     public @NotNull String[] getGameRules() {
-        return LUNARARC_GAME_RULE_KEYS.keySet().stream().sorted().toArray(String[]::new);
+        return world.getGameRules().availableRules()
+                .map(net.minecraft.world.level.gamerules.GameRule::id)
+                .toArray(String[]::new);
+    }
+
+    @Override
+    public boolean isGameRule(@NotNull String rule) {
+        java.util.Objects.requireNonNull(rule, "String rule cannot be null");
+        if (rule.isEmpty()) throw new IllegalArgumentException("String rule cannot be empty");
+        org.bukkit.GameRule<?> bukkit = org.bukkit.GameRule.getByName(rule);
+        if (bukkit == null) return false;
+        return lunararcHasGameRule(CraftGameRule.bukkitToMinecraft(bukkit));
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <T> T shimLegacyValue(T value, org.bukkit.GameRule<?> gameRule) {
+        if (gameRule instanceof CraftGameRule.LegacyGameRuleWrapper<?, ?> legacy) {
+            return (T) ((java.util.function.Function<Object, Object>) legacy.getToLegacyFromModern()).apply(value);
+        }
+        return value;
+    }
+
+    @Override
+    public <T> @Nullable T getGameRuleValue(@NotNull org.bukkit.GameRule<T> rule) {
+        java.util.Objects.requireNonNull(rule, "GameRule cannot be null");
+        T value = world.getGameRules().get(CraftGameRule.bukkitToMinecraft(rule));
+        return shimLegacyValue(value, rule);
+    }
+
+    @Override
+    public <T> @Nullable T getGameRuleDefault(@NotNull org.bukkit.GameRule<T> rule) {
+        java.util.Objects.requireNonNull(rule, "GameRule cannot be null");
+        T value = CraftGameRule.bukkitToMinecraft(rule).defaultValue();
+        return shimLegacyValue(value, rule);
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public <T> boolean setGameRule(@NotNull org.bukkit.GameRule<T> rule, @NotNull T newValue) {
+        java.util.Objects.requireNonNull(rule, "GameRule cannot be null");
+        java.util.Objects.requireNonNull(newValue, "GameRule value cannot be null");
+        net.minecraft.world.level.gamerules.GameRule<T> nms = CraftGameRule.bukkitToMinecraft(rule);
+        if (!lunararcHasGameRule(nms)) return false;
+
+        final T convertedValue;
+        if (rule instanceof CraftGameRule.LegacyGameRuleWrapper<?, ?> legacy) {
+            convertedValue = (T) ((java.util.function.Function<Object, Object>) legacy.getFromLegacyToModern()).apply(newValue);
+        } else {
+            nms.valueCodec().encodeStart(com.mojang.serialization.JavaOps.INSTANCE, newValue).ifError(error -> {
+                throw CraftGameRule.INVALID_VALUE.apply(newValue.toString(), error);
+            });
+            convertedValue = newValue;
+        }
+        return !org.bukkit.craftbukkit.event.CraftEventFactory.handleGameRuleSet(nms, convertedValue, world, null).cancelled();
     }
 
     private static net.minecraft.sounds.SoundSource lunararcSoundSource(org.bukkit.SoundCategory category) {
         return net.minecraft.sounds.SoundSource.valueOf(category.name());
     }
     private @Nullable net.minecraft.core.Holder<net.minecraft.sounds.SoundEvent> lunararcSound(String sound) {
-        net.minecraft.resources.ResourceLocation id = sound.indexOf(':') >= 0
-                ? net.minecraft.resources.ResourceLocation.parse(sound)
-                : net.minecraft.resources.ResourceLocation.withDefaultNamespace(sound.toLowerCase(java.util.Locale.ROOT));
-        return net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.getHolder(id).orElse(null);
+        net.minecraft.resources.Identifier id = sound.indexOf(':') >= 0
+                ? net.minecraft.resources.Identifier.parse(sound)
+                : net.minecraft.resources.Identifier.withDefaultNamespace(sound.toLowerCase(java.util.Locale.ROOT));
+        return net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.get(id).orElse(null);
     }
     private String lunararcSoundName(org.bukkit.Sound sound) { return sound.getKey().toString(); }
 
@@ -1807,12 +1768,12 @@ public class CraftWorld implements World {
     public @NotNull java.io.File getWorldFolder() {
         java.nio.file.Path folder = ((io.lunararcdevs.lunararc.common.bridge.ServerLevelBridge) world).lunararc$getDimensionFolder();
         if (folder != null) return folder.toFile();
-        String dim = world.dimension().location().toString();
+        String dim = world.dimension().identifier().toString();
         return switch (dim) {
             case "minecraft:overworld" -> new java.io.File("world");
             case "minecraft:the_nether" -> new java.io.File("world_nether");
             case "minecraft:the_end" -> new java.io.File("world_the_end");
-            default -> new java.io.File("world", "dimensions/" + world.dimension().location().getNamespace() + "/" + world.dimension().location().getPath());
+            default -> new java.io.File("world", "dimensions/" + world.dimension().identifier().getNamespace() + "/" + world.dimension().identifier().getPath());
         };
     }
 
@@ -1854,14 +1815,21 @@ public class CraftWorld implements World {
         return world.getSeaLevel();
     }
 
-    @Override public boolean isUltraWarm() { return world.dimensionType().ultraWarm(); }
-    @Override public boolean hasRaids() { return world.dimensionType().hasRaids(); }
-    @Override public boolean isRespawnAnchorWorks() { return world.dimensionType().respawnAnchorWorks(); }
-    @Override public boolean isPiglinSafe() { return world.dimensionType().piglinSafe(); }
+    @Override public boolean isUltraWarm() {
+        return world.environmentAttributes().getDimensionValue(net.minecraft.world.attribute.EnvironmentAttributes.WATER_EVAPORATES)
+                && world.environmentAttributes().getDimensionValue(net.minecraft.world.attribute.EnvironmentAttributes.FAST_LAVA)
+                && world.environmentAttributes().getDimensionValue(net.minecraft.world.attribute.EnvironmentAttributes.DEFAULT_DRIPSTONE_PARTICLE).equals(net.minecraft.core.particles.ParticleTypes.DRIPPING_DRIPSTONE_LAVA);
+    }
+    @Override public boolean hasRaids() { return world.environmentAttributes().getDimensionValue(net.minecraft.world.attribute.EnvironmentAttributes.CAN_START_RAID); }
+    @Override public boolean isRespawnAnchorWorks() { return world.environmentAttributes().getDimensionValue(net.minecraft.world.attribute.EnvironmentAttributes.RESPAWN_ANCHOR_WORKS); }
+    @Override public boolean isPiglinSafe() { return !world.environmentAttributes().getDimensionValue(net.minecraft.world.attribute.EnvironmentAttributes.PIGLINS_ZOMBIFY); }
     @Override public boolean hasCeiling() { return world.dimensionType().hasCeiling(); }
     @Override public boolean hasSkyLight() { return world.dimensionType().hasSkyLight(); }
-    @Override public boolean isBedWorks() { return world.dimensionType().bedWorks(); }
-    @Override public boolean isNatural() { return world.dimensionType().natural(); }
+    @Override public boolean isBedWorks() {
+        net.minecraft.world.attribute.BedRule bedRule = world.environmentAttributes().getDimensionValue(net.minecraft.world.attribute.EnvironmentAttributes.BED_RULE);
+        return !bedRule.explodes() && bedRule.canSleep().test(world);
+    }
+    @Override public boolean isNatural() { throw new UnsupportedOperationException("Dimension natural flag no longer exists in 1.21.11"); }
     @Override public int getLogicalHeight() { return world.dimensionType().logicalHeight(); }
 
     @Override
@@ -1901,12 +1869,13 @@ public class CraftWorld implements World {
 
     @Override
     public boolean getAllowAnimals() {
-        return world.getChunkSource().spawnFriendlies;
+        return ((io.lunararcdevs.lunararc.common.bridge.ServerChunkCacheBridge) world.getChunkSource()).lunararc$isSpawnFriendlies();
     }
 
     @Override
     public void setSpawnFlags(boolean allowMonsters, boolean allowAnimals) {
-        world.setSpawnSettings(allowMonsters, allowAnimals);
+        world.getChunkSource().setSpawnSettings(allowMonsters);
+        ((io.lunararcdevs.lunararc.common.bridge.ServerChunkCacheBridge) world.getChunkSource()).lunararc$setSpawnFriendlies(allowAnimals);
     }
 
     @Override
@@ -2043,10 +2012,10 @@ public class CraftWorld implements World {
     private <T extends Entity> @Nullable T spawnInternal(@NotNull Location location, @NotNull EntityType type,
             org.bukkit.event.entity.CreatureSpawnEvent.@NotNull SpawnReason reason,
             @Nullable java.util.function.Consumer<? super T> function) {
-        net.minecraft.resources.ResourceLocation rl = net.minecraft.resources.ResourceLocation.parse(type.getKey().toString());
-        net.minecraft.world.entity.EntityType<?> nmsType = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.get(rl);
+        net.minecraft.resources.Identifier rl = net.minecraft.resources.Identifier.parse(type.getKey().toString());
+        net.minecraft.world.entity.EntityType<?> nmsType = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getValue(rl);
         if (nmsType == null) return null;
-        net.minecraft.world.entity.Entity nmsEntity = nmsType.create(world);
+        net.minecraft.world.entity.Entity nmsEntity = nmsType.create(world, net.minecraft.world.entity.EntitySpawnReason.COMMAND);
         if (nmsEntity == null) return null;
         nmsEntity.setPos(location.getX(), location.getY(), location.getZ());
         nmsEntity.setYRot(location.getYaw());
@@ -2110,10 +2079,10 @@ public class CraftWorld implements World {
         java.util.Objects.requireNonNull(clazz, "clazz");
         for (EntityType type : EntityType.values()) {
             if (type.getEntityClass() != null && clazz.isAssignableFrom(type.getEntityClass())) {
-                net.minecraft.resources.ResourceLocation rl = net.minecraft.resources.ResourceLocation.parse(type.getKey().toString());
-                net.minecraft.world.entity.EntityType<?> nmsType = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.get(rl);
+                net.minecraft.resources.Identifier rl = net.minecraft.resources.Identifier.parse(type.getKey().toString());
+                net.minecraft.world.entity.EntityType<?> nmsType = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getValue(rl);
                 if (nmsType == null) continue;
-                net.minecraft.world.entity.Entity nmsEntity = nmsType.create(world);
+                net.minecraft.world.entity.Entity nmsEntity = nmsType.create(world, net.minecraft.world.entity.EntitySpawnReason.COMMAND);
                 if (nmsEntity == null) continue;
                 nmsEntity.setPos(location.getX(), location.getY(), location.getZ());
                 nmsEntity.setYRot(location.getYaw());
@@ -2158,7 +2127,7 @@ public class CraftWorld implements World {
         net.minecraft.world.level.biome.Climate.Sampler sampler = serverCache.randomState().sampler();
 
         java.util.List<org.bukkit.block.Biome> possible = biomeSource.possibleBiomes().stream()
-                .map(holder -> holder.unwrapKey().map(net.minecraft.resources.ResourceKey::location).orElse(null))
+                .map(holder -> holder.unwrapKey().map(net.minecraft.resources.ResourceKey::identifier).orElse(null))
                 .filter(java.util.Objects::nonNull)
                 .map(id -> org.bukkit.Registry.BIOME.get(new org.bukkit.NamespacedKey(id.getNamespace(), id.getPath())))
                 .filter(java.util.Objects::nonNull)
@@ -2171,8 +2140,8 @@ public class CraftWorld implements World {
                     int x, int y, int z) {
                 net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> holder =
                         biomeSource.getNoiseBiome(x >> 2, y >> 2, z >> 2, sampler);
-                net.minecraft.resources.ResourceLocation id = holder.unwrapKey()
-                        .map(net.minecraft.resources.ResourceKey::location)
+                net.minecraft.resources.Identifier id = holder.unwrapKey()
+                        .map(net.minecraft.resources.ResourceKey::identifier)
                         .orElseThrow(() -> new IllegalStateException("Biome is not registered"));
                 org.bukkit.block.Biome biome = org.bukkit.Registry.BIOME.get(
                         new org.bukkit.NamespacedKey(id.getNamespace(), id.getPath()));
@@ -2194,12 +2163,12 @@ public class CraftWorld implements World {
 
     @Override
     public int getMaxHeight() {
-        return world.getMaxBuildHeight();
+        return world.getMaxY();
     }
 
     @Override
     public int getMinHeight() {
-        return world.getMinBuildHeight();
+        return world.getMinY();
     }
 
     private boolean explode0(double x, double y, double z, float yield, boolean isFlaming, boolean breakBlocks,
@@ -2257,7 +2226,7 @@ public class CraftWorld implements World {
 
     @Override
     public boolean isClearWeather() {
-        return !world.isRaining() && !world.isThundering();
+        return !hasStorm() && !isThundering();
     }
 
     @Override
@@ -2282,7 +2251,7 @@ public class CraftWorld implements World {
 
     @Override
     public boolean isDayTime() {
-        return world.isDay();
+        return world.isBrightOutside();
     }
 
     @Override
@@ -2292,7 +2261,24 @@ public class CraftWorld implements World {
 
     @Override
     public boolean setSpawnLocation(int x, int y, int z, float angle) {
-        world.setDefaultSpawnPos(new net.minecraft.core.BlockPos(x, y, z), angle);
+        net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos(x, y, z);
+        net.minecraft.world.level.storage.LevelData levelData = world.getLevelData();
+        boolean ownData = levelData instanceof net.minecraft.world.level.storage.PrimaryLevelData
+                && levelData != world.getServer().getWorldData().overworldData();
+        if (ownData) {
+            // A world with its own level data (Multiverse worlds): Paper writes the spawn there. Going through
+            // ServerLevel.setRespawnData would overwrite the server-wide default spawn, including its dimension.
+            Location previous = getSpawnLocation();
+            ((net.minecraft.world.level.storage.ServerLevelData) levelData).setSpawn(
+                    net.minecraft.world.level.storage.LevelData.RespawnData.of(world.dimension(), pos, angle, 0.0F));
+            org.bukkit.Bukkit.getPluginManager().callEvent(new org.bukkit.event.world.SpawnChangeEvent(this, previous));
+            return true;
+        }
+        // The overworld (or a vanilla Nether/End sharing its data): the spawn must stay in the overworld's dimension.
+        net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension =
+                levelData instanceof net.minecraft.world.level.storage.ServerLevelData data
+                        ? data.getRespawnData().dimension() : world.dimension();
+        world.setRespawnData(net.minecraft.world.level.storage.LevelData.RespawnData.of(dimension, pos, angle, 0.0F));
         return true;
     }
 
@@ -2498,8 +2484,9 @@ public class CraftWorld implements World {
                 (org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer(), entity);
     }
 
-    private static final net.minecraft.server.level.TicketType<net.minecraft.util.Unit> LUNARARC_ASYNC_CHUNK =
-            net.minecraft.server.level.TicketType.create("lunararc_async_chunk", (a, b) -> 0);
+    private static final net.minecraft.server.level.TicketType LUNARARC_ASYNC_CHUNK = new net.minecraft.server.level.TicketType(
+            net.minecraft.server.level.TicketType.NO_TIMEOUT,
+            net.minecraft.server.level.TicketType.FLAG_LOADING | net.minecraft.server.level.TicketType.FLAG_SIMULATION | net.minecraft.server.level.TicketType.FLAG_CAN_EXPIRE_IF_UNLOADED);
 
     @Override
     public @NotNull java.util.concurrent.CompletableFuture<org.bukkit.Chunk> getChunkAtAsync(int x, int z, boolean gen,
@@ -2526,13 +2513,13 @@ public class CraftWorld implements World {
                     return;
                 }
 
-                source.addRegionTicket(LUNARARC_ASYNC_CHUNK, pos, 0, net.minecraft.util.Unit.INSTANCE);
+                source.addTicketWithRadius(LUNARARC_ASYNC_CHUNK, pos, 0);
                 source.getChunkFuture(x, z, net.minecraft.world.level.chunk.status.ChunkStatus.FULL, true)
                         .whenComplete((result, thrown) -> server.execute(() -> {
                             // Drop the ticket before completing, so the waiting plugin still runs
                             // against a resident chunk - unloading cannot happen until the chunk
                             // system next runs, which is after this task returns.
-                            source.removeRegionTicket(LUNARARC_ASYNC_CHUNK, pos, 0, net.minecraft.util.Unit.INSTANCE);
+                            source.removeTicketWithRadius(LUNARARC_ASYNC_CHUNK, pos, 0);
                             if (thrown != null) {
                                 future.completeExceptionally(thrown);
                                 return;
@@ -2672,9 +2659,9 @@ public class CraftWorld implements World {
             throw new IllegalArgumentException("Location belongs to another world");
         }
         net.minecraft.world.entity.LightningBolt bolt =
-                net.minecraft.world.entity.EntityType.LIGHTNING_BOLT.create(world);
+                net.minecraft.world.entity.EntityType.LIGHTNING_BOLT.create(world, net.minecraft.world.entity.EntitySpawnReason.COMMAND);
         if (bolt == null) throw new IllegalStateException("Unable to create lightning entity");
-        bolt.moveTo(location.getX(), location.getY(), location.getZ());
+        bolt.snapTo(location.getX(), location.getY(), location.getZ());
         ((io.lunararcdevs.lunararc.common.bridge.LightningBoltBridge) bolt).lunararc$setEffect(effect);
         org.bukkit.craftbukkit.entity.CraftLightningStrike bukkit =
                 new org.bukkit.craftbukkit.entity.CraftLightningStrike(
@@ -2763,5 +2750,59 @@ public class CraftWorld implements World {
             net.minecraft.world.level.ChunkPos pos = new net.minecraft.world.level.ChunkPos(entry.getKey());
             removePluginChunkTicket(pos.x, pos.z, plugin);
         }
+    }
+
+    @Override
+    public boolean hasBonusChest() {
+        return getHandle().getServer().getWorldData().worldGenOptions().generateBonusChest();
+    }
+
+    @Override
+    public java.nio.file.Path getWorldPath() {
+        return getWorldFolder().toPath();
+    }
+
+    @Override
+    public void save(boolean flush) {
+        boolean oldSave = this.world.noSave;
+        this.world.noSave = false;
+        this.world.save(null, flush, false);
+        this.world.noSave = oldSave;
+    }
+
+    @Override
+    public void getChunkAtAsync(int x, int z, boolean gen, boolean urgent, @NotNull java.util.function.Consumer<? super org.bukkit.Chunk> cb) {
+        getChunkAtAsync(x, z, gen, urgent).whenComplete((chunk, thrown) -> cb.accept(thrown == null ? chunk : null));
+    }
+
+    @Override
+    public void getChunksAtAsync(int minX, int minZ, int maxX, int maxZ, boolean urgent, @NotNull Runnable cb) {
+        java.util.List<java.util.concurrent.CompletableFuture<org.bukkit.Chunk>> futures = new java.util.ArrayList<>();
+        for (int x = minX; x <= maxX; x++) {
+            for (int z = minZ; z <= maxZ; z++) {
+                futures.add(getChunkAtAsync(x, z, true, urgent));
+            }
+        }
+        java.util.concurrent.CompletableFuture.allOf(futures.toArray(java.util.concurrent.CompletableFuture[]::new)).whenComplete((ignored, thrown) -> cb.run());
+    }
+
+    @Override
+    public org.bukkit.util.RayTraceResult rayTrace(java.util.function.Consumer<io.papermc.paper.raytracing.PositionedRayTraceConfigurationBuilder> builderConsumer) {
+        io.papermc.paper.raytracing.PositionedRayTraceConfigurationBuilderImpl builder = new io.papermc.paper.raytracing.PositionedRayTraceConfigurationBuilderImpl();
+
+        builderConsumer.accept(builder);
+        com.google.common.base.Preconditions.checkArgument(builder.start != null, "Start location cannot be null");
+        com.google.common.base.Preconditions.checkArgument(builder.direction != null, "Direction vector cannot be null");
+        com.google.common.base.Preconditions.checkArgument(builder.maxDistance.isPresent(), "Max distance must be set");
+        com.google.common.base.Preconditions.checkArgument(!builder.targets.isEmpty(), "At least one target");
+
+        final double maxDistance = builder.maxDistance.getAsDouble();
+        if (builder.targets.contains(io.papermc.paper.raytracing.RayTraceTarget.ENTITY)) {
+            if (builder.targets.contains(io.papermc.paper.raytracing.RayTraceTarget.BLOCK)) {
+                return this.rayTrace(builder.start, builder.direction, maxDistance, builder.fluidCollisionMode, builder.blockCollisionMode == io.papermc.paper.raytracing.BlockCollisionMode.COLLIDER, builder.raySize, builder.entityFilter, builder.blockFilter);
+            }
+            return this.rayTraceEntities(builder.start, builder.direction, maxDistance, builder.raySize, builder.entityFilter);
+        }
+        return this.rayTraceBlocks(builder.start, builder.direction, maxDistance, builder.fluidCollisionMode, builder.blockCollisionMode == io.papermc.paper.raytracing.BlockCollisionMode.COLLIDER, builder.blockFilter);
     }
 }

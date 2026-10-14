@@ -2,7 +2,7 @@ package io.lunararcdevs.lunararc.common.server;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -37,7 +37,7 @@ public final class LunarArcAntiXrayEngine {
         int engineMode = config.engineMode;
         if (configuredEnabled && engineMode != 1) {
             LOGGER.warn("anticheat.anti-xray.engine-mode {} is not implemented yet (only 1/HIDE is) "
-                    + "- anti-xray is disabled for {}", engineMode, level.dimension().location());
+                    + "- anti-xray is disabled for {}", engineMode, level.dimension().identifier());
             configuredEnabled = false;
         }
 
@@ -49,14 +49,14 @@ public final class LunarArcAntiXrayEngine {
         Set<BlockState> states = new HashSet<>();
         if (this.enabled) {
             for (String id : config.hiddenBlocks) {
-                ResourceLocation location = ResourceLocation.tryParse(id);
-                Block block = location == null ? null : BuiltInRegistries.BLOCK.get(location);
+                Identifier location = Identifier.tryParse(id);
+                Block block = location == null ? null : BuiltInRegistries.BLOCK.getValue(location);
                 if (block == null || block.defaultBlockState().isAir()) continue;
                 states.addAll(block.getStateDefinition().getPossibleStates());
             }
             if (states.isEmpty()) {
                 LOGGER.warn("anticheat.anti-xray.hidden-blocks resolved to no real blocks - "
-                        + "anti-xray is enabled but has nothing to hide for {}", level.dimension().location());
+                        + "anti-xray is enabled but has nothing to hide for {}", level.dimension().identifier());
             }
         }
         this.hiddenStates = states;
@@ -64,7 +64,7 @@ public final class LunarArcAntiXrayEngine {
         if (this.enabled) {
             LOGGER.info("Anti-xray HIDE engine active for {}: {} hidden block state(s), "
                             + "max-block-height={}, update-radius={}",
-                    level.dimension().location(), states.size(), maxBlockHeight, updateRadius);
+                    level.dimension().identifier(), states.size(), maxBlockHeight, updateRadius);
         }
     }
 
@@ -96,7 +96,7 @@ public final class LunarArcAntiXrayEngine {
         if (!enabled || hiddenStates.isEmpty()) return chunk.getSections();
 
         LevelChunkSection[] real = chunk.getSections();
-        int minBuildHeight = chunk.getMinBuildHeight();
+        int minBuildHeight = chunk.getMinY();
         LevelChunkSection[] result = null;
         for (int i = 0; i < real.length; i++) {
             int sectionMinY = minBuildHeight + (i << 4);

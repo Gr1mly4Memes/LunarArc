@@ -5,7 +5,7 @@ import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.Multimap;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.component.ItemAttributeModifiers;
@@ -32,7 +32,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-public final class CraftItemType<M extends ItemMeta> implements ItemType.Typed<M> {
+public final class CraftItemType<M extends ItemMeta> implements ItemType.Typed<M>, org.bukkit.craftbukkit.util.Handleable<Item> {
     private final NamespacedKey key;
     private final Item handle;
     private final Class<M> metaClass;
@@ -47,10 +47,10 @@ public final class CraftItemType<M extends ItemMeta> implements ItemType.Typed<M
                 ? PotionMeta.class : ItemMeta.class);
     }
 
-    public Item getHandle() { return this.handle; }
+    @Override public Item getHandle() { return this.handle; }
 
     public static ItemType minecraftToBukkitNew(Item item) {
-        ResourceLocation id = BuiltInRegistries.ITEM.getKey(item);
+        Identifier id = BuiltInRegistries.ITEM.getKey(item);
         return id == null ? null : Registry.ITEM.get(new NamespacedKey(id.getNamespace(), id.getPath()));
     }
 
@@ -81,7 +81,7 @@ public final class CraftItemType<M extends ItemMeta> implements ItemType.Typed<M
     @Override
     public @NotNull BlockType getBlockType() {
         if (!(this.handle instanceof BlockItem blockItem)) throw new IllegalStateException("The item type " + this.key + " has no corresponding block type");
-        ResourceLocation id = BuiltInRegistries.BLOCK.getKey(blockItem.getBlock());
+        Identifier id = BuiltInRegistries.BLOCK.getKey(blockItem.getBlock());
         BlockType value = id == null ? null : Registry.BLOCK.get(new NamespacedKey(id.getNamespace(), id.getPath()));
         if (value == null) throw new IllegalStateException("No Bukkit BlockType for " + id);
         return value;
@@ -92,7 +92,7 @@ public final class CraftItemType<M extends ItemMeta> implements ItemType.Typed<M
     @Override public short getMaxDurability() { return this.handle.components().getOrDefault(DataComponents.MAX_DAMAGE, 0).shortValue(); }
     @Override public boolean isEdible() { return this.handle.components().has(DataComponents.FOOD); }
     @Override public boolean isRecord() { return this.handle.components().has(DataComponents.JUKEBOX_PLAYABLE); }
-    @Override public boolean isFuel() { return AbstractFurnaceBlockEntity.isFuel(new net.minecraft.world.item.ItemStack(this.handle)); }
+    @Override public boolean isFuel() { return io.lunararcdevs.lunararc.common.mod.server.LunarArcServer.minecraftServer().fuelValues().isFuel(new net.minecraft.world.item.ItemStack(this.handle)); }
     @Override public boolean isCompostable() { return ComposterBlock.COMPOSTABLES.containsKey(this.handle); }
 
     @Override
@@ -103,8 +103,8 @@ public final class CraftItemType<M extends ItemMeta> implements ItemType.Typed<M
 
     @Override
     public @Nullable ItemType getCraftingRemainingItem() {
-        Item remaining = this.handle.getCraftingRemainingItem();
-        return remaining == null ? null : minecraftToBukkitNew(remaining);
+        net.minecraft.world.item.ItemStack remaining = this.handle.getCraftingRemainder();
+        return remaining.isEmpty() ? null : minecraftToBukkitNew(remaining.getItem());
     }
 
     @Override public @NotNull Multimap<Attribute, AttributeModifier> getDefaultAttributeModifiers() { return this.defaultAttributes(group -> true); }
@@ -118,12 +118,12 @@ public final class CraftItemType<M extends ItemMeta> implements ItemType.Typed<M
     private Multimap<Attribute, AttributeModifier> defaultAttributes(java.util.function.Predicate<net.minecraft.world.entity.EquipmentSlotGroup> slots) {
         ImmutableMultimap.Builder<Attribute, AttributeModifier> result = ImmutableMultimap.builder();
         ItemAttributeModifiers modifiers = this.handle.components().getOrDefault(DataComponents.ATTRIBUTE_MODIFIERS, ItemAttributeModifiers.EMPTY);
-        if (modifiers.modifiers().isEmpty()) modifiers = this.handle.getDefaultAttributeModifiers();
+        if (modifiers.modifiers().isEmpty()) modifiers = ItemAttributeModifiers.EMPTY;
         for (ItemAttributeModifiers.Entry entry : modifiers.modifiers()) {
             if (!slots.test(entry.slot())) continue;
             var nmsKey = entry.attribute().unwrapKey().orElse(null);
             if (nmsKey == null) continue;
-            ResourceLocation id = nmsKey.location();
+            Identifier id = nmsKey.identifier();
             Attribute attribute = Registry.ATTRIBUTE.get(new NamespacedKey(id.getNamespace(), id.getPath()));
             if (attribute == null) continue;
             net.minecraft.world.entity.ai.attributes.AttributeModifier modifier = entry.modifier();
@@ -170,5 +170,32 @@ public final class CraftItemType<M extends ItemMeta> implements ItemType.Typed<M
 
     public static net.minecraft.world.item.Item bukkitToMinecraftNew(org.bukkit.inventory.ItemType bukkit) {
         return org.bukkit.craftbukkit.CraftRegistry.bukkitToMinecraft(bukkit);
+    }
+
+    @Override
+    public int getBurnDuration() {
+        net.minecraft.world.level.block.entity.FuelValues fuelValues = io.lunararcdevs.lunararc.common.mod.server.LunarArcServer.minecraftServer().fuelValues();
+        net.minecraft.world.item.ItemStack stack = new net.minecraft.world.item.ItemStack(this.handle);
+        return fuelValues.isFuel(stack) ? fuelValues.burnDuration(stack) : 0;
+    }
+
+    @Override
+    public <T> @Nullable T getDefaultData(final io.papermc.paper.datacomponent.DataComponentType.Valued<T> type) {
+        return io.papermc.paper.datacomponent.PaperDataComponentType.convertDataComponentValue(this.handle.components(), ((io.papermc.paper.datacomponent.PaperDataComponentType.ValuedImpl<T, ?>) type));
+    }
+
+    @Override
+    public boolean hasDefaultData(final io.papermc.paper.datacomponent.DataComponentType type) {
+        return this.handle.components().has(io.papermc.paper.datacomponent.PaperDataComponentType.bukkitToMinecraft(type));
+    }
+
+    @Override
+    public java.util.Set<io.papermc.paper.datacomponent.DataComponentType> getDefaultDataTypes() {
+        return io.papermc.paper.datacomponent.PaperDataComponentType.minecraftToBukkit(this.handle.components().keySet());
+    }
+
+    @Override
+    public net.kyori.adventure.key.Key key() {
+        return net.kyori.adventure.key.Key.key(this.key.getNamespace(), this.key.getKey());
     }
 }

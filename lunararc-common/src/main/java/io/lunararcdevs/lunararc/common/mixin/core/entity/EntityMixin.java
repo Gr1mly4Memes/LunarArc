@@ -1,5 +1,6 @@
 package io.lunararcdevs.lunararc.common.mixin.core.entity;
 
+import org.spongepowered.asm.mixin.injection.ModifyVariable;
 import io.lunararcdevs.lunararc.common.bridge.CommandSourceBridge;
 import io.lunararcdevs.lunararc.common.bridge.EntityBridge;
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
@@ -9,7 +10,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
-import net.minecraft.world.entity.animal.AbstractFish;
+import net.minecraft.world.entity.animal.fish.AbstractFish;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.Vec3;
@@ -32,8 +33,8 @@ public abstract class EntityMixin implements EntityBridge, CommandSourceBridge {
     @com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation(
             method = "handlePortal",
             at = @At(value = "INVOKE",
-                    target = "Lnet/minecraft/world/entity/Entity;canChangeDimensions(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/level/Level;)Z"),
-            require = 0)
+                    target = "Lnet/minecraft/world/entity/Entity;canTeleport(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/level/Level;)Z"),
+            require = 1)
     private boolean lunararc$playersMayAlwaysChangeDimension(Entity entity, Level from, Level to,
             Operation<Boolean> original) {
         boolean vanilla = original.call(entity, from, to);
@@ -88,18 +89,42 @@ public abstract class EntityMixin implements EntityBridge, CommandSourceBridge {
             ci.cancel();
         }
     }
-    @Override public boolean lunararc$isVisualFire() { return this.hasVisualFire; }
-    @Override public void lunararc$setVisualFire(boolean visualFire) { this.hasVisualFire = visualFire; }
+    /** Paper's tri-state visual fire override (TRUE forces fire, FALSE hides it even when burning, NOT_SET is vanilla). */
+    public net.kyori.adventure.util.TriState visualFire = net.kyori.adventure.util.TriState.NOT_SET;
+    @Override public boolean lunararc$isVisualFire() { return this.visualFire == net.kyori.adventure.util.TriState.TRUE || this.hasVisualFire; }
+    @Override public void lunararc$setVisualFire(boolean visualFire) {
+        this.hasVisualFire = visualFire;
+        this.visualFire = visualFire ? net.kyori.adventure.util.TriState.TRUE : net.kyori.adventure.util.TriState.NOT_SET;
+    }
+    @Override public net.kyori.adventure.util.TriState lunararc$getVisualFireState() {
+        return this.visualFire == net.kyori.adventure.util.TriState.NOT_SET && this.hasVisualFire ? net.kyori.adventure.util.TriState.TRUE : this.visualFire;
+    }
+    @Override public void lunararc$setVisualFireState(net.kyori.adventure.util.TriState state) {
+        this.visualFire = java.util.Objects.requireNonNull(state, "state");
+        this.hasVisualFire = state == net.kyori.adventure.util.TriState.TRUE;
+    }
+    @ModifyVariable(method = "setSharedFlagOnFire", at = @At("HEAD"), argsOnly = true, require = 0)
+    private boolean lunararc$visualFireState(boolean isOnFire) {
+        return this.visualFire.toBooleanOrElse(isOnFire);
+    }
     @Override public boolean lunararc$isPersistent() { return this.lunararc$persistent; }
     @Override public void lunararc$setPersistent(boolean persistent) { this.lunararc$persistent = persistent; }
     @Override public void lunararc$setLevel(Level level) { ((Entity) (Object) this).setLevel(level); }
-    @Override public boolean lunararc$saveAsPassenger(CompoundTag tag) { return ((Entity) (Object) this).saveAsPassenger(tag); }
+    @Override public boolean lunararc$saveAsPassenger(CompoundTag tag) {
+        Entity self = (Entity) (Object) this;
+        try (net.minecraft.util.ProblemReporter.ScopedCollector problems = new net.minecraft.util.ProblemReporter.ScopedCollector(self.problemPath(), org.slf4j.LoggerFactory.getLogger(EntityMixin.class))) {
+            net.minecraft.world.level.storage.TagValueOutput output = net.minecraft.world.level.storage.TagValueOutput.createWithContext(problems, self.registryAccess());
+            if (!self.saveAsPassenger(output)) return false;
+            tag.merge(output.buildResult());
+            return true;
+        }
+    }
 
     private CraftPersistentDataContainer lunararc$pdc = new CraftPersistentDataContainer();
     @Override public PersistentDataContainer lunararc$getPersistentDataContainer() { return lunararc$pdc; }
     @Override public org.bukkit.entity.Entity lunararc$getBukkitEntity() {
         if (lunararc$bukkitEntity == null) {
-            net.minecraft.server.MinecraftServer minecraftServer = ((Entity) (Object) this).getServer();
+            net.minecraft.server.MinecraftServer minecraftServer = ((Entity) (Object) this).level().getServer();
             if (minecraftServer == null) {
                 throw new IllegalStateException("Cannot create a Bukkit entity wrapper without a server");
             }
@@ -124,26 +149,23 @@ public abstract class EntityMixin implements EntityBridge, CommandSourceBridge {
         throw new IllegalStateException("Entity command source is not a Bukkit CommandSender: " + entity.getType());
     }
 
-    @Inject(method = "load", at = @At("RETURN"), require = 0)
-    private void lunararc$loadEntityData(CompoundTag tag, CallbackInfo ci) {
-        if (tag.contains("BukkitValues")) {
-            lunararc$pdc.fromTag(tag.getCompound("BukkitValues"));
-        }
-        this.lunararc$fromMobSpawner = tag.getBoolean("Paper.FromMobSpawner");
-        if (tag.contains("Paper.SpawnReason")) {
-            String name = tag.getString("Paper.SpawnReason");
+    @Inject(method = "load", at = @At("RETURN"), require = 1)
+    private void lunararc$loadEntityData(net.minecraft.world.level.storage.ValueInput input, CallbackInfo ci) {
+        input.read("BukkitValues", net.minecraft.nbt.CompoundTag.CODEC).ifPresent(lunararc$pdc::fromTag);
+        this.lunararc$fromMobSpawner = input.getBooleanOr("Paper.FromMobSpawner", false);
+        input.getString("Paper.SpawnReason").ifPresent(name -> {
             try {
                 this.lunararc$spawnReason = CreatureSpawnEvent.SpawnReason.valueOf(name);
             } catch (IllegalArgumentException exception) {
                 this.lunararc$spawnReason = CreatureSpawnEvent.SpawnReason.DEFAULT;
             }
+        });
+        java.util.List<Double> origin = input.read("Paper.Origin", com.mojang.serialization.Codec.DOUBLE.listOf()).orElse(java.util.List.of());
+        if (origin.size() >= 3) {
+            this.lunararc$origin = new Vec3(origin.get(0), origin.get(1), origin.get(2));
+            this.lunararc$originWorld = input.read("Paper.OriginWorld", net.minecraft.core.UUIDUtil.CODEC).orElse(null);
         }
-        ListTag origin = tag.getList("Paper.Origin", 6);
-        if (!origin.isEmpty() && origin.size() >= 3) {
-            this.lunararc$origin = new Vec3(origin.getDouble(0), origin.getDouble(1), origin.getDouble(2));
-            this.lunararc$originWorld = tag.hasUUID("Paper.OriginWorld") ? tag.getUUID("Paper.OriginWorld") : null;
-        }
-        this.lunararc$persistent = !tag.contains("Bukkit.persist") || tag.getBoolean("Bukkit.persist");
+        this.lunararc$persistent = input.getBooleanOr("Bukkit.persist", true);
         if (this.lunararc$spawnReason == null) {
             Entity entity = (Entity) (Object) this;
             if (this.lunararc$fromMobSpawner) {
@@ -151,7 +173,7 @@ public abstract class EntityMixin implements EntityBridge, CommandSourceBridge {
             } else if (entity instanceof Mob mob
                     && (entity instanceof Animal || entity instanceof AbstractFish)
                     && !mob.removeWhenFarAway(0.0)
-                    && !tag.getBoolean("PersistenceRequired")) {
+                    && !input.getBooleanOr("PersistenceRequired", false)) {
                 this.lunararc$spawnReason = CreatureSpawnEvent.SpawnReason.NATURAL;
             } else {
                 this.lunararc$spawnReason = CreatureSpawnEvent.SpawnReason.DEFAULT;
@@ -159,35 +181,32 @@ public abstract class EntityMixin implements EntityBridge, CommandSourceBridge {
         }
     }
 
-    @Inject(method = "saveWithoutId", at = @At("RETURN"), require = 0)
-    private void lunararc$saveEntityData(CompoundTag tag, CallbackInfoReturnable<CompoundTag> cir) {
-        CompoundTag bukkitValues = lunararc$pdc.toTag();
+    @Inject(method = "saveWithoutId", at = @At("RETURN"), require = 1)
+    private void lunararc$saveEntityData(net.minecraft.world.level.storage.ValueOutput output, CallbackInfo ci) {
+        net.minecraft.nbt.CompoundTag bukkitValues = lunararc$pdc.toTag();
         if (!bukkitValues.isEmpty()) {
-            tag.put("BukkitValues", bukkitValues);
+            output.store("BukkitValues", net.minecraft.nbt.CompoundTag.CODEC, bukkitValues);
         }
         if (!this.lunararc$persistent) {
-            tag.putBoolean("Bukkit.persist", false);
+            output.putBoolean("Bukkit.persist", false);
         }
         if (this.lunararc$spawnReason != null) {
-            tag.putString("Paper.SpawnReason", this.lunararc$spawnReason.name());
+            output.putString("Paper.SpawnReason", this.lunararc$spawnReason.name());
         }
         if (this.lunararc$fromMobSpawner) {
-            tag.putBoolean("Paper.FromMobSpawner", true);
+            output.putBoolean("Paper.FromMobSpawner", true);
         }
         if (this.lunararc$origin != null) {
             if (this.lunararc$originWorld != null) {
-                tag.putUUID("Paper.OriginWorld", this.lunararc$originWorld);
+                output.store("Paper.OriginWorld", net.minecraft.core.UUIDUtil.CODEC, this.lunararc$originWorld);
             }
-            ListTag origin = new ListTag();
-            origin.add(net.minecraft.nbt.DoubleTag.valueOf(this.lunararc$origin.x));
-            origin.add(net.minecraft.nbt.DoubleTag.valueOf(this.lunararc$origin.y));
-            origin.add(net.minecraft.nbt.DoubleTag.valueOf(this.lunararc$origin.z));
-            tag.put("Paper.Origin", origin);
+            output.store("Paper.Origin", com.mojang.serialization.Codec.DOUBLE.listOf(),
+                    java.util.List.of(this.lunararc$origin.x, this.lunararc$origin.y, this.lunararc$origin.z));
         }
     }
-    @Inject(method = "startRiding(Lnet/minecraft/world/entity/Entity;Z)Z", cancellable = true,
+    @Inject(method = "startRiding(Lnet/minecraft/world/entity/Entity;ZZ)Z", cancellable = true,
             at = @At(value = "INVOKE", ordinal = 0, target = "Lnet/minecraft/world/entity/Entity;isPassenger()Z"))
-    private void lunararc$vehicleEnter(Entity vehicle, boolean force, CallbackInfoReturnable<Boolean> cir) {
+    private void lunararc$vehicleEnter(Entity vehicle, boolean force, boolean sendGameEvent, CallbackInfoReturnable<Boolean> cir) {
         if (!this.lunararc$inWorld || level().isClientSide) return;
         org.bukkit.entity.Entity bukkitVehicle = ((EntityBridge) vehicle).lunararc$getBukkitEntity();
         org.bukkit.entity.Entity bukkitPassenger = this.lunararc$getBukkitEntity();
@@ -235,22 +254,17 @@ public abstract class EntityMixin implements EntityBridge, CommandSourceBridge {
         return event.isCancelled();
     }
 
-    @Unique private boolean lunararc$dropLeashOnPlayerUnleash;
-
-    @Inject(
-            method = "interact",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Leashable;dropLeash(ZZ)V"),
-            cancellable = true,
-            require = 0)
-    private void lunararc$playerUnleash(
-            net.minecraft.world.entity.player.Player player,
-            net.minecraft.world.InteractionHand hand,
-            CallbackInfoReturnable<net.minecraft.world.InteractionResult> cir) {
+    @WrapOperation(method = "interact", require = 1,
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Leashable;dropLeash()V"))
+    private void lunararc$playerUnleash(net.minecraft.world.entity.Leashable leashable, Operation<Void> original,
+            @com.llamalad7.mixinextras.sugar.Local(argsOnly = true) net.minecraft.world.entity.player.Player player,
+            @com.llamalad7.mixinextras.sugar.Local(argsOnly = true) net.minecraft.world.InteractionHand hand) {
         Entity self = (Entity) (Object) this;
         Object bukkit = this.lunararc$getBukkitEntity();
         Object bukkitPlayer = ((EntityBridge) player).lunararc$getBukkitEntity();
         if (!(bukkit instanceof org.bukkit.entity.Entity bukkitEntity)
                 || !(bukkitPlayer instanceof org.bukkit.entity.Player human)) {
+            original.call(leashable);
             return;
         }
         var event = new org.bukkit.event.player.PlayerUnleashEntityEvent(
@@ -258,26 +272,13 @@ public abstract class EntityMixin implements EntityBridge, CommandSourceBridge {
                 !player.hasInfiniteMaterials());
         org.bukkit.Bukkit.getPluginManager().callEvent(event);
         if (event.isCancelled()) {
-            if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer
-                    && self instanceof net.minecraft.world.entity.Leashable leashable) {
+            if (player instanceof net.minecraft.server.level.ServerPlayer serverPlayer) {
                 serverPlayer.connection.send(new net.minecraft.network.protocol.game.ClientboundSetEntityLinkPacket(
                         self, leashable.getLeashHolder()));
             }
-            cir.setReturnValue(net.minecraft.world.InteractionResult.PASS);
             return;
         }
-        this.lunararc$dropLeashOnPlayerUnleash = event.isDropLeash();
-    }
-
-    @ModifyArg(
-            method = "interact",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Leashable;dropLeash(ZZ)V"),
-            index = 1,
-            require = 0)
-    private boolean lunararc$playerUnleashDrop(boolean vanilla) {
-        boolean result = this.lunararc$dropLeashOnPlayerUnleash;
-        this.lunararc$dropLeashOnPlayerUnleash = false;
-        return result;
+        if (event.isDropLeash()) leashable.dropLeash(); else leashable.removeLeash();
     }
 
     @Unique private boolean lunararc$combustEventFired;
@@ -297,8 +298,8 @@ public abstract class EntityMixin implements EntityBridge, CommandSourceBridge {
         }
     }
 
-    @Inject(method = "thunderHit", cancellable = true, at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/world/entity/Entity;hurt(Lnet/minecraft/world/damagesource/DamageSource;F)Z"))
+    // HEAD, not the hurtServer call: NeoForge rewrites thunderHit to damage through Entity#hurt instead.
+    @Inject(method = "thunderHit", cancellable = true, at = @At("HEAD"))
     private void lunararc$lightningHangingBreak(net.minecraft.server.level.ServerLevel level,
             net.minecraft.world.entity.LightningBolt lightning, CallbackInfo ci) {
         if (this.lunararc$getBukkitEntity() instanceof org.bukkit.entity.Hanging hanging) {

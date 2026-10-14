@@ -19,7 +19,7 @@ import org.jetbrains.annotations.Nullable;
 @Mixin(CraftingMenu.class)
 public abstract class CraftingMenuMixin {
     @Inject(method = "slotChangedCraftingGrid", at = @At("RETURN"), require = 0)
-    private static void lunararc$prepareCraft(AbstractContainerMenu menu, Level level, Player player,
+    private static void lunararc$prepareCraft(AbstractContainerMenu menu, net.minecraft.server.level.ServerLevel level, Player player,
                                                CraftingContainer craftSlots, ResultContainer resultSlots,
                                                @Nullable RecipeHolder<CraftingRecipe> recipe, CallbackInfo ci) {
         if (!(player instanceof ServerPlayer serverPlayer)) return;

@@ -19,71 +19,74 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 
 @Mixin(ServerConfigurationPacketListenerImpl.class)
-public abstract class ServerConfigurationPacketListenerImplMixin {
+public abstract class ServerConfigurationPacketListenerImplMixin implements io.lunararcdevs.lunararc.common.bridge.ConfigurationConnectionBridge {
 
+    /** Paper's configuration-phase connection object, handed to configuration events. */
+    public io.papermc.paper.connection.PaperPlayerConfigurationConnection paperConnection;
+
+    @Override
+    public io.papermc.paper.connection.PaperPlayerConfigurationConnection lunararc$paperConnection() {
+        return this.paperConnection;
+    }
+
+    @Inject(method = "<init>", at = @At("RETURN"))
+    private void lunararc$createPaperConnection(net.minecraft.server.MinecraftServer server, net.minecraft.network.Connection connection,
+            net.minecraft.server.network.CommonListenerCookie cookie, CallbackInfo ci) {
+        this.paperConnection = new io.papermc.paper.connection.PaperPlayerConfigurationConnection((ServerConfigurationPacketListenerImpl) (Object) this);
+    }
+
+    /** Paper: PlayerConnectionInitialConfigureEvent as soon as the configuration phase begins. */
+    @Inject(method = "startConfiguration", at = @At("HEAD"))
+    private void lunararc$initialConfigure(CallbackInfo ci) {
+        new io.papermc.paper.event.connection.configuration.PlayerConnectionInitialConfigureEvent(this.paperConnection).callEvent();
+    }
+
+    /** Paper: a task that runs AsyncPlayerConnectionConfigureEvent off the main thread before the player joins. */
+    @Inject(method = "addOptionalTasks", at = @At("RETURN"))
+    private void lunararc$asyncConfigureTask(CallbackInfo ci) {
+        ((java.util.Queue<net.minecraft.server.network.ConfigurationTask>) lunararc$tasks())
+                .add(new io.papermc.paper.connection.PaperConfigurationTask((ServerConfigurationPacketListenerImpl) (Object) this));
+    }
+
+    /** Tell the spawn task which listener it serves, so its spawn-location events can use the configuration connection. */
+    @WrapOperation(method = "returnToWorld", require = 1,
+            at = @At(value = "NEW", target = "(Lnet/minecraft/server/MinecraftServer;Lnet/minecraft/server/players/NameAndId;)Lnet/minecraft/server/network/config/PrepareSpawnTask;", remap = false))
+    private net.minecraft.server.network.config.PrepareSpawnTask lunararc$spawnTaskListener(net.minecraft.server.MinecraftServer server,
+            net.minecraft.server.players.NameAndId nameAndId, Operation<net.minecraft.server.network.config.PrepareSpawnTask> original) {
+        net.minecraft.server.network.config.PrepareSpawnTask task = original.call(server, nameAndId);
+        ((io.lunararcdevs.lunararc.common.bridge.PrepareSpawnTaskBridge) task).lunararc$setListener((ServerConfigurationPacketListenerImpl) (Object) this);
+        return task;
+    }
+
+    @org.spongepowered.asm.mixin.Shadow
+    private java.util.Queue<net.minecraft.server.network.ConfigurationTask> configurationTasks;
+
+    @org.spongepowered.asm.mixin.Unique
+    private java.util.Queue<net.minecraft.server.network.ConfigurationTask> lunararc$tasks() {
+        return this.configurationTasks;
+    }
+
+
+    /** The login player already went through PlayerLoginEvent, so skip vanilla's second login check. */
     @WrapOperation(
             method = "handleConfigurationFinished",
-            require = 0,
+            require = 1,
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/server/players/PlayerList;canPlayerLogin(Ljava/net/SocketAddress;Lcom/mojang/authlib/GameProfile;)Lnet/minecraft/network/chat/Component;"))
-    private Component lunararc$skipSecondLoginCheckVanilla(
+                    target = "Lnet/minecraft/server/players/PlayerList;canPlayerLogin(Ljava/net/SocketAddress;Lnet/minecraft/server/players/NameAndId;)Lnet/minecraft/network/chat/Component;"))
+    private Component lunararc$skipSecondLoginCheck(
             PlayerList playerList,
             SocketAddress address,
-            GameProfile profile,
+            net.minecraft.server.players.NameAndId nameAndId,
             Operation<Component> original) {
         ServerPlayer player = ((ServerCommonPacketListenerBridge) (Object) this).lunararc$getPlayer();
-        return player == null ? original.call(playerList, address, profile) : null;
-    }
-
-    @WrapOperation(
-            method = "handleConfigurationFinished",
-            require = 0,
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/server/players/PlayerList;canPlayerLogin(Lnet/minecraft/server/network/ServerLoginPacketListenerImpl;Lcom/mojang/authlib/GameProfile;)Lnet/minecraft/server/level/ServerPlayer;"))
-    private ServerPlayer lunararc$reuseLoginPlayerPaper(
-            PlayerList playerList,
-            ServerLoginPacketListenerImpl loginListener,
-            GameProfile profile,
-            Operation<ServerPlayer> original) {
-        ServerPlayer player = ((ServerCommonPacketListenerBridge) (Object) this).lunararc$getPlayer();
-        return player == null ? original.call(playerList, loginListener, profile) : player;
-    }
-
-    @WrapOperation(
-            method = "handleConfigurationFinished",
-            require = 0,
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/server/players/PlayerList;getPlayerForLogin(Lcom/mojang/authlib/GameProfile;Lnet/minecraft/server/level/ClientInformation;)Lnet/minecraft/server/level/ServerPlayer;"))
-    private ServerPlayer lunararc$useLoginPlayerVanilla(
-            PlayerList playerList,
-            GameProfile profile,
-            ClientInformation information,
-            Operation<ServerPlayer> original) {
-        ServerPlayer player = ((ServerCommonPacketListenerBridge) (Object) this).lunararc$getPlayer();
-        if (player == null) {
-            return original.call(playerList, profile, information);
-        }
-        player.updateOptions(information);
-        return player;
-    }
-
-    @WrapOperation(
-            method = "handleConfigurationFinished",
-            require = 0,
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/server/players/PlayerList;getPlayerForLogin(Lcom/mojang/authlib/GameProfile;Lnet/minecraft/server/level/ClientInformation;Lnet/minecraft/server/level/ServerPlayer;)Lnet/minecraft/server/level/ServerPlayer;"))
-    private ServerPlayer lunararc$useLoginPlayerPaper(
-            PlayerList playerList,
-            GameProfile profile,
-            ClientInformation information,
-            ServerPlayer loginPlayer,
-            Operation<ServerPlayer> original) {
-        ServerPlayer cached = ((ServerCommonPacketListenerBridge) (Object) this).lunararc$getPlayer();
-        return original.call(playerList, profile, information, cached != null ? cached : loginPlayer);
+        Component result = player == null ? original.call(playerList, address, nameAndId) : null;
+        // Paper: plugins may still veto the connection (or pass a kick message) once configuration is complete.
+        io.papermc.paper.event.connection.PlayerConnectionValidateLoginEvent event =
+                new io.papermc.paper.event.connection.PlayerConnectionValidateLoginEvent(this.paperConnection,
+                        result == null ? null : io.papermc.paper.adventure.PaperAdventure.asAdventure(result));
+        event.callEvent();
+        return io.papermc.paper.adventure.PaperAdventure.asVanilla(event.getKickMessage());
     }
 
     @Inject(method = "handleConfigurationFinished", at = @At("RETURN"), require = 0)

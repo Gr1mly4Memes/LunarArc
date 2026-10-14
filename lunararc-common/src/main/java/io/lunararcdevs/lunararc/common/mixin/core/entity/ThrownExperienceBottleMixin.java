@@ -6,7 +6,7 @@ import com.llamalad7.mixinextras.sugar.Local;
 import io.lunararcdevs.lunararc.common.event.LunarArcPaperEvents;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.projectile.ThrownExperienceBottle;
+import net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownExperienceBottle;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
@@ -20,19 +20,19 @@ public abstract class ThrownExperienceBottleMixin {
 
     @Unique private ExpBottleEvent lunararc$event;
 
-    @WrapOperation(method = "onHit", require = 0,
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;levelEvent(ILnet/minecraft/core/BlockPos;I)V"))
-    private void lunararc$effect(Level level, int type, BlockPos pos, int data, Operation<Void> original,
+    @WrapOperation(method = "onHit", require = 1,
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerLevel;levelEvent(ILnet/minecraft/core/BlockPos;I)V"))
+    private void lunararc$effect(net.minecraft.server.level.ServerLevel level, int type, BlockPos pos, int data, Operation<Void> original,
             @Local(argsOnly = true) HitResult hit) {
         this.lunararc$event = LunarArcPaperEvents.expBottle((ThrownExperienceBottle) (Object) this, hit);
         if (this.lunararc$event == null || this.lunararc$event.getShowEffect()) original.call(level, type, pos, data);
     }
 
-    @WrapOperation(method = "onHit", require = 0,
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/ExperienceOrb;award(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/phys/Vec3;I)V"))
-    private void lunararc$award(ServerLevel level, Vec3 pos, int amount, Operation<Void> original) {
+    @WrapOperation(method = "onHit", require = 1,
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/ExperienceOrb;awardWithDirection(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/phys/Vec3;Lnet/minecraft/world/phys/Vec3;I)V"))
+    private void lunararc$award(ServerLevel level, Vec3 pos, Vec3 direction, int amount, Operation<Void> original) {
         ExpBottleEvent event = this.lunararc$event;
         this.lunararc$event = null;
-        original.call(level, pos, event == null ? amount : event.getExperience());
+        original.call(level, pos, direction, event == null ? amount : event.getExperience());
     }
 }

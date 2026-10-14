@@ -23,4 +23,9 @@ public final class CraftMerchantView extends CraftInventoryView implements Merch
 
     @Override public @NotNull MerchantInventory getTopInventory() { return this.top; }
     @Override public @NotNull Merchant getMerchant() { return this.top.getMerchant(); }
+
+    @Override
+    public void open() {
+        getPlayer().openInventory(this);
+    }
 }

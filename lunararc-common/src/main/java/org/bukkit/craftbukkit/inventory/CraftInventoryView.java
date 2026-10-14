@@ -291,4 +291,15 @@ public class CraftInventoryView implements InventoryView {
     public boolean isInTop(int rawSlot) {
         return rawSlot < this.top.getSize();
     }
+
+    @Override
+    public org.bukkit.inventory.MenuType getMenuType() {
+        net.minecraft.world.inventory.MenuType<?> menuType = handle.menuType;
+        return menuType != null ? CraftMenuType.minecraftToBukkit(menuType) : null;
+    }
+
+    @Override
+    public void open() {
+        getPlayer().openInventory(this);
+    }
 }

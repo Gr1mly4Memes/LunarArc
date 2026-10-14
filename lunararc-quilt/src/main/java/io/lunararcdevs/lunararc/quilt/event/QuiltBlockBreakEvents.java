@@ -13,12 +13,12 @@ public final class QuiltBlockBreakEvents {
             org.bukkit.event.block.BlockBreakEvent bukkit = LunarArcBlockBreakCapture.matching(serverPlayer, pos);
             if (bukkit == null) {
                 bukkit = org.bukkit.craftbukkit.event.CraftEventFactory.callBlockBreakEvent(
-                        serverPlayer.serverLevel(), pos, serverPlayer);
+                        serverPlayer.level(), pos, serverPlayer);
                 LunarArcBlockBreakCapture.capture(serverPlayer, pos, bukkit);
             }
             if (bukkit.isCancelled()) {
                 serverPlayer.connection.send(new net.minecraft.network.protocol.game.ClientboundBlockUpdatePacket(
-                        serverPlayer.serverLevel(), pos));
+                        serverPlayer.level(), pos));
                 LunarArcBlockBreakCapture.clear();
                 return false;
             }

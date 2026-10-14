@@ -4,7 +4,7 @@ import io.lunararcdevs.lunararc.common.bridge.EntityBridge;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.phys.Vec3;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
@@ -24,8 +24,8 @@ public final class CraftDamageSource implements DamageSource {
     private final DamageType damageType;
     public CraftDamageSource(@NotNull net.minecraft.world.damagesource.DamageSource handle) {
         this.handle = Objects.requireNonNull(handle, "handle");
-        ResourceLocation location = handle.typeHolder().unwrapKey()
-                .map(ResourceKey::location)
+        Identifier location = handle.typeHolder().unwrapKey()
+                .map(ResourceKey::identifier)
                 .orElseThrow(() -> new IllegalStateException("DamageSource type is not registered"));
         this.damageType = new CraftDamageType(
                 new org.bukkit.NamespacedKey(location.getNamespace(), location.getPath()),
@@ -97,11 +97,11 @@ public final class CraftDamageSource implements DamageSource {
         CraftServer server = (CraftServer) Bukkit.getServer();
         if (server == null) throw new IllegalStateException("CraftServer is not initialized");
 
-        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(type.getKey().getNamespace(), type.getKey().getKey());
+        Identifier id = Identifier.fromNamespaceAndPath(type.getKey().getNamespace(), type.getKey().getKey());
         ResourceKey<net.minecraft.world.damagesource.DamageType> key = ResourceKey.create(Registries.DAMAGE_TYPE, id);
         Holder<net.minecraft.world.damagesource.DamageType> holder = server.getServer().registryAccess()
-                .registryOrThrow(Registries.DAMAGE_TYPE)
-                .getHolder(key)
+                .lookupOrThrow(Registries.DAMAGE_TYPE)
+                .get(key)
                 .orElseThrow(() -> new IllegalArgumentException("Unregistered damage type " + type.getKey()));
 
         net.minecraft.world.entity.Entity nmsCause = unwrap(causingEntity);

@@ -19,7 +19,7 @@ public abstract class RecipeBookDiscoverMixin {
         List<RecipeHolder<?>> allowed = new ArrayList<>(recipes.size());
         ServerRecipeBook book = (ServerRecipeBook) (Object) this;
         for (RecipeHolder<?> holder : recipes) {
-            if (book.contains(holder) || LunarArcMoreEvents.recipeDiscover(player, holder.id())) allowed.add(holder);
+            if (book.contains(holder.id()) || LunarArcMoreEvents.recipeDiscover(player, holder.id().identifier())) allowed.add(holder);
         }
         return original.call(allowed, player);
     }

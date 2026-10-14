@@ -28,17 +28,16 @@ import java.util.List;
  */
 @Mixin(PortalShape.class)
 public abstract class PortalShapeMixin {
-    @Shadow @Final private LevelAccessor level;
     @Shadow @Final private Direction.Axis axis;
     @Shadow @Nullable private BlockPos bottomLeft;
     @Shadow private int height;
     @Shadow @Final private Direction rightDir;
     @Shadow @Final private int width;
 
-    @Inject(method = "createPortalBlocks", at = @At("HEAD"), cancellable = true, require = 0)
-    private void lunararc$portalCreateEvent(CallbackInfo ci) {
+    @Inject(method = "createPortalBlocks", at = @At("HEAD"), cancellable = true, require = 1)
+    private void lunararc$portalCreateEvent(LevelAccessor level, CallbackInfo ci) {
         if (this.bottomLeft == null || this.width <= 0 || this.height <= 0) return;
-        if (!(this.level instanceof ServerLevel serverLevel)) return;
+        if (!(level instanceof ServerLevel serverLevel)) return;
         // createPortalBlocks is reachable from worldgen (vanilla's own ruined portal
         // structures) on worker threads, same class of risk as a real confirmed crash
         // elsewhere on this exact pattern. This is a plain HEAD/cancellable hook — returning

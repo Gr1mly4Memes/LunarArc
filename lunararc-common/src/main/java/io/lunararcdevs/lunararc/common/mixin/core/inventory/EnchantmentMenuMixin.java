@@ -91,12 +91,12 @@ public abstract class EnchantmentMenuMixin implements io.lunararcdevs.lunararc.c
                 || !(((EntityBridge) player).lunararc$getBukkitEntity() instanceof org.bukkit.entity.Player bukkitPlayer)) {
             return;
         }
-        Registry<Enchantment> enchantments = registry.registryOrThrow(Registries.ENCHANTMENT);
+        Registry<Enchantment> enchantments = registry.lookupOrThrow(Registries.ENCHANTMENT);
         Map<org.bukkit.enchantments.Enchantment, Integer> toAdd = new HashMap<>();
         for (EnchantmentInstance instance : cir.getReturnValue()) {
-            toAdd.put(CraftEnchantment.minecraftHolderToBukkit(instance.enchantment), instance.level);
+            toAdd.put(CraftEnchantment.minecraftHolderToBukkit(instance.enchantment()), instance.level());
         }
-        org.bukkit.enchantments.Enchantment hint = enchantments.getHolder(this.enchantClue[slot])
+        org.bukkit.enchantments.Enchantment hint = enchantments.get(this.enchantClue[slot])
                 .map(CraftEnchantment::minecraftHolderToBukkit).orElse(null);
         EnchantItemEvent event = new EnchantItemEvent(bukkitPlayer, lunararc$view(bukkitPlayer), CraftBlock.at(level, this.lunararc$pos),
                 CraftItemStack.asCraftMirror(stack), cost, toAdd, hint, this.levelClue[slot], slot);

@@ -11,6 +11,6 @@ public interface ItemEntityAccessBridge {
     int lunararc$getHealth();
     void lunararc$setHealth(int health);
     UUID lunararc$getTarget();
-    UUID lunararc$getThrower();
-    void lunararc$setThrower(UUID thrower);
+    net.minecraft.world.entity.EntityReference<net.minecraft.world.entity.Entity> lunararc$getThrower();
+    void lunararc$setThrower(net.minecraft.world.entity.EntityReference<net.minecraft.world.entity.Entity> thrower);
 }

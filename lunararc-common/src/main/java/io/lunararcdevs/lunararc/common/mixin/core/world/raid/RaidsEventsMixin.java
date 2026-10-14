@@ -18,14 +18,13 @@ import java.util.Map;
 
 @Mixin(Raids.class)
 public abstract class RaidsEventsMixin {
-    @Shadow @Final private ServerLevel level;
-    @Shadow private Map<Integer, Raid> raidMap;
+    @Shadow @Final public it.unimi.dsi.fastutil.ints.Int2ObjectMap<Raid> raidMap;
 
     @Inject(method = "createOrExtendRaid", at = @At("RETURN"), cancellable = true, require = 0)
     private void lunararc$trigger(ServerPlayer player, BlockPos pos, CallbackInfoReturnable<Raid> cir) {
         Raid raid = cir.getReturnValue();
-        if (raid == null || LunarArcMoreEvents.raidTrigger(raid, this.level, player)) return;
-        this.raidMap.remove(raid.getId());
+        if (raid == null || LunarArcMoreEvents.raidTrigger(raid, player.level(), player)) return;
+        this.raidMap.values().remove(raid);
         player.removeEffect(MobEffects.RAID_OMEN);
         cir.setReturnValue(null);
     }

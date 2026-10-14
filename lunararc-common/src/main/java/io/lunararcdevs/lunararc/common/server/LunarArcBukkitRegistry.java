@@ -1,6 +1,6 @@
 package io.lunararcdevs.lunararc.common.server;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.core.HolderSet;
 import net.minecraft.core.Holder;
@@ -106,6 +106,11 @@ public final class LunarArcBukkitRegistry<T extends Keyed> implements Registry<T
         @Override public @NotNull Iterator<T> iterator() { return delegate().iterator(); }
 
         @Override public @NotNull Stream<T> stream() { return delegate().stream(); }
+        @Override public int size() { return delegate().size(); }
+        @Override public @NotNull Collection<Tag<T>> getTags() { return delegate().getTags(); }
+        @Override public boolean hasTag(@NotNull TagKey<T> key) { return delegate().hasTag(key); }
+        @Override public @NotNull Tag<T> getTag(@NotNull TagKey<T> key) { return delegate().getTag(key); }
+        @Override public @NotNull Stream<NamespacedKey> keyStream() { return delegate().keyStream(); }
     }
 
     private static <T extends Keyed> void add(T value, Map<NamespacedKey, T> byKey, List<T> values) {
@@ -139,6 +144,12 @@ public final class LunarArcBukkitRegistry<T extends Keyed> implements Registry<T
 
     @Override public @NotNull Iterator<T> iterator() { return values.iterator(); }
     @Override public @NotNull Stream<T> stream() { return values.stream(); }
+    @Override public int size() { return values.size(); }
+    @Override public @NotNull Collection<Tag<T>> getTags() { return List.of(); }
+    @Override public boolean hasTag(@NotNull TagKey<T> key) { return false; }
+    @Override public @NotNull Tag<T> getTag(@NotNull TagKey<T> key) { throw new java.util.NoSuchElementException("Registry has no tags: " + key.key()); }
+
+    @Override public @NotNull Stream<NamespacedKey> keyStream() { return values.stream().map(Keyed::getKey); }
 
     public static final class Tagged<T extends Keyed> implements Registry<T> {
         private final Registry<T> delegate;
@@ -160,6 +171,12 @@ public final class LunarArcBukkitRegistry<T extends Keyed> implements Registry<T
         }
 
         @Override
+        public int size() { return delegate.size(); }
+
+        @Override
+        public @NotNull Stream<NamespacedKey> keyStream() { return delegate.keyStream(); }
+
+        @Override
         public @NotNull Stream<T> stream() {
             return delegate.stream();
         }
@@ -177,15 +194,28 @@ public final class LunarArcBukkitRegistry<T extends Keyed> implements Registry<T
         @SuppressWarnings({"unchecked", "rawtypes"})
         private java.util.Optional<HolderSet.Named<Object>> nmsTag(TagKey<T> key) {
             net.minecraft.core.Registry<Object> nms = LunarArcServerAccess.getMinecraftServer().registryAccess()
-                    .registryOrThrow((ResourceKey) io.papermc.paper.registry.PaperRegistries.registryToNms(registryKey));
+                    .lookupOrThrow((ResourceKey) io.papermc.paper.registry.PaperRegistries.registryToNms(registryKey));
             net.minecraft.tags.TagKey<Object> nmsKey = net.minecraft.tags.TagKey.create(nms.key(),
-                    ResourceLocation.parse(key.key().asString()));
-            return nms.getTag(nmsKey);
+                    Identifier.parse(key.key().asString()));
+            return nms.get(nmsKey);
         }
 
         @Override
         public boolean hasTag(@NotNull TagKey<T> key) {
             return nmsTag(key).isPresent();
+        }
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        @Override
+        public @NotNull Collection<Tag<T>> getTags() {
+            net.minecraft.core.Registry<Object> nms = LunarArcServerAccess.getMinecraftServer().registryAccess()
+                    .lookupOrThrow((ResourceKey) io.papermc.paper.registry.PaperRegistries.registryToNms(registryKey));
+            List<Tag<T>> tags = new ArrayList<>();
+            nms.getTags().forEach(named -> {
+                Identifier id = named.key().location();
+                tags.add(getTag(TagKey.create(registryKey, Key.key(id.getNamespace(), id.getPath()))));
+            });
+            return List.copyOf(tags);
         }
 
         @Override
@@ -195,7 +225,7 @@ public final class LunarArcBukkitRegistry<T extends Keyed> implements Registry<T
             List<TypedKey<T>> values = new ArrayList<>();
             for (Holder<Object> holder : named) {
                 holder.unwrapKey().ifPresent(resourceKey ->
-                        values.add(TypedKey.create(registryKey, Key.key(resourceKey.location().getNamespace(), resourceKey.location().getPath()))));
+                        values.add(TypedKey.create(registryKey, Key.key(resourceKey.identifier().getNamespace(), resourceKey.identifier().getPath()))));
             }
             return new TagImpl<>(key, registryKey, List.copyOf(values));
         }

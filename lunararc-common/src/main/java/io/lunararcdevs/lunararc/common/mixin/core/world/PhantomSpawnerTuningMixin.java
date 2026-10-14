@@ -28,10 +28,10 @@ public abstract class PhantomSpawnerTuningMixin {
     @Unique private boolean lunararc$aborted;
 
     @Inject(method = "tick", at = @At("HEAD"), cancellable = true, require = 0)
-    private void lunararc$disabled(ServerLevel level, boolean spawnEnemies, boolean spawnFriendlies, CallbackInfoReturnable<Integer> cir) {
+    private void lunararc$disabled(ServerLevel level, boolean spawnEnemies, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
         var tuning = LunarArcServerSettings.tuning(level);
         lunararc$aborted = false;
-        if (tuning.phantomMaxSeconds <= 0 || tuning.insomniaStartTicks < 0) cir.setReturnValue(0);
+        if (tuning.phantomMaxSeconds <= 0 || tuning.insomniaStartTicks < 0) ci.cancel();
     }
 
     @WrapOperation(method = "tick", require = 0, at = @At(value = "INVOKE", ordinal = 0,
@@ -61,8 +61,8 @@ public abstract class PhantomSpawnerTuningMixin {
     }
 
     @WrapOperation(method = "tick", require = 0, at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/world/entity/EntityType;create(Lnet/minecraft/world/level/Level;)Lnet/minecraft/world/entity/Entity;"))
-    private Entity lunararc$preSpawn(EntityType<?> type, Level level, Operation<Entity> original,
+            target = "Lnet/minecraft/world/entity/EntityType;create(Lnet/minecraft/world/level/Level;Lnet/minecraft/world/entity/EntitySpawnReason;)Lnet/minecraft/world/entity/Entity;"))
+    private Entity lunararc$preSpawn(EntityType<?> type, Level level, net.minecraft.world.entity.EntitySpawnReason reason, Operation<Entity> original,
                                      @Local ServerPlayer player, @Local(ordinal = 1) BlockPos spawnPos) {
         if (lunararc$aborted) return null;
         if (Bukkit.isPrimaryThread() && PhantomPreSpawnEvent.getHandlerList().getRegisteredListeners().length != 0
@@ -77,6 +77,6 @@ public abstract class PhantomSpawnerTuningMixin {
                 return null;
             }
         }
-        return original.call(type, level);
+        return original.call(type, level, reason);
     }
 }

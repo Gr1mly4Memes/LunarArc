@@ -125,7 +125,7 @@ public class CraftEventFactory {
             return null;
 
         ItemStack item = CraftItemStack.asBukkitCopy(itemstack);
-        Block block = (pos != null) ? CraftBlock.create(player.serverLevel(), pos) : null;
+        Block block = (pos != null) ? CraftBlock.create(player.level(), pos) : null;
         BlockFace face = (direction != null) ? BlockFace.valueOf(direction.name()) : BlockFace.SELF;
 
         PlayerInteractEvent event = new PlayerInteractEvent(bukkitPlayer, action, item, block, face, hand);
@@ -134,6 +134,14 @@ public class CraftEventFactory {
     }
 
 
+    public static io.papermc.paper.block.bed.BedRuleResult asBedRuleResult(net.minecraft.world.attribute.BedRule.Rule rule, boolean value) {
+        return switch (rule) {
+            case ALWAYS -> io.papermc.paper.block.bed.BedRuleResult.ALLOWED;
+            case WHEN_DARK -> value ? io.papermc.paper.block.bed.BedRuleResult.ALLOWED : io.papermc.paper.block.bed.BedRuleResult.TOO_MUCH_LIGHT;
+            case NEVER -> io.papermc.paper.block.bed.BedRuleResult.NEVER;
+        };
+    }
+
     public static com.mojang.datafixers.util.Either<net.minecraft.world.entity.player.Player.BedSleepingProblem, net.minecraft.util.Unit> callPlayerBedEnterEvent(
             net.minecraft.server.level.ServerPlayer player, net.minecraft.core.BlockPos bed,
             com.mojang.datafixers.util.Either<net.minecraft.world.entity.player.Player.BedSleepingProblem, net.minecraft.util.Unit> nmsResult) {
@@ -141,16 +149,40 @@ public class CraftEventFactory {
                 .lunararc$getBukkitEntity();
         if (bukkitPlayer == null) return nmsResult;
 
-        org.bukkit.event.player.PlayerBedEnterEvent.BedEnterResult result = nmsResult.map(problem -> switch (problem) {
-            case NOT_POSSIBLE_HERE -> org.bukkit.event.player.PlayerBedEnterEvent.BedEnterResult.NOT_POSSIBLE_HERE;
-            case NOT_POSSIBLE_NOW -> org.bukkit.event.player.PlayerBedEnterEvent.BedEnterResult.NOT_POSSIBLE_NOW;
-            case TOO_FAR_AWAY -> org.bukkit.event.player.PlayerBedEnterEvent.BedEnterResult.TOO_FAR_AWAY;
-            case NOT_SAFE -> org.bukkit.event.player.PlayerBedEnterEvent.BedEnterResult.NOT_SAFE;
-            case OBSTRUCTED, OTHER_PROBLEM -> org.bukkit.event.player.PlayerBedEnterEvent.BedEnterResult.OTHER_PROBLEM;
+        net.minecraft.world.level.Level level = player.level();
+        net.minecraft.world.attribute.BedRule rule = level.environmentAttributes()
+                .getValue(net.minecraft.world.attribute.EnvironmentAttributes.BED_RULE, bed);
+        org.bukkit.event.player.PlayerBedEnterEvent.BedEnterResult result = nmsResult.map(problem -> {
+            if (problem == net.minecraft.world.entity.player.Player.BedSleepingProblem.TOO_FAR_AWAY) {
+                return org.bukkit.event.player.PlayerBedEnterEvent.BedEnterResult.TOO_FAR_AWAY;
+            } else if (problem == net.minecraft.world.entity.player.Player.BedSleepingProblem.NOT_SAFE) {
+                return org.bukkit.event.player.PlayerBedEnterEvent.BedEnterResult.NOT_SAFE;
+            } else if (problem == net.minecraft.world.entity.player.Player.BedSleepingProblem.OBSTRUCTED
+                    || problem == net.minecraft.world.entity.player.Player.BedSleepingProblem.OTHER_PROBLEM) {
+                return org.bukkit.event.player.PlayerBedEnterEvent.BedEnterResult.OTHER_PROBLEM;
+            }
+            // Remaining problems come from the dimension's bed rule (BedRule#asProblem).
+            return switch (rule.canSleep()) {
+                case NEVER -> org.bukkit.event.player.PlayerBedEnterEvent.BedEnterResult.NOT_POSSIBLE_HERE;
+                case WHEN_DARK -> org.bukkit.event.player.PlayerBedEnterEvent.BedEnterResult.NOT_POSSIBLE_NOW;
+                case ALWAYS -> org.bukkit.event.player.PlayerBedEnterEvent.BedEnterResult.OTHER_PROBLEM;
+            };
         }, unit -> org.bukkit.event.player.PlayerBedEnterEvent.BedEnterResult.OK);
 
+        io.papermc.paper.block.bed.BedEnterProblem enterProblem = nmsResult.map(problem -> {
+            if (problem == net.minecraft.world.entity.player.Player.BedSleepingProblem.TOO_FAR_AWAY) return io.papermc.paper.block.bed.BedEnterProblem.TOO_FAR_AWAY;
+            if (problem == net.minecraft.world.entity.player.Player.BedSleepingProblem.NOT_SAFE) return io.papermc.paper.block.bed.BedEnterProblem.NOT_SAFE;
+            if (problem == net.minecraft.world.entity.player.Player.BedSleepingProblem.OBSTRUCTED) return io.papermc.paper.block.bed.BedEnterProblem.OBSTRUCTED;
+            return rule.explodes() ? io.papermc.paper.block.bed.BedEnterProblem.EXPLOSION : io.papermc.paper.block.bed.BedEnterProblem.OTHER;
+        }, unit -> null);
+        io.papermc.paper.block.bed.BedEnterAction action = new io.papermc.paper.block.bed.BedEnterActionImpl(
+                asBedRuleResult(rule.canSleep(), rule.canSleep().test(level)),
+                asBedRuleResult(rule.canSetSpawn(), rule.canSetSpawn().test(level)),
+                enterProblem,
+                rule.errorMessage().map(io.papermc.paper.adventure.PaperAdventure::asAdventure).orElse(null));
+
         var event = new org.bukkit.event.player.PlayerBedEnterEvent(
-                bukkitPlayer, org.bukkit.craftbukkit.block.CraftBlock.at(player.serverLevel(), bed), result);
+                bukkitPlayer, org.bukkit.craftbukkit.block.CraftBlock.at(player.level(), bed), result, action);
         Bukkit.getPluginManager().callEvent(event);
         return switch (event.useBed()) {
             case ALLOW -> com.mojang.datafixers.util.Either.right(net.minecraft.util.Unit.INSTANCE);
@@ -165,7 +197,7 @@ public class CraftEventFactory {
                 .lunararc$getBukkitEntity();
         if (bukkitPlayer == null) return null;
         org.bukkit.block.Block bed = bedPos != null
-                ? org.bukkit.craftbukkit.block.CraftBlock.at(player.serverLevel(), bedPos)
+                ? org.bukkit.craftbukkit.block.CraftBlock.at(player.level(), bedPos)
                 : bukkitPlayer.getLocation().getBlock();
         var event = new org.bukkit.event.player.PlayerBedLeaveEvent(bukkitPlayer, bed, setSpawnLocation);
         Bukkit.getPluginManager().callEvent(event);
@@ -222,7 +254,7 @@ public class CraftEventFactory {
             net.minecraft.server.level.ServerPlayer player, net.minecraft.world.InteractionHand hand,
             net.minecraft.world.level.block.state.BlockState newState,
             net.minecraft.world.level.block.state.BlockState replacedState,
-            @javax.annotation.Nullable net.minecraft.nbt.CompoundTag replacedBlockEntityTag) {
+            @org.jetbrains.annotations.Nullable net.minecraft.nbt.CompoundTag replacedBlockEntityTag) {
         org.bukkit.block.Block block = org.bukkit.craftbukkit.block.CraftBlock.create(world, pos);
 
         org.bukkit.entity.Player bukkitPlayer = player != null
@@ -406,7 +438,7 @@ public class CraftEventFactory {
     private static @Nullable org.bukkit.potion.PotionEffect lunararc$toBukkitEffect(
             @Nullable net.minecraft.world.effect.MobEffectInstance effect) {
         if (effect == null) return null;
-        net.minecraft.resources.ResourceLocation id =
+        net.minecraft.resources.Identifier id =
                 net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
         if (id == null) return null;
         org.bukkit.potion.PotionEffectType type = org.bukkit.potion.PotionEffectType.getByKey(
@@ -424,9 +456,9 @@ public class CraftEventFactory {
 
         var event = new org.bukkit.event.entity.EntityDeathEvent(
                 living, new org.bukkit.craftbukkit.damage.CraftDamageSource(source), drops, droppedExp);
-        double maxHealth = living.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH) == null
+        double maxHealth = living.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH) == null
                 ? living.getMaxHealth()
-                : living.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH).getValue();
+                : living.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
         if (maxHealth > 0.0D) event.setReviveHealth(maxHealth);
         Bukkit.getPluginManager().callEvent(event);
         return event;
@@ -552,9 +584,9 @@ public class CraftEventFactory {
         }
         if (menu instanceof net.minecraft.world.inventory.CraftingMenu crafting) {
             type = org.bukkit.event.inventory.InventoryType.WORKBENCH;
-            var recipe = player.serverLevel().getRecipeManager().getRecipeFor(
+            var recipe = player.level().recipeAccess().getRecipeFor(
                     net.minecraft.world.item.crafting.RecipeType.CRAFTING,
-                    crafting.craftSlots.asCraftInput(), player.serverLevel()).orElse(null);
+                    crafting.craftSlots.asCraftInput(), player.level()).orElse(null);
             org.bukkit.inventory.Inventory craftingTop = new org.bukkit.craftbukkit.inventory.CraftInventoryCrafting(
                     crafting.craftSlots, crafting.resultSlots, craftPlayer, recipe);
             return new org.bukkit.craftbukkit.inventory.CraftInventoryView(
@@ -618,7 +650,7 @@ public class CraftEventFactory {
                 ((io.lunararcdevs.lunararc.common.bridge.EntityBridge) entity).lunararc$getBukkitEntity();
         org.bukkit.event.entity.EntityExplodeEvent event = new org.bukkit.event.entity.EntityExplodeEvent(
                 bukkitEntity, bukkitEntity.getLocation(), blocks, yield,
-                org.bukkit.craftbukkit.CraftExplosionResult.toBukkit(effect));
+                org.bukkit.craftbukkit.CraftExplosionResult.toExplosionResult(effect));
         Bukkit.getPluginManager().callEvent(event);
         return event;
     }
@@ -631,7 +663,7 @@ public class CraftEventFactory {
             net.minecraft.world.level.Explosion.BlockInteraction effect) {
         org.bukkit.event.block.BlockExplodeEvent event = new org.bukkit.event.block.BlockExplodeEvent(
                 block, state, blocks, yield,
-                org.bukkit.craftbukkit.CraftExplosionResult.toBukkit(effect));
+                org.bukkit.craftbukkit.CraftExplosionResult.toExplosionResult(effect));
         Bukkit.getPluginManager().callEvent(event);
         return event;
     }
@@ -821,12 +853,27 @@ public class CraftEventFactory {
                 || !(((io.lunararcdevs.lunararc.common.bridge.EntityBridge) player).lunararc$getBukkitEntity() instanceof org.bukkit.entity.Player bukkitPlayer)) {
             return false;
         }
+        java.util.List<org.bukkit.inventory.ItemStack> drops = new ArrayList<>();
+        for (net.minecraft.world.item.ItemStack drop : io.lunararcdevs.lunararc.common.util.LunarArcShearing.defaultDrops(sheared, shears)) {
+            drops.add(CraftItemStack.asBukkitCopy(drop));
+        }
         org.bukkit.event.player.PlayerShearEntityEvent event = new org.bukkit.event.player.PlayerShearEntityEvent(bukkitPlayer,
                 ((io.lunararcdevs.lunararc.common.bridge.EntityBridge) sheared).lunararc$getBukkitEntity(), CraftItemStack.asCraftMirror(shears),
                 hand == net.minecraft.world.InteractionHand.OFF_HAND ? org.bukkit.inventory.EquipmentSlot.OFF_HAND : org.bukkit.inventory.EquipmentSlot.HAND,
-                new ArrayList<>());
+                drops);
         Bukkit.getPluginManager().callEvent(event);
-        return event.isCancelled();
+        if (event.isCancelled()) {
+            io.lunararcdevs.lunararc.common.util.LunarArcShearing.clear();
+            return true;
+        }
+        if (io.lunararcdevs.lunararc.common.util.LunarArcShearing.handles(sheared)) {
+            java.util.List<net.minecraft.world.item.ItemStack> result = new ArrayList<>();
+            for (org.bukkit.inventory.ItemStack drop : event.getDrops()) {
+                result.add(CraftItemStack.asNMSCopy(drop));
+            }
+            io.lunararcdevs.lunararc.common.util.LunarArcShearing.force(sheared, result);
+        }
+        return false;
     }
 
     public static org.bukkit.event.entity.ExplosionPrimeEvent callExplosionPrimeEvent(net.minecraft.world.entity.Entity entity, float radius, boolean fire) {
@@ -909,4 +956,36 @@ public class CraftEventFactory {
     }
 
 
+
+    public record GameRuleSetResult<T>(T value, boolean cancelled) {
+    }
+
+    /**
+     * Fires Paper's world gamerule change event. Returns the (possibly plugin-modified) value, or {@code null} when a
+     * plugin cancelled the change.
+     */
+    public static <T> @org.jetbrains.annotations.Nullable T fireGameRuleChange(net.minecraft.world.level.gamerules.GameRule<T> rule, T value,
+            net.minecraft.server.level.ServerLevel level, @org.jetbrains.annotations.Nullable org.bukkit.command.CommandSender sender) {
+        String valueStr = rule.serialize(value);
+        final var event = new io.papermc.paper.event.world.PaperWorldGameRuleChangeEvent(
+                io.lunararcdevs.lunararc.common.LunarArcServerAccess.getCraftWorld(level),
+                sender,
+                org.bukkit.craftbukkit.CraftGameRule.minecraftToBukkit(rule),
+                valueStr);
+        if (!event.callEvent()) return null;
+        if (!event.getValue().equals(valueStr)) {
+            value = rule.deserialize(event.getValue()).getOrThrow();
+        }
+        return value;
+    }
+
+    public static <T> GameRuleSetResult<T> handleGameRuleSet(net.minecraft.world.level.gamerules.GameRule<T> rule, T value,
+            net.minecraft.server.level.ServerLevel level, @org.jetbrains.annotations.Nullable org.bukkit.command.CommandSender sender) {
+        T accepted = fireGameRuleChange(rule, value, level, sender);
+        if (accepted == null) {
+            return new GameRuleSetResult<>(level.getGameRules().get(rule), true);
+        }
+        level.getGameRules().set(rule, accepted, level.getServer());
+        return new GameRuleSetResult<>(accepted, false);
+    }
 }

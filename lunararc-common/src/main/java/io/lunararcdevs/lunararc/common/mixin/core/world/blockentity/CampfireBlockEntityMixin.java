@@ -5,6 +5,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.core.NonNullList;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.CampfireBlockEntity;
+import com.llamalad7.mixinextras.sugar.Local;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
@@ -22,21 +23,20 @@ public abstract class CampfireBlockEntityMixin implements io.lunararcdevs.lunara
     @WrapOperation(method = "cookTick", at = @At(value = "INVOKE", ordinal = 0,
             target = "Lnet/minecraft/core/NonNullList;get(I)Ljava/lang/Object;"))
     private static Object lunararc$skipStopped(NonNullList<ItemStack> items, int slot, Operation<Object> original,
-            net.minecraft.world.level.Level level, net.minecraft.core.BlockPos pos,
+            net.minecraft.server.level.ServerLevel level, net.minecraft.core.BlockPos pos,
             net.minecraft.world.level.block.state.BlockState state, CampfireBlockEntity campfire) {
         boolean[] stopped = ((io.lunararcdevs.lunararc.common.bridge.world.StopCookingBridge) campfire).lunararc$stopCooking();
         return slot < stopped.length && stopped[slot] ? ItemStack.EMPTY : original.call(items, slot);
     }
 
-    @Shadow @org.spongepowered.asm.mixin.Final private NonNullList<ItemStack> items;
-
-    @Shadow public abstract java.util.Optional<net.minecraft.world.item.crafting.RecipeHolder<net.minecraft.world.item.crafting.CampfireCookingRecipe>> getCookableRecipe(ItemStack stack);
-
-    @ModifyVariable(method = "placeFood", at = @At("HEAD"), argsOnly = true, require = 0)
-    private int lunararc$startCooking(int cookTime, net.minecraft.world.entity.LivingEntity entity, ItemStack food, int original) {
+    /** CampfireStartEvent: the cook time is read from the recipe while food is placed. */
+    @WrapOperation(method = "placeFood", require = 1,
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/crafting/CampfireCookingRecipe;cookingTime()I"))
+    private int lunararc$startCooking(net.minecraft.world.item.crafting.CampfireCookingRecipe recipe, Operation<Integer> original,
+            @Local(argsOnly = true) net.minecraft.server.level.ServerLevel level, @Local(argsOnly = true) ItemStack food,
+            @Local java.util.Optional<net.minecraft.world.item.crafting.RecipeHolder<net.minecraft.world.item.crafting.CampfireCookingRecipe>> holder) {
+        int cookTime = original.call(recipe);
         CampfireBlockEntity self = (CampfireBlockEntity) (Object) this;
-        if (self.getLevel() == null || !this.items.stream().anyMatch(ItemStack::isEmpty)) return cookTime;
-        return io.lunararcdevs.lunararc.common.event.LunarArcPaperEvents.campfireStart(
-                self.getLevel(), self.getBlockPos(), food, this.getCookableRecipe(food).orElse(null), cookTime);
+        return io.lunararcdevs.lunararc.common.event.LunarArcPaperEvents.campfireStart(level, self.getBlockPos(), food, holder.orElse(null), cookTime);
     }
 }

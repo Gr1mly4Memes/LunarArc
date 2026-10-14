@@ -4,49 +4,36 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
 import io.lunararcdevs.lunararc.common.bridge.EntityBridge;
+import java.util.function.Consumer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.projectile.Projectile;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ProjectileWeaponItem;
 import org.bukkit.craftbukkit.event.CraftEventFactory;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-import java.util.List;
-
+/** EntityShootBowEvent for bows and crossbows: runs after the vanilla adapter has set the launch velocity. */
 @Mixin(ProjectileWeaponItem.class)
 public abstract class ProjectileWeaponItemMixin {
-    @Unique private boolean lunararc$projectileReplaced;
-
-    @Inject(method = "shoot", cancellable = true, at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/server/level/ServerLevel;addFreshEntity(Lnet/minecraft/world/entity/Entity;)Z"))
-    private void lunararc$shootBow(ServerLevel level, LivingEntity shooter, InteractionHand hand, ItemStack weapon, List<ItemStack> projectileItems,
-            float velocity, float inaccuracy, boolean isCrit, LivingEntity target, CallbackInfo ci,
-            @Local(ordinal = 1) ItemStack ammo, @Local Projectile projectile) {
-        this.lunararc$projectileReplaced = false;
-        if (!org.bukkit.Bukkit.isPrimaryThread()) return;
+    @WrapOperation(method = "shoot", require = 1,
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/projectile/Projectile;spawnProjectile(Lnet/minecraft/world/entity/projectile/Projectile;Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/item/ItemStack;Ljava/util/function/Consumer;)Lnet/minecraft/world/entity/projectile/Projectile;"))
+    private Projectile lunararc$shootBow(Projectile projectile, ServerLevel level, ItemStack ammo, Consumer<Projectile> adapter,
+            Operation<Projectile> original,
+            @Local(argsOnly = true, ordinal = 0) LivingEntity shooter, @Local(argsOnly = true) InteractionHand hand,
+            @Local(argsOnly = true) ItemStack weapon, @Local(argsOnly = true, ordinal = 0) float velocity) {
+        if (!org.bukkit.Bukkit.isPrimaryThread()) return original.call(projectile, level, ammo, adapter);
+        adapter.accept(projectile);
         var event = CraftEventFactory.callEntityShootBowEvent(shooter, weapon, ammo, projectile, hand, velocity, true);
         if (event.isCancelled()) {
             event.getProjectile().remove();
-            ci.cancel();
-            return;
+            return projectile;
         }
-        this.lunararc$projectileReplaced = event.getProjectile() != ((EntityBridge) projectile).lunararc$getBukkitEntity();
-    }
-
-    @WrapOperation(method = "shoot", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/server/level/ServerLevel;addFreshEntity(Lnet/minecraft/world/entity/Entity;)Z"))
-    private boolean lunararc$addShotProjectile(ServerLevel level, Entity projectile, Operation<Boolean> original) {
-        if (this.lunararc$projectileReplaced) {
-            this.lunararc$projectileReplaced = false;
-            return true;
+        if (event.getProjectile() != ((EntityBridge) projectile).lunararc$getBukkitEntity()) {
+            return projectile; // a plugin replaced the projectile and spawned its own
         }
-        return original.call(level, projectile);
+        return original.call(projectile, level, ammo, (Consumer<Projectile>) p -> {});
     }
 }

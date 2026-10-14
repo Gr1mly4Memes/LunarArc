@@ -40,7 +40,6 @@ public abstract class ServerLevelMixin implements ServerLevelBridge {
             net.minecraft.world.level.storage.ServerLevelData levelData,
             net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension,
             net.minecraft.world.level.dimension.LevelStem levelStem,
-            net.minecraft.server.level.progress.ChunkProgressListener progressListener,
             boolean isDebug,
             long biomeZoomSeed,
             java.util.List<net.minecraft.world.level.CustomSpawner> customSpawners,
@@ -153,13 +152,14 @@ public abstract class ServerLevelMixin implements ServerLevelBridge {
 
     @org.spongepowered.asm.mixin.Unique private net.minecraft.core.BlockPos lunararc$previousSpawn;
 
-    @Inject(method = "setDefaultSpawnPos", at = @At("HEAD"), require = 0)
-    private void lunararc$captureSpawn(net.minecraft.core.BlockPos pos, float angle, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
-        this.lunararc$previousSpawn = ((ServerLevel) (Object) this).getSharedSpawnPos();
+    @Inject(method = "setRespawnData", at = @At("HEAD"), require = 1)
+    private void lunararc$captureSpawn(net.minecraft.world.level.storage.LevelData.RespawnData data, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+        this.lunararc$previousSpawn = ((ServerLevel) (Object) this).getRespawnData().pos();
     }
 
-    @Inject(method = "setDefaultSpawnPos", at = @At("RETURN"), require = 0)
-    private void lunararc$spawnChanged(net.minecraft.core.BlockPos pos, float angle, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+    @Inject(method = "setRespawnData", at = @At("RETURN"), require = 1)
+    private void lunararc$spawnChanged(net.minecraft.world.level.storage.LevelData.RespawnData data, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+        net.minecraft.core.BlockPos pos = data.pos();
         net.minecraft.core.BlockPos previous = this.lunararc$previousSpawn;
         this.lunararc$previousSpawn = null;
         if (previous != null && !previous.equals(pos)) {

@@ -14,9 +14,9 @@ LunarArc also provides native [EssentialsX](https://essentialsx.net) integration
 
 ## Compatible Loaders
 
-| Release | Forge | NeoForge | Fabric | QuiltMC | Status | Build Status |
+|        Release        |  Forge  | NeoForge |  Fabric  |  QuiltMC  | Status |                                                                                                                                              Build                                                           
 |:--------------------:|:-------:|:--------:|:--------:|:--------:|:------:|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
-| Trial Zenith (1.21.1) | 52.1.16 | 21.1.259 | 0.19.5 | 0.30.1 | ACTIVE | [![1.21.1 Status](https://img.shields.io/github/actions/workflow/status/LunarArcDevs/LunarArc/gradle.yml?branch=Trial-Zenith&style=for-the-badge)](https://github.com/LunarArcDevs/LunarArc/actions?query=branch%3ATrial-Zenith) |
+| Mobs of Mayhem (1.21.11) | 61.2.1 | 21.11.45 |  0.19.5  |  0.30.1  | ACTIVE | [![1.21.11 Status](https://img.shields.io/github/actions/workflow/status/LunarArcDevs/LunarArc/gradle.yml?branch=MobsofMayhem&style=for-the-badge)](https://github.com/LunarArcDevs/LunarArc/actions?query=branch%3AMobsofMayhem) |
 
 ---
 
@@ -51,7 +51,7 @@ and <a href="https://www.yourkit.com/youmonitor/">YourKit YouMonitor</a>.
 LunarArc uses the following upstream projects as runtime platforms, API contracts, or implementation references:
 
 - **[Arclight](https://github.com/IzzelAliz/Arclight)** - Primary architecture reference for the hybrid server structure, loader-specific mixins, lifecycle hooks, event coexistence, and concrete Bukkit/Craft integration.
-- **[Paper](https://github.com/PaperMC/Paper)** - Bukkit/Paper API and server-behavior contract used to match Paper 1.21.1 plugin compatibility.
+- **[Paper](https://github.com/PaperMC/Paper)** - Bukkit/Paper API and server-behavior contract used to match Paper 1.21.11 plugin compatibility.
 - **[Minecraft Forge](https://github.com/MinecraftForge/MinecraftForge)** - Forge runtime and loader APIs used by LunarArc's Forge module.
 - **[NeoForge](https://github.com/neoforged/NeoForge)** - NeoForge runtime and loader APIs used by LunarArc's NeoForge module.
 - **[Fabric](https://github.com/FabricMC/fabric)**  - Fabric loader/API lifecycle and integration hooks used by LunarArc's Fabric module.

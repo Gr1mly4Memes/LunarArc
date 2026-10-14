@@ -2,7 +2,7 @@ package io.lunararcdevs.lunararc.common.mixin.core.entity;
 
 import io.lunararcdevs.lunararc.common.bridge.entity.AbstractHorseBridge;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.world.entity.animal.horse.AbstractHorse;
+import net.minecraft.world.entity.animal.equine.AbstractHorse;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
@@ -29,16 +29,14 @@ public abstract class AbstractHorseMixin implements AbstractHorseBridge {
         cir.setReturnValue(lunararc$maxDomestication);
     }
 
-    @Inject(method = "addAdditionalSaveData", at = @At("TAIL"))
-    private void lunararc$saveMaxDomestication(CompoundTag tag, CallbackInfo ci) {
-        tag.putInt("Bukkit.MaxDomestication", lunararc$maxDomestication);
+    @Inject(method = "addAdditionalSaveData", at = @At("TAIL"), require = 1)
+    private void lunararc$saveMaxDomestication(net.minecraft.world.level.storage.ValueOutput output, CallbackInfo ci) {
+        output.putInt("Bukkit.MaxDomestication", lunararc$maxDomestication);
     }
 
-    @Inject(method = "readAdditionalSaveData", at = @At("TAIL"))
-    private void lunararc$loadMaxDomestication(CompoundTag tag, CallbackInfo ci) {
-        if (tag.contains("Bukkit.MaxDomestication")) {
-            int value = tag.getInt("Bukkit.MaxDomestication");
-            if (value > 0) lunararc$maxDomestication = value;
-        }
+    @Inject(method = "readAdditionalSaveData", at = @At("TAIL"), require = 1)
+    private void lunararc$loadMaxDomestication(net.minecraft.world.level.storage.ValueInput input, CallbackInfo ci) {
+        int value = input.getIntOr("Bukkit.MaxDomestication", 0);
+        if (value > 0) lunararc$maxDomestication = value;
     }
 }

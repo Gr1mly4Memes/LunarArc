@@ -2,7 +2,7 @@ package org.bukkit.craftbukkit.block;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import org.bukkit.Chunk;
 import org.bukkit.FluidCollisionMode;
@@ -158,9 +158,9 @@ public class CraftBlock implements Block {
         if (type.isLegacy()) {
             state = org.bukkit.craftbukkit.legacy.CraftLegacy.fromLegacyData(type, (byte) 0);
         } else {
-            ResourceLocation rl = ResourceLocation.fromNamespaceAndPath(type.getKey().getNamespace(), type.getKey().getKey());
+            Identifier rl = Identifier.fromNamespaceAndPath(type.getKey().getNamespace(), type.getKey().getKey());
             if (!BuiltInRegistries.BLOCK.containsKey(rl)) throw new IllegalArgumentException("Material is not a block: " + type);
-            state = BuiltInRegistries.BLOCK.get(rl).defaultBlockState();
+            state = BuiltInRegistries.BLOCK.getValue(rl).defaultBlockState();
         }
         world.setBlock(position, state, applyPhysics ? 3 : 2);
     }
@@ -248,7 +248,7 @@ public class CraftBlock implements Block {
     @Override
     public void fluidTick() {
         net.minecraft.world.level.material.FluidState fluid = world.getFluidState(position);
-        if (!fluid.isEmpty()) fluid.tick(world, position);
+        if (!fluid.isEmpty()) fluid.tick(world, position, world.getBlockState(position));
     }
 
     @Override
@@ -396,6 +396,11 @@ public class CraftBlock implements Block {
     }
 
     @Override
+    public boolean breakNaturally(@NotNull ItemStack tool, boolean triggerEffect, boolean dropExperience, boolean forceEffect) {
+        return breakNaturally(tool);
+    }
+
+    @Override
     public boolean applyBoneMeal(@NotNull BlockFace face) {
         Objects.requireNonNull(face, "face");
         net.minecraft.world.level.block.state.BlockState state = nmsState();
@@ -475,7 +480,7 @@ public class CraftBlock implements Block {
     @Override
     public @NotNull Biome getBiome() {
         net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> holder = world.getBiome(position);
-        net.minecraft.resources.ResourceLocation key = holder.unwrapKey().map(net.minecraft.resources.ResourceKey::location).orElse(null);
+        net.minecraft.resources.Identifier key = holder.unwrapKey().map(net.minecraft.resources.ResourceKey::identifier).orElse(null);
         if (key != null) {
             Biome biome = org.bukkit.Registry.BIOME.get(new NamespacedKey(key.getNamespace(), key.getPath()));
             if (biome != null) return biome;
@@ -537,7 +542,7 @@ public class CraftBlock implements Block {
 
     @Override
     public String toString() {
-        return "CraftBlock{world=" + world.dimension().location() + ",pos=" + position + ",type=" + getType() + "}";
+        return "CraftBlock{world=" + world.dimension().identifier() + ",pos=" + position + ",type=" + getType() + "}";
     }
 
 
@@ -640,5 +645,10 @@ public class CraftBlock implements Block {
             level.sendBlockUpdated(position, old, blockData, 3);
         }
         return success;
+    }
+
+    @Override
+    public boolean isSuffocating() {
+        return this.getNMS().isSuffocating(this.world, this.position);
     }
 }

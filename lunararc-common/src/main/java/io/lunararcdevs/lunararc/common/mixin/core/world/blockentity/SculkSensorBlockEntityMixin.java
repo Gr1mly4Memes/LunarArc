@@ -20,12 +20,12 @@ public abstract class SculkSensorBlockEntityMixin implements io.lunararcdevs.lun
     }
 
     @Inject(method = "loadAdditional", at = @At("TAIL"))
-    private void lunararc$loadRange(CompoundTag tag, HolderLookup.Provider registries, CallbackInfo ci) {
-        this.rangeOverride = tag.contains(RANGE_KEY) ? Integer.valueOf(tag.getInt(RANGE_KEY)) : null;
+    private void lunararc$loadRange(net.minecraft.world.level.storage.ValueInput input, CallbackInfo ci) {
+        this.rangeOverride = input.getInt(RANGE_KEY).orElse(null);
     }
 
     @Inject(method = "saveAdditional", at = @At("TAIL"))
-    private void lunararc$saveRange(CompoundTag tag, HolderLookup.Provider registries, CallbackInfo ci) {
-        if (this.rangeOverride != null && this.rangeOverride != 8) tag.putInt(RANGE_KEY, this.rangeOverride);
+    private void lunararc$saveRange(net.minecraft.world.level.storage.ValueOutput output, CallbackInfo ci) {
+        if (this.rangeOverride != null && this.rangeOverride != 8) output.putInt(RANGE_KEY, this.rangeOverride);
     }
 }

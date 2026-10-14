@@ -33,17 +33,6 @@ public final class DonorBlockEntitySupport {
 
     private DonorBlockEntitySupport() {}
 
-    public static void updateDestroyTarget(Level level, BlockPos pos, BlockState state, List<BlockPos> blocks,
-            ConduitBlockEntity conduit, boolean damage) {
-        boolean previous = conduitDamage;
-        conduitDamage = damage;
-        try {
-            ConduitBlockEntity.updateDestroyTarget(level, pos, state, blocks, conduit);
-        } finally {
-            conduitDamage = previous;
-        }
-    }
-
     public static int getTotalCookTime(Level level, RecipeType<? extends AbstractCookingRecipe> type,
             AbstractFurnaceBlockEntity furnace, double multiplier) {
         return totalCookTime(level, type, furnace, multiplier);
@@ -54,8 +43,10 @@ public final class DonorBlockEntitySupport {
         int time = 200;
         if (level != null) {
             SingleRecipeInput input = new SingleRecipeInput(furnace.getItem(0));
-            time = level.getRecipeManager().getRecipeFor(type, input, level)
-                    .map(holder -> holder.value().getCookingTime()).orElse(200);
+            if (level instanceof net.minecraft.server.level.ServerLevel serverLevel) {
+                time = serverLevel.recipeAccess().getRecipeFor(type, input, level)
+                        .map(holder -> holder.value().cookingTime()).orElse(200);
+            }
         }
         return (int) Math.ceil(time / multiplier);
     }

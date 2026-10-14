@@ -12,7 +12,7 @@ public abstract class ShulkerBoxBlockEntityMixin {
 
     @Inject(method = {"startOpen", "stopOpen"}, cancellable = true,
             at = @At(value = "INVOKE", ordinal = 0, target = "Lnet/minecraft/world/level/Level;blockEvent(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/Block;II)V"))
-    private void lunararc$skipWhenApiOpened(net.minecraft.world.entity.player.Player player, CallbackInfo ci) {
+    private void lunararc$skipWhenApiOpened(net.minecraft.world.entity.ContainerUser user, CallbackInfo ci) {
         if (this.opened) ci.cancel();
     }
 }

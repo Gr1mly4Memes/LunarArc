@@ -6,9 +6,8 @@ import java.util.UUID;
 
 /** Normal runtime bridge implemented by the corresponding Mixin accessor/invoker. */
 public interface ShulkerBulletAccessBridge {
-    Entity lunararc$getFinalTarget();
-    void lunararc$setFinalTarget(Entity target);
-    void lunararc$setTargetId(UUID targetId);
+    net.minecraft.world.entity.EntityReference<Entity> lunararc$getFinalTarget();
+    void lunararc$setFinalTarget(net.minecraft.world.entity.EntityReference<Entity> target);
     Direction lunararc$getCurrentMoveDirection();
     void lunararc$setCurrentMoveDirection(Direction direction);
     int lunararc$getFlightSteps();

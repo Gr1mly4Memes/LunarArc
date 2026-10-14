@@ -81,4 +81,9 @@ public final class CraftAdvancement implements Advancement {
         return this == other || (other instanceof CraftAdvancement craft && this.handle.id().equals(craft.handle.id()));
     }
     @Override public String toString() { return "CraftAdvancement[" + this.handle.id() + "]"; }
+
+    @Override
+    public org.bukkit.advancement.AdvancementRequirements getRequirements() {
+        return new org.bukkit.craftbukkit.advancement.CraftAdvancementRequirements(this.handle.value().requirements());
+    }
 }

@@ -2,7 +2,7 @@ package io.lunararcdevs.lunararc.common.mixin.core.projectile;
 
 import io.lunararcdevs.lunararc.common.bridge.AbstractHurtingProjectileBridge;
 import io.lunararcdevs.lunararc.common.bridge.LargeFireballBridge;
-import net.minecraft.world.entity.projectile.LargeFireball;
+import net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.gen.Accessor;
@@ -16,7 +16,7 @@ public abstract class LargeFireballMixin implements LargeFireballBridge {
 
     @ModifyArg(
             method = "onHit",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;explode(Lnet/minecraft/world/entity/Entity;DDDFZLnet/minecraft/world/level/Level$ExplosionInteraction;)Lnet/minecraft/world/level/Explosion;"),
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;explode(Lnet/minecraft/world/entity/Entity;DDDFZLnet/minecraft/world/level/Level$ExplosionInteraction;)V"),
             index = 5,
             require = 0
     )

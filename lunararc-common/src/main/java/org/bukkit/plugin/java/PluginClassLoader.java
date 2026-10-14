@@ -60,7 +60,7 @@ public final class PluginClassLoader extends URLClassLoader
         super(new URL[]{file.toURI().toURL()}, parent);
         this.description = description;
         io.lunararcdevs.lunararc.common.server.LunarArcPluginFixManager
-                .applyPluginProperties(description == null ? null : description.getName());
+                .applyPluginProperties(description == null ? null : description.getName(), file);
         io.lunararcdevs.lunararc.common.server.LunarArcModuleOpener.openMinecraftModuleTo(
                 this, description == null ? null : description.getName());
         this.dataFolder = dataFolder;
@@ -192,6 +192,33 @@ public final class PluginClassLoader extends URLClassLoader
         return resolved;
     }
 
+    private static final int RUNTIME_CLASS_MAJOR = Runtime.version().feature() + 44;
+    private static final java.util.Set<Integer> DOWNGRADED_MAJORS = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /**
+     * Plugins compiled for a newer Java than the one running the server (for example Java 25 plugins on a
+     * Java 21 server) are rejected by the JVM with "Unsupported class file major version". Class files from
+     * Java 22+ add no new bytecode instructions, so rewriting the version header lets them load; code that
+     * calls a Java API newer than the runtime will still fail when that call is reached.
+     */
+    static byte[] downgradeClassVersion(byte[] bytes, String className) {
+        if (bytes.length < 8 || (bytes[0] & 0xFF) != 0xCA || (bytes[1] & 0xFF) != 0xFE
+                || (bytes[2] & 0xFF) != 0xBA || (bytes[3] & 0xFF) != 0xBE) {
+            return bytes;
+        }
+        int major = ((bytes[6] & 0xFF) << 8) | (bytes[7] & 0xFF);
+        if (major <= RUNTIME_CLASS_MAJOR) return bytes;
+        if (DOWNGRADED_MAJORS.add(major)) {
+            io.lunararcdevs.lunararc.common.server.LunarArcLogger.getLogger("LunarArc").info(
+                    "Plugin class " + className + " targets Java " + (major - 44) + " but the server runs Java "
+                            + (RUNTIME_CLASS_MAJOR - 44) + "; lowering the class version so it can load");
+        }
+        byte[] patched = bytes.clone();
+        patched[6] = (byte) (RUNTIME_CLASS_MAJOR >> 8);
+        patched[7] = (byte) RUNTIME_CLASS_MAJOR;
+        return patched;
+    }
+
     private byte[] loadOrCreateTransformedClass(String resourcePath, String className, byte[] original) throws IOException {
 
         Path cached = transformedCacheRoot.resolve("classes")
@@ -207,18 +234,18 @@ public final class PluginClassLoader extends URLClassLoader
             }
         }
 
+        original = downgradeClassVersion(original, className);
         LunarArcRemapper activeRemapper = this.remapper;
         if (!this.remapNms && hasLegacyCraftBukkitReference(original)) {
 
             activeRemapper = new LunarArcRemapper(true);
         }
-        byte[] staged = this.paperPlugin
-                ? original
-                : org.bukkit.craftbukkit.util.CraftMagicNumbers
-                        .applyPaperPluginRewrites(this.description, resourcePath, original);
+        byte[] staged = org.bukkit.craftbukkit.util.CraftMagicNumbers
+                .applyPaperPluginRewrites(this.description, resourcePath, original);
         if (this.legacyNms != null) {
             staged = this.legacyNms.translate(staged);
         }
+        staged = io.lunararcdevs.lunararc.common.server.LunarArcApiShims.apply(staged);
         byte[] transformed = activeRemapper.transform(staged, className.replace('.', '/'));
         transformed = LunarArcPluginFixManager.injectPluginFix(className, transformed);
         Files.createDirectories(cached.getParent());
@@ -287,7 +314,7 @@ public final class PluginClassLoader extends URLClassLoader
                     .getBytes(java.nio.charset.StandardCharsets.UTF_8));
             digest.update(LunarArcServer.platformName().getBytes(java.nio.charset.StandardCharsets.UTF_8));
 
-            digest.update("compat-transform-v33".getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            digest.update("compat-transform-v36".getBytes(java.nio.charset.StandardCharsets.UTF_8));
             digest.update(patchFingerprint());
             if (legacyFingerprint != null) {
                 digest.update(legacyFingerprint.getBytes(java.nio.charset.StandardCharsets.UTF_8));

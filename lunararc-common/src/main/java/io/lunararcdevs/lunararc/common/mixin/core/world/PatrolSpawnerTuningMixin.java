@@ -26,11 +26,4 @@ public abstract class PatrolSpawnerTuningMixin {
         original.call(random, bound);
         return random.nextDouble() >= LunarArcServerSettings.tuning(level).pillagerPatrolSpawnChance ? 1 : 0;
     }
-
-    @WrapOperation(method = "tick", require = 0, at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/server/level/ServerLevel;getDayTime()J"))
-    private long lunararc$startDay(ServerLevel level, Operation<Long> original) {
-        long shift = (long) (5 - LunarArcServerSettings.tuning(level).pillagerPatrolStartDay) * 24000L;
-        return original.call(level) + shift;
-    }
 }

@@ -2,7 +2,7 @@ package io.lunararcdevs.lunararc.common.mixin.core.entity;
 
 import io.lunararcdevs.lunararc.common.bridge.entity.ZombieBridge;
 import net.minecraft.network.syncher.EntityDataAccessor;
-import net.minecraft.world.entity.monster.Zombie;
+import net.minecraft.world.entity.monster.zombie.Zombie;
 import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
@@ -16,7 +16,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class ZombieMixin implements ZombieBridge {
     @Shadow private int conversionTime;
     @Shadow @Final private static EntityDataAccessor<Boolean> DATA_DROWNED_CONVERSION_ID;
-    @Invoker("supportsBreakDoorGoal") public abstract boolean lunararc$invokeSupportsBreakDoorGoal();
 
     @Unique private boolean lunararc$shouldBurnInDay = true;
 
@@ -26,7 +25,6 @@ public abstract class ZombieMixin implements ZombieBridge {
         this.conversionTime = -1;
         ((Zombie) (Object) this).getEntityData().set(DATA_DROWNED_CONVERSION_ID, false);
     }
-    @Override public boolean lunararc$supportsBreakDoorGoal() { return this.lunararc$invokeSupportsBreakDoorGoal(); }
     @Override public boolean lunararc$shouldBurnInDay() { return this.lunararc$shouldBurnInDay; }
     @Override public void lunararc$setShouldBurnInDay(boolean burn) { this.lunararc$shouldBurnInDay = burn; }
 

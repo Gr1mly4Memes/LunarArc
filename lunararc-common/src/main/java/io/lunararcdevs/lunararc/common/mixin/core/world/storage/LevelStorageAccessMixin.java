@@ -28,6 +28,6 @@ public class LevelStorageAccessMixin implements LevelStorageSourceBridge.AccessB
     @ModifyVariable(method = "getDimensionPath", argsOnly = true, ordinal = 0, at = @At("HEAD"))
     private ResourceKey<Level> lunararc$useActualDimension(ResourceKey<Level> original) {
         ResourceKey<LevelStem> type = this.lunararc$dimensionType;
-        return type == null ? original : ResourceKey.create(Registries.DIMENSION, type.location());
+        return type == null ? original : ResourceKey.create(Registries.DIMENSION, type.identifier());
     }
 }

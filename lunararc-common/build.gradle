@@ -175,8 +175,8 @@ dependencies {
     implementation 'org.codehaus.plexus:plexus-interpolation:1.26'
     implementation 'commons-logging:commons-logging:1.2'
 
-    implementation 'org.spongepowered:configurate-core:4.1.2'
-    implementation 'org.spongepowered:configurate-yaml:4.1.2'
+    implementation 'org.spongepowered:configurate-core:4.2.0'
+    implementation 'org.spongepowered:configurate-yaml:4.2.0'
     implementation libs.adventure.api
     implementation libs.adventure.text.minimessage
     implementation libs.adventure.text.serializer.gson
@@ -209,7 +209,6 @@ def generatedPaperMappingsDir = layout.buildDirectory.dir('generated/paperMappin
 
 tasks.register('extractPaperPluginMappings') {
     def minecraftVersion = libs.versions.minecraft.get()
-    def buildDataRef = libs.versions.spigot.builddata.ref.get()
     def outputFile = generatedPaperMappingsDir.map {
         it.file("mappings/${minecraftVersion}/paper-reobf.tiny").asFile
     }
@@ -219,7 +218,8 @@ tasks.register('extractPaperPluginMappings') {
     outputs.file(outputFile)
     outputs.file(intermediaryOutputFile)
     inputs.property('minecraftVersion', minecraftVersion)
-    inputs.property('spigotBuildDataRef', buildDataRef)
+    dependsOn rootProject.tasks.named('preparePaperCompileReference')
+    inputs.file(rootProject.ext.paperServerJar)
 
     doLast {
         File target = outputFile.get()
@@ -252,85 +252,6 @@ tasks.register('extractPaperPluginMappings') {
         }
         String mojangText = readUtf8(mojangMappingsUrl.toString())
 
-        File buildDataDir = rootProject.layout.projectDirectory.dir('.gradle/lunararc-builddata').asFile
-        File buildDataGitDir = new File(buildDataDir, '.git')
-        File spigotMappingFile = new File(buildDataDir, "mappings/bukkit-${minecraftVersion}-cl.csrg")
-        println "Resolving Spigot BuildData mappings for Minecraft ${minecraftVersion} (${buildDataRef.take(12)}) via Git..."
-
-        def runGit = { List<String> args ->
-            List<String> command = ['git'] + args
-            Process process
-            try {
-                process = new ProcessBuilder(command)
-                    .directory(rootProject.projectDir)
-                    .redirectErrorStream(true)
-                    .start()
-            } catch (IOException ex) {
-                throw new GradleException(
-                    "Git is required to obtain Spigot BuildData mappings. " +
-                    "Install Git and ensure 'git' is available on PATH.", ex
-                )
-            }
-            String output = process.inputStream.getText('UTF-8')
-            int exit = process.waitFor()
-            if (exit != 0) {
-                throw new GradleException(
-                    "Git command failed (${command.join(' ')}):\n${output.trim()}"
-                )
-            }
-            return output.trim()
-        }
-
-        buildDataDir.mkdirs()
-        if (!buildDataGitDir.isDirectory()) {
-
-
-            runGit(['init', buildDataDir.absolutePath])
-            runGit(['-C', buildDataDir.absolutePath, 'remote', 'add', 'origin',
-                    'https://hub.spigotmc.org/stash/scm/spigot/builddata.git'])
-        } else {
-
-            runGit(['-C', buildDataDir.absolutePath, 'remote', 'set-url', 'origin',
-                    'https://hub.spigotmc.org/stash/scm/spigot/builddata.git'])
-        }
-
-        String currentHead = ''
-        try {
-            currentHead = runGit(['-C', buildDataDir.absolutePath, 'rev-parse', 'HEAD'])
-        } catch (GradleException ignored) {
-
-        }
-        if (!currentHead.equalsIgnoreCase(buildDataRef) || !spigotMappingFile.isFile()) {
-            runGit(['-C', buildDataDir.absolutePath, 'fetch', '--depth', '1', 'origin', buildDataRef])
-            runGit(['-C', buildDataDir.absolutePath, 'checkout', '--force', 'FETCH_HEAD'])
-        }
-
-        if (!spigotMappingFile.isFile()) {
-            throw new GradleException(
-                "Spigot BuildData ${buildDataRef} does not contain ${spigotMappingFile.name}"
-            )
-        }
-        println "Using cached Spigot BuildData checkout: ${spigotMappingFile}"
-        String spigotText = spigotMappingFile.getText('UTF-8')
-        String spigotMappingsUrl = spigotMappingFile.toURI().toString()
-        File spigotMemberFile = new File(buildDataDir, "mappings/bukkit-${minecraftVersion}-members.csrg")
-        Map<String, String> spigotMemberRenames = new LinkedHashMap<>()
-        if (spigotMemberFile.isFile()) {
-            spigotMemberFile.readLines().each { String raw ->
-                String line = raw.trim()
-                if (line.isEmpty() || line.startsWith('#')) return
-                String[] parts = line.split('\\s+')
-                if (parts.length == 3) {
-                    spigotMemberRenames.put(parts[0].replace('.', '/') + '\t' + parts[1], parts[2])
-                } else if (parts.length == 4) {
-                    spigotMemberRenames.put(parts[0].replace('.', '/') + '\t' + parts[1] + '\t' + parts[2], parts[3])
-                }
-            }
-            println "Loaded ${spigotMemberRenames.size()} Spigot member renames from ${spigotMemberFile.name}"
-        } else {
-            println "No ${spigotMemberFile.name} in BuildData; every NMS member keeps its obfuscated Spigot-side name"
-        }
-
         def normalizeInternal = { String name -> name.replace('.', '/') }
         Map<String, String> namedToObf = new LinkedHashMap<>()
         Map<String, String> obfToNamed = new LinkedHashMap<>()
@@ -349,45 +270,6 @@ tasks.register('extractPaperPluginMappings') {
         }
         if (namedToObf.size() < 1000) {
             throw new GradleException("Mojang server mapping parse produced only ${namedToObf.size()} classes")
-        }
-
-        Map<String, String> namedToSpigot = new LinkedHashMap<>()
-        spigotText.readLines().each { String raw ->
-            String line = raw.trim()
-            if (line.isEmpty() || line.startsWith('#')) return
-            String[] parts = line.split('\\s+')
-            if (parts.length != 2) return
-            String a = normalizeInternal(parts[0])
-            String b = normalizeInternal(parts[1])
-
-            String named = null
-            String spigot = null
-            if (obfToNamed.containsKey(a)) {
-                named = obfToNamed.get(a); spigot = b
-            } else if (namedToObf.containsKey(a)) {
-                named = a; spigot = b
-            } else if (obfToNamed.containsKey(b)) {
-                named = obfToNamed.get(b); spigot = a
-            } else if (namedToObf.containsKey(b)) {
-                named = b; spigot = a
-            }
-            if (named != null && spigot != null) namedToSpigot.put(named, spigot)
-        }
-        if (namedToSpigot.size() < 1000) {
-            throw new GradleException(
-                "Spigot BuildData mapping parse produced only ${namedToSpigot.size()} class aliases from ${spigotMappingsUrl}"
-            )
-        }
-        namedToObf.each { String named, String obf ->
-            int namedDollar = named.indexOf('$')
-            int obfDollar = obf.indexOf('$')
-            if (namedDollar > 0 && obfDollar > 0 && !namedToSpigot.containsKey(named)) {
-                String namedOuter = named.substring(0, namedDollar)
-                String spigotOuter = namedToSpigot.get(namedOuter)
-                if (spigotOuter != null) {
-                    namedToSpigot.put(named, spigotOuter + obf.substring(obfDollar))
-                }
-            }
         }
 
         def primitiveDescriptor = [
@@ -435,13 +317,6 @@ tasks.register('extractPaperPluginMappings') {
             return out.toString()
         }
 
-        def spigotMemberName = { String obfOwner, String obfMemberName, String obfDescriptor ->
-            if (obfOwner == null || spigotMemberRenames.isEmpty()) return obfMemberName
-            String renamed = obfDescriptor == null
-                ? spigotMemberRenames.get(obfOwner + '\t' + obfMemberName)
-                : spigotMemberRenames.get(obfOwner + '\t' + obfMemberName + '\t' + obfDescriptor)
-            return renamed != null ? renamed : obfMemberName
-        }
         mojangText.readLines().each { String raw ->
             if (raw == null) return
             String trimmed = raw.trim()
@@ -495,9 +370,7 @@ tasks.register('extractPaperPluginMappings') {
                 String argsText = left.substring(paren + 1, close).trim()
                 List<String> args = argsText.isEmpty() ? [] : argsText.split(',').collect { it.trim() }
                 String descriptor = '(' + args.collect { descriptorForType(it) }.join('') + ')' + descriptorForType(returnType)
-                String spigotName = spigotMemberName(
-                        namedToObf.get(currentNamed), obfName, toObfDescriptor(descriptor))
-                members.add([method:true, descriptor:descriptor, named:namedName, spigot:spigotName, obf:obfName])
+                members.add([method:true, descriptor:descriptor, named:namedName, obf:obfName])
             } else {
                 int space = left.lastIndexOf(' ')
                 if (space < 0) {
@@ -508,14 +381,12 @@ tasks.register('extractPaperPluginMappings') {
                 String namedName = left.substring(space + 1).trim()
                 if (type.isEmpty() || namedName.isEmpty()) return
                 String descriptor = descriptorForType(type)
-                String spigotName = spigotMemberName(namedToObf.get(currentNamed), obfName, null)
-                members.add([method:false, descriptor:descriptor, named:namedName, spigot:spigotName, obf:obfName])
+                members.add([method:false, descriptor:descriptor, named:namedName, obf:obfName])
             }
         }
 
         long fieldCount = 0L
         long methodCount = 0L
-        long renamingMembers = 0L
         for (List<Map<String, Object>> list : membersByClass.values()) {
             for (Map<String, Object> member : list) {
                 if (Boolean.TRUE.equals(member.get('method'))) {
@@ -523,7 +394,6 @@ tasks.register('extractPaperPluginMappings') {
                 } else {
                     fieldCount++
                 }
-                if (member.get('spigot') != member.get('named')) renamingMembers++
             }
         }
         long memberCount = fieldCount + methodCount
@@ -537,38 +407,21 @@ tasks.register('extractPaperPluginMappings') {
                 "LunarArc must never ship class-only NMS remapping."
             )
         }
-        if (renamingMembers * 2L < memberCount) {
-            throw new GradleException(
-                "Plugin mapping generation produced ${renamingMembers} of ${memberCount} members whose " +
-                "Spigot-side name actually differs from the Mojang name. NMS members are obfuscated in " +
-                "the Spigot namespace, so this table would remap classes but not members."
-            )
-        }
-
-        target.withWriter('UTF-8') { writer ->
-            writer.write('tiny\t2\t0\tmojang\tspigot\n')
-            namedToObf.keySet().toList().sort().each { String named ->
-                String spigot = namedToSpigot.getOrDefault(named, named)
-                writer.write("c\t${named}\t${spigot}\n")
-                def members = membersByClass.get(named)
-                if (members != null) {
-                    members.each { member ->
-                        writer.write("\t${member.method ? 'm' : 'f'}\t${member.descriptor}\t${member.named}\t${member.spigot}\n")
-                    }
-                }
+        // Plugin NMS remapping uses the Spigot -> Mojang table Paper itself ships in its server jar
+        // (the same data Paper's own plugin remapper uses), so it matches this exact Paper build.
+        new java.util.zip.ZipFile(rootProject.ext.paperServerJar).withCloseable { zip ->
+            def entry = zip.getEntry('META-INF/mappings/reobf.tiny')
+            if (entry == null) {
+                throw new GradleException("${rootProject.ext.paperServerJar} does not contain META-INF/mappings/reobf.tiny")
             }
+            zip.getInputStream(entry).withCloseable { input -> target.bytes = input.bytes }
         }
+        if (!target.text.startsWith('tiny	2	0	mojang	spigot')) {
+            throw new GradleException("Paper's reobf.tiny is not a mojang -> spigot tiny v2 table: ${target}")
+        }
+        println "Using Paper's Spigot -> Mojang plugin mappings: ${target} " +
+                "(${fieldCount} fields, ${methodCount} methods in Mojang mappings used for the intermediary table)"
 
-        println "Generated complete Spigot -> Mojang plugin mappings: ${target} " +
-                "(${namedToSpigot.size()} class aliases, ${fieldCount} fields, ${methodCount} methods, ${memberCount} total members)"
-
-        // Fabric/Quilt's production runtime uses Intermediary names for vanilla classes, unlike
-        // NeoForge/Forge whose runtime jar is genuinely Mojang-named (see LunarArcRemapper's
-        // needsIntermediaryHop()). This second, wholly separate table chains Mojang names through
-        // the same obfuscated key used above (namedToObf/membersByClass) to Fabric's own official
-        // Intermediary mapping, so a Mojang-mapped plugin's direct NMS calls also resolve on
-        // Fabric/Quilt. It changes nothing for NeoForge/Forge: LunarArcRemapper only ever reads
-        // this table when running on those two platforms.
         println "Resolving Fabric Intermediary mappings for Minecraft ${minecraftVersion}..."
         def intermediaryConfig = project.configurations.detachedConfiguration(
             project.dependencies.create("net.fabricmc:intermediary:${minecraftVersion}:v2")
@@ -784,7 +637,7 @@ tasks.named('processResources') {
     }
 }
 
-def generatedPaperImplementationSurfaceDir = layout.buildDirectory.dir('generated/paper-1.21.1-implementation-surface')
+def generatedPaperImplementationSurfaceDir = layout.buildDirectory.dir('generated/paper-1.21.11-implementation-surface')
 
 def ownsPaperImplementationClass = { String classEntry ->
     if (!classEntry.endsWith('.class')) return false
@@ -964,6 +817,121 @@ tasks.register('preparePaperImplementationSurface') {
             'io/papermc/paper/plugin/storage/ConfiguredProviderStorage',
             'io/papermc/paper/plugin/storage/ProviderStorage',
             'io/papermc/paper/plugin/util/NamespaceChecker',
+            'io/papermc/paper/command/brigadier/position/ColumnBlockPositionImpl',
+            'io/papermc/paper/command/brigadier/position/ColumnFinePositionImpl',
+            'io/papermc/paper/datacomponent/item/PaperResolvableProfile',
+            'io/papermc/paper/dialog/PaperDialogResponseView',
+            'io/papermc/paper/entity/activation/ActivationType',
+            'io/papermc/paper/log/LoggerShutdown',
+            'io/papermc/paper/profile/MutablePropertyMap',
+            'io/papermc/paper/profile/PaperFilledProfileCache',
+            'io/papermc/paper/registry/HolderableBase',
+            'io/papermc/paper/registry/data/util/Conversions',
+            'io/papermc/paper/registry/set/PaperRegistrySets',
+            'io/papermc/paper/util/Holderable',
+            'io/papermc/paper/util/OldEnumHolderable',
+            'io/papermc/paper/util/sanitizer/ItemObfuscationBinding',
+            'io/papermc/paper/util/sanitizer/OversizedItemComponentSanitizer',
+            'io/papermc/paper/antixray/ChunkPacketBlockController',
+            'io/papermc/paper/command/PaperSubcommand',
+            'io/papermc/paper/log/CustomLogManager',
+            'io/papermc/paper/registry/PaperRegistryBuilder',
+            'io/papermc/paper/registry/PaperRegistryBuilderFactory',
+            'io/papermc/paper/registry/entry/RegistryEntryMeta',
+            'io/papermc/paper/registry/entry/RegistryTypeMapper',
+            'io/papermc/paper/registry/set/NamedRegistryKeySetImpl',
+            'io/papermc/paper/util/JsonObjectWrapper',
+            'io/papermc/paper/util/SafeAutoClosable',
+            'io/papermc/paper/util/sanitizer/ItemComponentSanitizer',
+            'io/papermc/paper/util/sanitizer/ItemObfuscationSession',
+            'io/papermc/paper/antixray/ChunkPacketInfo',
+            'io/papermc/paper/command/CommandUtil',
+            'io/papermc/paper/registry/WritableCraftRegistry',
+            'io/papermc/paper/registry/event/RegistryComposeEventImpl',
+            'io/papermc/paper/registry/event/RegistryEntryAddEventImpl',
+            'io/papermc/paper/registry/PaperRegistryListenerManager',
+            'io/papermc/paper/registry/entry/RegistryEntry',
+            'io/papermc/paper/registry/event/RegistryEventMap',
+            'io/papermc/paper/registry/event/type/RegistryLifecycleEventType',
+            'io/papermc/paper/registry/RegistryHolder',
+            'io/papermc/paper/registry/legacy/DelayedRegistryEntry',
+            'io/papermc/paper/registry/legacy/DelayedRegistry',
+            'com/destroystokyo/paper/ServerSchedulerReportingWrapper',
+            'io/papermc/paper/block/bed/BedEnterActionImpl',
+            'io/papermc/paper/connection/PaperPlayerGameConnection',
+            'io/papermc/paper/datacomponent/PaperDataComponentType',
+            'io/papermc/paper/entity/PaperPlayerGiveResult',
+            'io/papermc/paper/event/world/PaperWorldGameRuleChangeEvent',
+            'io/papermc/paper/raytracing/PositionedRayTraceConfigurationBuilderImpl',
+            'io/papermc/paper/registry/data/dialog/PaperDialogCodecs',
+            'io/papermc/paper/world/damagesource/PaperCombatTrackerWrapper',
+            'io/papermc/paper/connection/HorriblePlayerLoginEventHack',
+            'io/papermc/paper/connection/PaperCommonConnection',
+            'io/papermc/paper/datacomponent/DataComponentAdapter',
+            'io/papermc/paper/datacomponent/DataComponentAdapters',
+            'io/papermc/paper/dialog/PaperDialog',
+            'io/papermc/paper/util/PaperCodecs',
+            'io/papermc/paper/world/damagesource/PaperCombatEntryWrapper',
+            'io/papermc/paper/connection/DisconnectionReason',
+            'io/papermc/paper/connection/ReadablePlayerCookieConnectionImpl',
+            'io/papermc/paper/datacomponent/item/PaperAttackRange',
+            'io/papermc/paper/datacomponent/item/PaperBannerPatternLayers',
+            'io/papermc/paper/datacomponent/item/PaperBlockItemDataProperties',
+            'io/papermc/paper/datacomponent/item/PaperBlocksAttacks',
+            'io/papermc/paper/datacomponent/item/PaperBundleContents',
+            'io/papermc/paper/datacomponent/item/PaperChargedProjectiles',
+            'io/papermc/paper/datacomponent/item/PaperConsumable',
+            'io/papermc/paper/datacomponent/item/PaperCustomModelData',
+            'io/papermc/paper/datacomponent/item/PaperDamageResistant',
+            'io/papermc/paper/datacomponent/item/PaperDeathProtection',
+            'io/papermc/paper/datacomponent/item/PaperDyedItemColor',
+            'io/papermc/paper/datacomponent/item/PaperEnchantable',
+            'io/papermc/paper/datacomponent/item/PaperEquippable',
+            'io/papermc/paper/datacomponent/item/PaperFireworks',
+            'io/papermc/paper/datacomponent/item/PaperFoodProperties',
+            'io/papermc/paper/datacomponent/item/PaperItemAdventurePredicate',
+            'io/papermc/paper/datacomponent/item/PaperItemArmorTrim',
+            'io/papermc/paper/datacomponent/item/PaperItemAttributeModifiers',
+            'io/papermc/paper/datacomponent/item/PaperItemContainerContents',
+            'io/papermc/paper/datacomponent/item/PaperItemEnchantments',
+            'io/papermc/paper/datacomponent/item/PaperItemLore',
+            'io/papermc/paper/datacomponent/item/PaperItemTool',
+            'io/papermc/paper/datacomponent/item/PaperJukeboxPlayable',
+            'io/papermc/paper/datacomponent/item/PaperKineticWeapon',
+            'io/papermc/paper/datacomponent/item/PaperLodestoneTracker',
+            'io/papermc/paper/datacomponent/item/PaperMapDecorations',
+            'io/papermc/paper/datacomponent/item/PaperMapId',
+            'io/papermc/paper/datacomponent/item/PaperMapItemColor',
+            'io/papermc/paper/datacomponent/item/PaperOminousBottleAmplifier',
+            'io/papermc/paper/datacomponent/item/PaperPiercingWeapon',
+            'io/papermc/paper/datacomponent/item/PaperPotDecorations',
+            'io/papermc/paper/datacomponent/item/PaperPotionContents',
+            'io/papermc/paper/datacomponent/item/PaperRepairable',
+            'io/papermc/paper/datacomponent/item/PaperSeededContainerLoot',
+            'io/papermc/paper/datacomponent/item/PaperSuspiciousStewEffects',
+            'io/papermc/paper/datacomponent/item/PaperSwingAnimation',
+            'io/papermc/paper/datacomponent/item/PaperTooltipDisplay',
+            'io/papermc/paper/datacomponent/item/PaperUseCooldown',
+            'io/papermc/paper/datacomponent/item/PaperUseEffects',
+            'io/papermc/paper/datacomponent/item/PaperUseRemainder',
+            'io/papermc/paper/datacomponent/item/PaperWeapon',
+            'io/papermc/paper/datacomponent/item/PaperWritableBookContent',
+            'io/papermc/paper/datacomponent/item/PaperWrittenBookContent',
+            'io/papermc/paper/util/StackWalkerUtil',
+            'io/papermc/paper/datacomponent/item/attribute/PaperAttributeModifierDisplay',
+            'io/papermc/paper/datacomponent/item/blocksattacks/PaperDamageReduction',
+            'io/papermc/paper/datacomponent/item/blocksattacks/PaperItemDamageFunction',
+            'io/papermc/paper/datacomponent/item/consumable/PaperConsumableEffect',
+            'io/papermc/paper/datacomponent/item/consumable/PaperApplyStatusEffects',
+            'io/papermc/paper/datacomponent/item/consumable/PaperClearAllStatusEffects',
+            'io/papermc/paper/datacomponent/item/consumable/PaperPlaySound',
+            'io/papermc/paper/datacomponent/item/consumable/PaperRemoveStatusEffects',
+            'io/papermc/paper/datacomponent/item/consumable/PaperTeleportRandomly',
+            'io/papermc/paper/connection/PaperConfigurationTask',
+            'io/papermc/paper/connection/PluginMessageBridgeImpl',
+            'io/papermc/paper/connection/PaperPlayerLoginConnection',
+            'io/papermc/paper/event/player/PaperPlayerCustomClickEvent',
+            'io/papermc/paper/PaperServerInternalAPIBridge',
             'com/destroystokyo/paper/entity/CraftRangedEntity'
         ] as Set
         def referencesOf = { byte[] bytes ->

@@ -32,10 +32,10 @@ public class CraftPlayerProfile implements PlayerProfile, SharedPlayerProfile {
 
 
     public CraftPlayerProfile(net.minecraft.world.item.component.ResolvableProfile profile) {
-        com.mojang.authlib.GameProfile game = profile.gameProfile();
-        this.uuid = game.getId();
-        this.name = game.getName();
-        for (com.mojang.authlib.properties.Property property : game.getProperties().values()) {
+        com.mojang.authlib.GameProfile game = profile.partialProfile();
+        this.uuid = game.id();
+        this.name = game.name();
+        for (com.mojang.authlib.properties.Property property : game.properties().values()) {
             this.properties.add(new ProfileProperty(property.name(), property.value(), property.signature()));
         }
     }
@@ -99,7 +99,7 @@ public class CraftPlayerProfile implements PlayerProfile, SharedPlayerProfile {
         com.mojang.authlib.GameProfile game = new com.mojang.authlib.GameProfile(
                 uuid != null ? uuid : new UUID(0L, 0L), name != null ? name : "");
         for (ProfileProperty property : properties) {
-            game.getProperties().put(property.getName(),
+            game.properties().put(property.getName(),
                     new com.mojang.authlib.properties.Property(property.getName(), property.getValue(), property.getSignature()));
         }
         return game;
@@ -107,7 +107,20 @@ public class CraftPlayerProfile implements PlayerProfile, SharedPlayerProfile {
 
     @Override
     public net.minecraft.world.item.component.ResolvableProfile buildResolvableProfile() {
-        return new net.minecraft.world.item.component.ResolvableProfile(buildGameProfile());
+        com.mojang.authlib.GameProfile game = buildGameProfile();
+        if (properties.isEmpty() && (uuid == null) != (name == null)) {
+            return uuid != null ? net.minecraft.world.item.component.ResolvableProfile.createUnresolved(uuid)
+                    : net.minecraft.world.item.component.ResolvableProfile.createUnresolved(name);
+        }
+        return net.minecraft.world.item.component.ResolvableProfile.createResolved(game);
+    }
+
+    public static PlayerProfile asBukkitCopy(com.mojang.authlib.GameProfile gameProfile) {
+        CraftPlayerProfile copy = new CraftPlayerProfile(gameProfile.id(), gameProfile.name());
+        for (com.mojang.authlib.properties.Property property : gameProfile.properties().values()) {
+            copy.properties.add(new ProfileProperty(property.name(), property.value(), property.signature()));
+        }
+        return copy;
     }
 
     public static net.minecraft.world.item.component.ResolvableProfile asResolvableProfileCopy(PlayerProfile profile) {

@@ -11,7 +11,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.NetherPortalBlock;
 import net.minecraft.world.level.border.WorldBorder;
 import net.minecraft.world.level.dimension.DimensionType;
-import net.minecraft.world.level.portal.DimensionTransition;
+import net.minecraft.world.level.portal.TeleportTransition;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.craftbukkit.CraftWorld;
@@ -38,9 +38,9 @@ public abstract class NetherPortalBlockMixin {
             at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Entity;setAsInsidePortal(Lnet/minecraft/world/level/block/Portal;Lnet/minecraft/core/BlockPos;)V"),
             cancellable = true, require = 0)
     private void lunararc$portalEnter(net.minecraft.world.level.block.state.BlockState state, Level level,
-                                      BlockPos pos, Entity entity, CallbackInfo ci) {
+                                      BlockPos pos, Entity entity, net.minecraft.world.entity.InsideBlockEffectApplier applier, boolean intersects, CallbackInfo ci) {
         org.bukkit.entity.Entity bukkit = ((EntityBridge) entity).lunararc$getBukkitEntity();
-        org.bukkit.World world = Bukkit.getWorld(level.dimension().location().toString());
+        org.bukkit.World world = Bukkit.getWorld(level.dimension().identifier().toString());
         if (world == null || !Bukkit.isPrimaryThread()) return;
         EntityPortalEnterEvent event = new EntityPortalEnterEvent(bukkit,
                 new Location(world, pos.getX(), pos.getY(), pos.getZ()), org.bukkit.PortalType.NETHER);
@@ -50,9 +50,9 @@ public abstract class NetherPortalBlockMixin {
 
     @WrapOperation(method = "randomTick", require = 0,
             at = @At(value = "INVOKE",
-                    target = "Lnet/minecraft/world/entity/EntityType;spawn(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/entity/MobSpawnType;)Lnet/minecraft/world/entity/Entity;"))
+                    target = "Lnet/minecraft/world/entity/EntityType;spawn(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/entity/EntitySpawnReason;)Lnet/minecraft/world/entity/Entity;"))
     private Entity lunararc$portalPiglinReason(net.minecraft.world.entity.EntityType<?> type, ServerLevel level, BlockPos pos,
-                                               net.minecraft.world.entity.MobSpawnType spawnType, Operation<Entity> original) {
+                                               net.minecraft.world.entity.EntitySpawnReason spawnType, Operation<Entity> original) {
         if (!io.lunararcdevs.lunararc.common.server.LunarArcServerSettings.flag(level, "enable-zombie-pigmen-portal-spawns", true)) return null;
         io.lunararcdevs.lunararc.common.event.LunarArcSpawnReasons.set(org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.NETHER_PORTAL);
         try {
@@ -69,14 +69,14 @@ public abstract class NetherPortalBlockMixin {
 
     @WrapOperation(method = "getPortalDestination",
             at = @At(value = "INVOKE",
-                    target = "Lnet/minecraft/world/level/block/NetherPortalBlock;getExitPortal(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/BlockPos;ZLnet/minecraft/world/level/border/WorldBorder;)Lnet/minecraft/world/level/portal/DimensionTransition;"),
+                    target = "Lnet/minecraft/world/level/block/NetherPortalBlock;getExitPortal(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/entity/Entity;Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/BlockPos;ZLnet/minecraft/world/level/border/WorldBorder;)Lnet/minecraft/world/level/portal/TeleportTransition;"),
             require = 0)
-    private DimensionTransition lunararc$portalEvent(NetherPortalBlock instance, ServerLevel targetWorld,
+    private TeleportTransition lunararc$portalEvent(NetherPortalBlock instance, ServerLevel targetWorld,
                                                        Entity entity, BlockPos entrancePos, BlockPos ignoredClampedTarget,
                                                        boolean destinationIsNether, WorldBorder ignoredBorder,
-                                                       Operation<DimensionTransition> original) {
+                                                       Operation<TeleportTransition> original) {
         double scale = DimensionType.getTeleportationScale(entity.level().dimensionType(), targetWorld.dimensionType());
-        org.bukkit.World initialBukkitWorld = Bukkit.getWorld(targetWorld.dimension().location().toString());
+        org.bukkit.World initialBukkitWorld = Bukkit.getWorld(targetWorld.dimension().identifier().toString());
         if (initialBukkitWorld == null || !Bukkit.isPrimaryThread()) {
             return original.call(instance, targetWorld, entity, entrancePos, ignoredClampedTarget, destinationIsNether, ignoredBorder);
         }

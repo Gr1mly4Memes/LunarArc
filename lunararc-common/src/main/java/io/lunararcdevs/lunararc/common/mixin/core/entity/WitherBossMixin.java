@@ -29,8 +29,8 @@ public abstract class WitherBossMixin {
     }
 
     @WrapOperation(method = "customServerAiStep", require = 0,
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;destroyBlock(Lnet/minecraft/core/BlockPos;ZLnet/minecraft/world/entity/Entity;)Z"))
-    private boolean lunararc$witherBreakBlock(Level level, BlockPos pos, boolean drop, Entity breaker, Operation<Boolean> original) {
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerLevel;destroyBlock(Lnet/minecraft/core/BlockPos;ZLnet/minecraft/world/entity/Entity;)Z"))
+    private boolean lunararc$witherBreakBlock(net.minecraft.server.level.ServerLevel level, BlockPos pos, boolean drop, Entity breaker, Operation<Boolean> original) {
         if (!CraftEventFactory.callEntityChangeBlockEvent((WitherBoss) (Object) this, pos,
                 net.minecraft.world.level.block.Blocks.AIR.defaultBlockState())) {
             return false;
@@ -39,13 +39,13 @@ public abstract class WitherBossMixin {
     }
 
     @WrapOperation(method = "customServerAiStep", require = 0,
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;explode(Lnet/minecraft/world/entity/Entity;DDDFZLnet/minecraft/world/level/Level$ExplosionInteraction;)Lnet/minecraft/world/level/Explosion;"))
-    private Explosion lunararc$witherExplode(Level level, Entity source, double x, double y, double z, float radius, boolean fire,
-            Level.ExplosionInteraction interaction, Operation<Explosion> original) {
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerLevel;explode(Lnet/minecraft/world/entity/Entity;DDDFZLnet/minecraft/world/level/Level$ExplosionInteraction;)V"))
+    private void lunararc$witherExplode(net.minecraft.server.level.ServerLevel level, Entity source, double x, double y, double z, float radius, boolean fire,
+            Level.ExplosionInteraction interaction, Operation<Void> original) {
         ExplosionPrimeEvent event = CraftEventFactory.callExplosionPrimeEvent(source, radius, fire);
         if (event.isCancelled()) {
-            return null;
+            return;
         }
-        return original.call(level, source, x, y, z, event.getRadius(), event.getFire(), interaction);
+        original.call(level, source, x, y, z, event.getRadius(), event.getFire(), interaction);
     }
 }

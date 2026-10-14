@@ -39,10 +39,10 @@ public abstract class StructureStartMixin implements StructureStartBridge {
     private static void lunararc$loadPersistentData(StructurePieceSerializationContext context, CompoundTag tag, long seed,
             CallbackInfoReturnable<StructureStart> cir) {
         StructureStart start = cir.getReturnValue();
-        if (start == null || start == StructureStart.INVALID_START || !tag.contains("StructureBukkitValues", Tag.TAG_COMPOUND)) {
+        if (start == null || start == StructureStart.INVALID_START || !tag.contains("StructureBukkitValues")) {
             return;
         }
         ((StructureStartBridge) (Object) start).lunararc$getPersistentDataContainer()
-                .putAll(tag.getCompound("StructureBukkitValues"));
+                .putAll(tag.getCompoundOrEmpty("StructureBukkitValues"));
     }
 }

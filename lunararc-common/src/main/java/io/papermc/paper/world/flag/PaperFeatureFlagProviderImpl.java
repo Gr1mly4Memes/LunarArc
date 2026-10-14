@@ -2,28 +2,58 @@ package io.papermc.paper.world.flag;
 
 import com.google.common.collect.BiMap;
 import com.google.common.collect.ImmutableBiMap;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+import net.minecraft.world.flag.FeatureElement;
 import net.minecraft.world.flag.FeatureFlagSet;
 import net.minecraft.world.flag.FeatureFlags;
 import org.bukkit.FeatureFlag;
+import org.bukkit.GameRule;
+import org.bukkit.craftbukkit.CraftGameRule;
+import org.bukkit.craftbukkit.entity.CraftEntityType;
+import org.bukkit.craftbukkit.potion.CraftPotionType;
+import org.bukkit.entity.EntityType;
+import org.bukkit.potion.PotionType;
 
 public class PaperFeatureFlagProviderImpl implements FeatureFlagProvider {
+
     public static final BiMap<FeatureFlag, net.minecraft.world.flag.FeatureFlag> FLAGS = ImmutableBiMap.of(
-            FeatureFlag.VANILLA, FeatureFlags.VANILLA, FeatureFlag.BUNDLE, FeatureFlags.BUNDLE,
-            FeatureFlag.TRADE_REBALANCE, FeatureFlags.TRADE_REBALANCE);
+        // Start generate - PaperFeatureFlagProviderImpl#FLAGS
+        FeatureFlag.MINECART_IMPROVEMENTS, FeatureFlags.MINECART_IMPROVEMENTS,
+        FeatureFlag.REDSTONE_EXPERIMENTS, FeatureFlags.REDSTONE_EXPERIMENTS,
+        FeatureFlag.TRADE_REBALANCE, FeatureFlags.TRADE_REBALANCE,
+        FeatureFlag.VANILLA, FeatureFlags.VANILLA
+        // End generate - PaperFeatureFlagProviderImpl#FLAGS
+    );
 
-    public static java.util.Set<FeatureFlag> fromNms(FeatureFlagSet flags) {
-        java.util.Set<FeatureFlag> result = new java.util.HashSet<>();
-        FLAGS.forEach((bukkit, nativeFlag) -> { if (flags.contains(nativeFlag)) result.add(bukkit); });
-        return java.util.Collections.unmodifiableSet(result);
+    @Override
+    public Set<FeatureFlag> requiredFeatures(final FeatureDependant dependant) {
+        final FeatureFlagSet requiredFeatures = getFeatureElement(dependant).requiredFeatures();
+        return fromNms(requiredFeatures);
     }
 
-    @Override public java.util.Set<FeatureFlag> requiredFeatures(FeatureDependant dependant) {
-        if (dependant instanceof org.bukkit.entity.EntityType entity) {
-            return fromNms(org.bukkit.craftbukkit.entity.CraftEntityType.bukkitToMinecraft(entity).requiredFeatures());
+    public static Set<FeatureFlag> fromNms(final FeatureFlagSet flagSet) {
+        final Set<FeatureFlag> flags = new HashSet<>();
+        for (final net.minecraft.world.flag.FeatureFlag nmsFlag : FeatureFlags.REGISTRY.names.values()) {
+            if (flagSet.contains(nmsFlag)) {
+                flags.add(FLAGS.inverse().get(nmsFlag));
+            }
         }
-        if (dependant instanceof org.bukkit.potion.PotionType potion) {
-            return fromNms(org.bukkit.craftbukkit.potion.CraftPotionType.bukkitToMinecraft(potion).requiredFeatures());
-        }
-        throw new IllegalArgumentException("Unsupported feature dependant: " + dependant);
+        return Collections.unmodifiableSet(flags);
     }
+
+    static FeatureElement getFeatureElement(final FeatureDependant dependant) {
+        if (dependant instanceof final EntityType entityType) {
+            // TODO remove when EntityType is server-backed
+            return CraftEntityType.bukkitToMinecraft(entityType);
+        } else if (dependant instanceof final PotionType potionType) {
+            return CraftPotionType.bukkitToMinecraft(potionType);
+        } else if (dependant instanceof final GameRule<?> gameRule) {
+            return () -> CraftGameRule.bukkitToMinecraft(gameRule).requiredFeatures();
+        } else {
+            throw new IllegalArgumentException(dependant + " is not a valid feature dependant");
+        }
+    }
+
 }

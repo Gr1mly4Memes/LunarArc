@@ -6,8 +6,8 @@ import net.kyori.adventure.util.TriState;
 import org.bukkit.Location;
 import org.bukkit.craftbukkit.CraftServer;
 public final class CraftBee extends CraftAnimals implements org.bukkit.entity.Bee {
-    public CraftBee(CraftServer server, net.minecraft.world.entity.animal.Bee entity) { super(server, entity); }
-    @Override public net.minecraft.world.entity.animal.Bee getHandle() { return (net.minecraft.world.entity.animal.Bee) entity; }
+    public CraftBee(CraftServer server, net.minecraft.world.entity.animal.bee.Bee entity) { super(server, entity); }
+    @Override public net.minecraft.world.entity.animal.bee.Bee getHandle() { return (net.minecraft.world.entity.animal.bee.Bee) entity; }
     private BeeAccessBridge a() { return (BeeAccessBridge)(Object)getHandle(); }
     private BeeBridge b() { return (BeeBridge)(Object)getHandle(); }
     private Location loc(BlockPos p) { return p == null ? null : new Location(getWorld(), p.getX(), p.getY(), p.getZ()); }
@@ -24,8 +24,8 @@ public final class CraftBee extends CraftAnimals implements org.bukkit.entity.Be
     @Override public void setHasNectar(boolean nectar) { getHandle().setHasNectar(nectar); }
     @Override public boolean hasStung() { return getHandle().hasStung(); }
     @Override public void setHasStung(boolean stung) { getHandle().setHasStung(stung); }
-    @Override public int getAnger() { return getHandle().getRemainingPersistentAngerTime(); }
-    @Override public void setAnger(int anger) { getHandle().setRemainingPersistentAngerTime(anger); }
+    @Override public int getAnger() { long end = getHandle().getPersistentAngerEndTime(); return end <= 0L ? 0 : (int) Math.max(0L, end - getHandle().level().getGameTime()); }
+    @Override public void setAnger(int anger) { getHandle().setPersistentAngerEndTime(anger <= 0 ? 0L : getHandle().level().getGameTime() + anger); }
     @Override public int getCannotEnterHiveTicks() { return a().lunararc$getStayOutOfHiveCountdown(); }
     @Override public void setCannotEnterHiveTicks(int ticks) { getHandle().setStayOutOfHiveCountdown(ticks); }
     @Override public void setRollingOverride(TriState rolling) { b().lunararc$setRollingOverride(rolling); }

@@ -6,8 +6,8 @@ import org.bukkit.entity.AbstractSkeleton;
 import org.bukkit.entity.Skeleton;
 
 public abstract class CraftAbstractSkeleton extends CraftMonster implements AbstractSkeleton {
-    public CraftAbstractSkeleton(CraftServer server, net.minecraft.world.entity.monster.AbstractSkeleton entity) { super(server, entity); }
-    @Override public net.minecraft.world.entity.monster.AbstractSkeleton getHandle() { return (net.minecraft.world.entity.monster.AbstractSkeleton) this.entity; }
+    public CraftAbstractSkeleton(CraftServer server, net.minecraft.world.entity.monster.skeleton.AbstractSkeleton entity) { super(server, entity); }
+    @Override public net.minecraft.world.entity.monster.skeleton.AbstractSkeleton getHandle() { return (net.minecraft.world.entity.monster.skeleton.AbstractSkeleton) this.entity; }
     private AbstractSkeletonBridge skeletonBridge() { return (AbstractSkeletonBridge) (Object) getHandle(); }
     @Override public void setSkeletonType(Skeleton.SkeletonType type) { throw new UnsupportedOperationException("Skeleton type conversion is not mutable through this API"); }
     @Override public void rangedAttack(org.bukkit.entity.LivingEntity target, float charge) {

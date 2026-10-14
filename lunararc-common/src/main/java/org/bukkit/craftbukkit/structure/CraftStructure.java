@@ -63,8 +63,8 @@ public final class CraftStructure implements Structure {
     static CraftStructure fromTag(MinecraftServer server, CompoundTag tag) {
         StructureTemplate template = server.getStructureManager().readStructure(tag);
         CraftStructure structure = new CraftStructure(server, template);
-        if (tag.contains(PDC_KEY, net.minecraft.nbt.Tag.TAG_COMPOUND)) {
-            structure.persistentData.fromTag(tag.getCompound(PDC_KEY));
+        if (tag.contains(PDC_KEY)) {
+            structure.persistentData.fromTag(tag.getCompoundOrEmpty(PDC_KEY));
         }
         return structure;
     }
@@ -98,9 +98,9 @@ public final class CraftStructure implements Structure {
         for (StructureTemplate.StructureEntityInfo info : ((StructureTemplateAccessBridge) (Object) handle).lunararc$getEntityInfoList()) {
             try {
                 net.minecraft.world.entity.Entity entity = net.minecraft.world.entity.EntityType.loadEntityRecursive(
-                        info.nbt.copy(), level, created -> created);
+                        info.nbt.copy(), level, net.minecraft.world.entity.EntitySpawnReason.LOAD, created -> created);
                 if (entity == null) continue;
-                entity.moveTo(info.pos.x, info.pos.y, info.pos.z, entity.getYRot(), entity.getXRot());
+                entity.snapTo(info.pos.x, info.pos.y, info.pos.z, entity.getYRot(), entity.getXRot());
                 Entity bukkit = CraftEntity.getEntity(craftServer, entity);
                 if (bukkit != null) result.add(bukkit);
             } catch (Throwable ignored) {
@@ -172,7 +172,9 @@ public final class CraftStructure implements Structure {
 
         CraftStructureTransformer transformer = new CraftStructureTransformer(
                 target, new ChunkPos(origin), blockTransformers, entityTransformers);
-        TransformerGeneratorAccess access = new TransformerGeneratorAccess(target, transformer);
+        TransformerGeneratorAccess access = new TransformerGeneratorAccess();
+        access.setDelegate(target);
+        access.setStructureTransformer(transformer);
         try {
             return handle.placeInWorld(access, origin, origin, settings, source, 2);
         } finally {

@@ -44,7 +44,7 @@ public final class LunarArcNamedRegistryTag<T extends Keyed, M> implements Tag<T
         ArrayList<TypedKey<T>> values = new ArrayList<>();
         for (Holder<M> holder : this.namedSet) {
             if (!(holder instanceof Holder.Reference<M> reference)) continue;
-            net.minecraft.resources.ResourceLocation location = reference.key().location();
+            net.minecraft.resources.Identifier location = reference.key().identifier();
             values.add(TypedKey.create(this.registryKey(), Key.key(location.getNamespace(), location.getPath())));
         }
         return java.util.List.copyOf(values);
@@ -56,7 +56,7 @@ public final class LunarArcNamedRegistryTag<T extends Keyed, M> implements Tag<T
         Key wanted = valueKey.key();
         for (Holder<M> holder : this.namedSet) {
             if (!(holder instanceof Holder.Reference<M> reference)) continue;
-            net.minecraft.resources.ResourceLocation location = reference.key().location();
+            net.minecraft.resources.Identifier location = reference.key().identifier();
             if (location.getNamespace().equals(wanted.namespace()) && location.getPath().equals(wanted.value())) return true;
         }
         return false;
@@ -67,7 +67,7 @@ public final class LunarArcNamedRegistryTag<T extends Keyed, M> implements Tag<T
         ArrayList<T> values = new ArrayList<>();
         for (Holder<M> holder : this.namedSet) {
             if (!(holder instanceof Holder.Reference<M> reference)) continue;
-            net.minecraft.resources.ResourceLocation location = reference.key().location();
+            net.minecraft.resources.Identifier location = reference.key().identifier();
             T value = registry.get(new NamespacedKey(location.getNamespace(), location.getPath()));
             if (value != null) values.add(value);
         }

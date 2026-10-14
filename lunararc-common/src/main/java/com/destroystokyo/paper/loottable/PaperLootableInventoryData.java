@@ -119,12 +119,12 @@ public class PaperLootableInventoryData {
 
         @Override
         public void setSeed(final ContainerEntity holder, final long seed) {
-            holder.setLootTableSeed(seed);
+            holder.setContainerLootTableSeed(seed);
         }
 
         @Override
         public boolean hasLootTable(final ContainerEntity holder) {
-            return holder.getLootTable() != null;
+            return holder.getContainerLootTable() != null;
         }
 
         @Override
@@ -159,29 +159,29 @@ public class PaperLootableInventoryData {
     private static final String LOOTED_PLAYERS = "lootedPlayers";
 
     public void loadNbt(final CompoundTag base) {
-        if (!base.contains(ROOT, Tag.TAG_COMPOUND)) {
+        if (!base.contains(ROOT)) {
             return;
         }
-        final CompoundTag comp = base.getCompound(ROOT);
+        final CompoundTag comp = base.getCompoundOrEmpty(ROOT);
         if (comp.contains(LAST_FILL)) {
-            this.lastFill = comp.getLong(LAST_FILL);
+            this.lastFill = comp.getLongOr(LAST_FILL, 0L);
         }
         if (comp.contains(NEXT_REFILL)) {
-            this.nextRefill = comp.getLong(NEXT_REFILL);
+            this.nextRefill = comp.getLongOr(NEXT_REFILL, 0L);
         }
 
         if (comp.contains(NUM_REFILLS)) {
-            this.numRefills = comp.getInt(NUM_REFILLS);
+            this.numRefills = comp.getIntOr(NUM_REFILLS, 0);
         }
-        if (comp.contains(LOOTED_PLAYERS, Tag.TAG_LIST)) {
-            final ListTag list = comp.getList(LOOTED_PLAYERS, Tag.TAG_COMPOUND);
+        if (comp.contains(LOOTED_PLAYERS)) {
+            final ListTag list = comp.getListOrEmpty(LOOTED_PLAYERS);
             final int size = list.size();
             if (size > 0) {
                 this.lootedPlayers = new HashMap<>(list.size());
             }
             for (int i = 0; i < size; i++) {
-                final CompoundTag cmp = list.getCompound(i);
-                this.lootedPlayers.put(cmp.getUUID("UUID"), cmp.getLong("Time"));
+                final CompoundTag cmp = list.getCompoundOrEmpty(i);
+                this.lootedPlayers.put(io.lunararcdevs.lunararc.common.util.LunarArcNbt.getUUID(cmp, "UUID"), cmp.getLongOr("Time", 0L));
             }
         }
     }
@@ -201,7 +201,7 @@ public class PaperLootableInventoryData {
             final ListTag list = new ListTag();
             for (final Map.Entry<UUID, Long> entry : this.lootedPlayers.entrySet()) {
                 final CompoundTag cmp = new CompoundTag();
-                cmp.putUUID("UUID", entry.getKey());
+                io.lunararcdevs.lunararc.common.util.LunarArcNbt.putUUID(cmp, "UUID", entry.getKey());
                 cmp.putLong("Time", entry.getValue());
                 list.add(cmp);
             }

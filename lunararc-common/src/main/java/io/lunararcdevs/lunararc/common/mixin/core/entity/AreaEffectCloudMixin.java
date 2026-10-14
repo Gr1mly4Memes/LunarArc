@@ -14,10 +14,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(AreaEffectCloud.class)
 public abstract class AreaEffectCloudMixin {
     @Inject(
-            method = "tick",
+            method = "serverTick",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;addEffect(Lnet/minecraft/world/effect/MobEffectInstance;Lnet/minecraft/world/entity/Entity;)Z"),
             require = 0)
-    private void lunararc$cloudCause(CallbackInfo ci, @Local LivingEntity target) {
+    private void lunararc$cloudCause(net.minecraft.server.level.ServerLevel level, CallbackInfo ci, @Local LivingEntity target) {
         ((LivingEntityBridge) target).lunararc$pushEffectCause(EntityPotionEffectEvent.Cause.AREA_EFFECT_CLOUD);
     }
 }

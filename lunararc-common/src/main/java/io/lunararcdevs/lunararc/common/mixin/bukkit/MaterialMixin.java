@@ -39,9 +39,9 @@ public abstract class MaterialMixin {
         try {
             org.bukkit.Material self = (org.bukkit.Material) (Object) this;
             NamespacedKey dynamicKey = io.lunararcdevs.lunararc.common.server.LunarArcDynamicBukkitEnums.materialKey(self);
-            net.minecraft.resources.ResourceLocation rl = dynamicKey == null
-                    ? net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", ((Enum<?>) (Object) this).name().toLowerCase(Locale.ROOT))
-                    : net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(dynamicKey.getNamespace(), dynamicKey.getKey());
+            net.minecraft.resources.Identifier rl = dynamicKey == null
+                    ? net.minecraft.resources.Identifier.fromNamespaceAndPath("minecraft", ((Enum<?>) (Object) this).name().toLowerCase(Locale.ROOT))
+                    : net.minecraft.resources.Identifier.fromNamespaceAndPath(dynamicKey.getNamespace(), dynamicKey.getKey());
             cir.setReturnValue(net.minecraft.core.registries.BuiltInRegistries.ITEM.containsKey(rl));
         } catch (Exception ignored) {}
     }
@@ -55,9 +55,9 @@ public abstract class MaterialMixin {
         try {
             org.bukkit.Material self = (org.bukkit.Material) (Object) this;
             NamespacedKey dynamicKey = io.lunararcdevs.lunararc.common.server.LunarArcDynamicBukkitEnums.materialKey(self);
-            net.minecraft.resources.ResourceLocation rl = dynamicKey == null
-                    ? net.minecraft.resources.ResourceLocation.fromNamespaceAndPath("minecraft", ((Enum<?>) (Object) this).name().toLowerCase(Locale.ROOT))
-                    : net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(dynamicKey.getNamespace(), dynamicKey.getKey());
+            net.minecraft.resources.Identifier rl = dynamicKey == null
+                    ? net.minecraft.resources.Identifier.fromNamespaceAndPath("minecraft", ((Enum<?>) (Object) this).name().toLowerCase(Locale.ROOT))
+                    : net.minecraft.resources.Identifier.fromNamespaceAndPath(dynamicKey.getNamespace(), dynamicKey.getKey());
             cir.setReturnValue(net.minecraft.core.registries.BuiltInRegistries.BLOCK.containsKey(rl));
         } catch (Exception ignored) {}
     }

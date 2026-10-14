@@ -7,7 +7,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.InteractionResultHolder;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BucketItem;
 import net.minecraft.world.item.ItemStack;
@@ -37,11 +37,11 @@ public abstract class BucketItemMixin {
 
     @Inject(
             method = "use",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/block/BucketPickup;pickupBlock(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/level/LevelAccessor;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)Lnet/minecraft/world/item/ItemStack;"),
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/block/BucketPickup;pickupBlock(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/level/LevelAccessor;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;)Lnet/minecraft/world/item/ItemStack;"),
             cancellable = true,
             require = 0)
     private void lunararc$bucketFillBefore(Level level, Player player, InteractionHand hand,
-            CallbackInfoReturnable<InteractionResultHolder<ItemStack>> cir,
+            CallbackInfoReturnable<InteractionResult> cir,
             @Local BlockHitResult hit,
             @Local BlockPos blockPos,
             @Local BlockState blockState,
@@ -71,7 +71,7 @@ public abstract class BucketItemMixin {
         if (event == null) return;
         if (event.isCancelled()) {
             lunararc$resyncCancelledBucket(serverPlayer, level, blockPos, stack);
-            cir.setReturnValue(InteractionResultHolder.fail(stack));
+            cir.setReturnValue(InteractionResult.FAIL);
             return;
         }
         LUNARARC_BUCKET_RESULT.set(event.getItemStack() == null
@@ -91,10 +91,10 @@ public abstract class BucketItemMixin {
 
     @Inject(
             method = "use",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/BucketItem;emptyContents(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/phys/BlockHitResult;)Z"),
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/BucketItem;emptyContents(Lnet/minecraft/world/entity/LivingEntity;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/phys/BlockHitResult;)Z"),
             require = 0)
     private void lunararc$captureBucketEmptyVanilla(Level level, Player player, InteractionHand hand,
-            CallbackInfoReturnable<InteractionResultHolder<ItemStack>> cir,
+            CallbackInfoReturnable<InteractionResult> cir,
             @Local BlockHitResult hit,
             @Local ItemStack stack) {
         lunararc$captureBucketEmpty(hit, hand, stack);
@@ -112,7 +112,7 @@ public abstract class BucketItemMixin {
             at = @At(value = "INVOKE", remap = false, target = "Lnet/minecraft/world/item/BucketItem;emptyContents(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/phys/BlockHitResult;Lnet/minecraft/world/item/ItemStack;)Z"),
             require = 0)
     private void lunararc$captureBucketEmptyLoader(Level level, Player player, InteractionHand hand,
-            CallbackInfoReturnable<InteractionResultHolder<ItemStack>> cir,
+            CallbackInfoReturnable<InteractionResult> cir,
             @Local BlockHitResult hit,
             @Local ItemStack stack) {
         lunararc$captureBucketEmpty(hit, hand, stack);
@@ -140,7 +140,7 @@ public abstract class BucketItemMixin {
 
     @Inject(method = "use", at = @At("RETURN"), require = 0)
     private void lunararc$clearBucketContext(Level level, Player player, InteractionHand hand,
-            CallbackInfoReturnable<InteractionResultHolder<ItemStack>> cir) {
+            CallbackInfoReturnable<InteractionResult> cir) {
         LUNARARC_BUCKET_RESULT.remove();
         LUNARARC_BUCKET_EMPTY.remove();
     }

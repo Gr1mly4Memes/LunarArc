@@ -82,11 +82,24 @@ public final class CraftRaid implements Raid {
         return List.copyOf(result);
     }
 
-    @Override public int getId() { return this.handle.getId(); }
+    @Override public int getId() {
+        for (var entry : bridge().lunararc$level().getRaids().raidMap.int2ObjectEntrySet()) {
+            if (entry.getValue() == this.handle) return entry.getIntKey();
+        }
+        return -1;
+    }
     @Override public @NotNull BossBar getBossBar() { return CraftBossBar.wrap(bridge().lunararc$bossEvent()); }
     @Override public @NotNull org.bukkit.persistence.PersistentDataContainer getPersistentDataContainer() { return bridge().lunararc$persistentData(); }
 
     @Override public boolean equals(Object other) { return this == other || (other instanceof CraftRaid raid && this.handle.equals(raid.handle)); }
     @Override public int hashCode() { return this.handle.hashCode(); }
     @Override public String toString() { return "CraftRaid[" + getId() + "]"; }
+
+    @Override
+    public void setTotalWaves(int waves) {
+        com.google.common.base.Preconditions.checkArgument(waves > 0, "Total waves must be greater than 0");
+        com.google.common.base.Preconditions.checkArgument(waves <= 7, "Total waves must not be greater than 7");
+        com.google.common.base.Preconditions.checkArgument(waves >= this.getSpawnedGroups(), "Total waves must be greater than or equal to the current spawned groups (%s)", this.getSpawnedGroups());
+        this.handle.numGroups = waves;
+    }
 }

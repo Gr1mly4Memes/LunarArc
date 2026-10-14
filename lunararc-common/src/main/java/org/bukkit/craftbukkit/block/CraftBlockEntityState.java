@@ -60,6 +60,11 @@ public class CraftBlockEntityState<T extends BlockEntity> extends CraftBlockStat
      * Placed states use their owning level; unplaced snapshots use LunarArc's
      * loader-owned live MinecraftServer registry access.
      */
+    /** Paper-visible: donated spawner and sign classes call this on their block-entity state. */
+    public net.minecraft.core.RegistryAccess getRegistryAccess() {
+        return registryAccess();
+    }
+
     private net.minecraft.core.RegistryAccess registryAccess() {
         LevelAccessor access = getWorldHandle();
         return access != null ? access.registryAccess() : LunarArcServerAccess.getMinecraftServer().registryAccess();
@@ -68,7 +73,7 @@ public class CraftBlockEntityState<T extends BlockEntity> extends CraftBlockStat
     private T createSnapshot(@Nullable T source) {
         if (source == null) return null;
         net.minecraft.core.RegistryAccess registry = registryAccess();
-        CompoundTag tag = source.saveWithId(registry);
+        CompoundTag tag = source.saveWithFullMetadata(registry);
         BlockEntity loaded = BlockEntity.loadStatic(getPosition(), getHandle(), tag, registry);
         if (loaded == null) {
             throw new IllegalStateException("Could not snapshot block entity " + source.getType());
@@ -84,8 +89,8 @@ public class CraftBlockEntityState<T extends BlockEntity> extends CraftBlockStat
         CraftPersistentDataContainer container = new CraftPersistentDataContainer();
         if (source != null) {
             net.minecraft.core.RegistryAccess registry = registryAccess();
-            CompoundTag tag = source.saveWithId(registry);
-            if (tag.contains("PublicBukkitValues")) container.putAll(tag.getCompound("PublicBukkitValues"));
+            CompoundTag tag = source.saveWithFullMetadata(registry);
+            if (tag.contains("PublicBukkitValues")) container.putAll(tag.getCompoundOrEmpty("PublicBukkitValues"));
         }
         return container;
     }
@@ -122,16 +127,23 @@ public class CraftBlockEntityState<T extends BlockEntity> extends CraftBlockStat
         return blockEntity != null && this.tileEntity.getClass() == blockEntity.getClass();
     }
 
+    private void loadComponents(BlockEntity target, CompoundTag tag, net.minecraft.core.RegistryAccess registry) {
+        try (net.minecraft.util.ProblemReporter.ScopedCollector problems = new net.minecraft.util.ProblemReporter.ScopedCollector(
+                () -> "CraftBlockEntityState@" + getPosition().toShortString(), org.slf4j.LoggerFactory.getLogger(CraftBlockEntityState.class))) {
+            target.loadWithComponents(net.minecraft.world.level.storage.TagValueInput.create(problems, registry, tag));
+        }
+    }
+
     private void copyData(@NotNull T from, @NotNull T to) {
         net.minecraft.core.RegistryAccess registry = registryAccess();
-        CompoundTag tag = from.saveWithId(registry);
-        to.loadWithComponents(tag, registry);
+        CompoundTag tag = from.saveWithFullMetadata(registry);
+        loadComponents(to, tag, registry);
     }
 
     public CompoundTag getSnapshotNBT() {
         applyTo(this.snapshot);
         net.minecraft.core.RegistryAccess registry = registryAccess();
-        CompoundTag tag = this.snapshot.saveWithId(registry);
+        CompoundTag tag = this.snapshot.saveWithFullMetadata(registry);
         if (this.persistentDataContainer.isEmpty()) tag.remove("PublicBukkitValues");
         else tag.put("PublicBukkitValues", this.persistentDataContainer.toTagCompound());
         return tag;
@@ -152,9 +164,9 @@ public class CraftBlockEntityState<T extends BlockEntity> extends CraftBlockStat
     public void loadData(@NotNull CompoundTag tag) {
         Objects.requireNonNull(tag, "tag");
         net.minecraft.core.RegistryAccess registry = registryAccess();
-        this.snapshot.loadWithComponents(tag.copy(), registry);
+        loadComponents(this.snapshot, tag.copy(), registry);
         CraftPersistentDataContainer container = new CraftPersistentDataContainer();
-        if (tag.contains("PublicBukkitValues")) container.putAll(tag.getCompound("PublicBukkitValues"));
+        if (tag.contains("PublicBukkitValues")) container.putAll(tag.getCompoundOrEmpty("PublicBukkitValues"));
         this.persistentDataContainer = container;
     }
 

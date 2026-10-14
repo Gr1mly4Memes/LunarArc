@@ -2,7 +2,7 @@ package io.lunararcdevs.lunararc.common.server;
 
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.level.block.Block;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -20,7 +20,7 @@ public final class LunarArcAntiXrayOreBridge {
     private static final Logger LOGGER = LoggerFactory.getLogger(LunarArcAntiXrayOreBridge.class);
     private static final String HIDDEN_BLOCKS_PATH = "anticheat.anti-xray.hidden-blocks";
     private static final TagKey<Block> COMMON_ORES =
-            TagKey.create(Registries.BLOCK, ResourceLocation.fromNamespaceAndPath("c", "ores"));
+            TagKey.create(Registries.BLOCK, Identifier.fromNamespaceAndPath("c", "ores"));
 
     private LunarArcAntiXrayOreBridge() {}
 
@@ -40,7 +40,7 @@ public final class LunarArcAntiXrayOreBridge {
         LinkedHashSet<String> merged = new LinkedHashSet<>();
         int removed = 0;
         for (String id : current) {
-            ResourceLocation location = ResourceLocation.tryParse(id);
+            Identifier location = Identifier.tryParse(id);
             if (location == null || !BuiltInRegistries.BLOCK.containsKey(location)) {
                 removed++;
                 continue;
@@ -49,9 +49,9 @@ public final class LunarArcAntiXrayOreBridge {
         }
 
         int beforeAdd = merged.size();
-        for (ResourceLocation id : BuiltInRegistries.BLOCK.keySet()) {
+        for (Identifier id : BuiltInRegistries.BLOCK.keySet()) {
             if (id.getNamespace().equals("minecraft")) continue; // vanilla ores are already seeded
-            Block block = BuiltInRegistries.BLOCK.get(id);
+            Block block = BuiltInRegistries.BLOCK.getValue(id);
             if (block == null || !block.builtInRegistryHolder().is(COMMON_ORES)) continue;
             merged.add(id.toString());
         }

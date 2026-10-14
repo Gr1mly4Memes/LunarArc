@@ -11,7 +11,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.event.network.CustomPayloadEvent;
@@ -23,14 +23,14 @@ import org.bukkit.craftbukkit.entity.CraftPlayer;
 import org.bukkit.plugin.Plugin;
 
 public final class ForgePluginMessaging {
-    private static final ConcurrentMap<ResourceLocation, EventNetworkChannel> CHANNELS = new ConcurrentHashMap<>();
-    private static final Set<ResourceLocation> BLOCKED = ConcurrentHashMap.newKeySet();
+    private static final ConcurrentMap<Identifier, EventNetworkChannel> CHANNELS = new ConcurrentHashMap<>();
+    private static final Set<Identifier> BLOCKED = ConcurrentHashMap.newKeySet();
 
     private ForgePluginMessaging() {}
 
     public static void ensureChannel(String channel) {
         String corrected = LunarArcPluginChannelPolicy.correctedChannel(channel);
-        ResourceLocation id = tryParse(corrected);
+        Identifier id = tryParse(corrected);
         if (id == null || CHANNELS.containsKey(id) || BLOCKED.contains(id)) return;
 
         synchronized (ForgePluginMessaging.class) {
@@ -59,7 +59,7 @@ public final class ForgePluginMessaging {
 
     public static boolean sendIfManaged(CraftPlayer player, Plugin plugin, String channel, byte[] message) {
         String corrected = LunarArcPluginChannelPolicy.correctedChannel(channel);
-        ResourceLocation id = tryParse(corrected);
+        Identifier id = tryParse(corrected);
         if (id == null) return false;
         EventNetworkChannel nativeChannel = CHANNELS.get(id);
         if (nativeChannel == null && !BLOCKED.contains(id)) return false;
@@ -75,7 +75,7 @@ public final class ForgePluginMessaging {
         return true;
     }
 
-    private static void receive(ResourceLocation id, CustomPayloadEvent event) {
+    private static void receive(Identifier id, CustomPayloadEvent event) {
         FriendlyByteBuf buffer = event.getPayload();
         if (buffer == null) return;
 
@@ -96,10 +96,10 @@ public final class ForgePluginMessaging {
 
     // Loom compiles Forge against SRG names; these are all real Mojang names that never resolve
     // directly here, so go through the reflection bridge instead.
-    private static ResourceLocation tryParse(String value) {
+    private static Identifier tryParse(String value) {
         try {
-            return (ResourceLocation) LunarArcReflectionBridge
-                    .getMethod(ResourceLocation.class, "tryParse", new Class<?>[]{String.class}).invoke(null, value);
+            return (Identifier) LunarArcReflectionBridge
+                    .getMethod(Identifier.class, "tryParse", new Class<?>[]{String.class}).invoke(null, value);
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("Unable to parse resource location " + value, e);
         }

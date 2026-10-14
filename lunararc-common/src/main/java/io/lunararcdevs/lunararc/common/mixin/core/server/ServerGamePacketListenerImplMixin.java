@@ -16,7 +16,7 @@ import net.minecraft.network.protocol.game.ServerboundPlayerCommandPacket;
 import net.minecraft.network.protocol.game.ServerboundSetCarriedItemPacket;
 import net.minecraft.network.protocol.game.ServerboundSetCreativeModeSlotPacket;
 import net.minecraft.network.protocol.game.ServerboundUseItemPacket;
-import net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket;
+import net.minecraft.network.protocol.game.ClientboundSetHeldSlotPacket;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerGamePacketListenerImpl;
@@ -54,9 +54,9 @@ public abstract class ServerGamePacketListenerImplMixin {
     @Unique private boolean lunararc$justTeleported;
 
     // Paper's internalTeleport: every server-side teleport resets the move baseline.
-    @Inject(method = "teleport(DDDFFLjava/util/Set;)V", at = @At("TAIL"))
-    private void lunararc$trackTeleport(double x, double y, double z, float yaw, float pitch,
-            Set<net.minecraft.world.entity.RelativeMovement> relative, CallbackInfo ci) {
+    @Inject(method = "teleport(Lnet/minecraft/world/entity/PositionMoveRotation;Ljava/util/Set;)V", at = @At("TAIL"))
+    private void lunararc$trackTeleport(net.minecraft.world.entity.PositionMoveRotation posMoveRotation,
+            Set<net.minecraft.world.entity.Relative> relative, CallbackInfo ci) {
         this.lunararc$justTeleported = true;
         this.lunararc$lastPosX = this.player.getX();
         this.lunararc$lastPosY = this.player.getY();
@@ -70,7 +70,7 @@ public abstract class ServerGamePacketListenerImplMixin {
     // vanilla, Forge and NeoForge alike; ordinal 0 is the passenger branch).
     @Inject(method = "handleMovePlayer", cancellable = true,
             at = @At(value = "INVOKE", ordinal = 1,
-                    target = "Lnet/minecraft/server/level/ServerPlayer;absMoveTo(DDDFF)V"))
+                    target = "Lnet/minecraft/server/level/ServerPlayer;absSnapTo(DDDFF)V"))
     private void lunararc$firePlayerMove(net.minecraft.network.protocol.game.ServerboundMovePlayerPacket packet,
             CallbackInfo ci) {
         ServerPlayer player = this.player;
@@ -83,7 +83,7 @@ public abstract class ServerGamePacketListenerImplMixin {
     @Inject(method = "handleMoveVehicle", cancellable = true, at = @At(value = "INVOKE",
             target = "Lnet/minecraft/server/level/ServerChunkCache;move(Lnet/minecraft/server/level/ServerPlayer;)V"))
     private void lunararc$fireVehiclePlayerMove(net.minecraft.network.protocol.game.ServerboundMoveVehiclePacket packet, CallbackInfo ci) {
-        if (lunararc$playerMoveCancelled(packet.getX(), packet.getY(), packet.getZ(), packet.getYRot(), packet.getXRot())) {
+        if (lunararc$playerMoveCancelled(packet.position().x, packet.position().y, packet.position().z, packet.yRot(), packet.xRot())) {
             ci.cancel();
         }
     }
@@ -198,7 +198,7 @@ public abstract class ServerGamePacketListenerImplMixin {
 
         io.papermc.paper.chat.ChatRenderer renderer;
         if (legacyFormatChanged) {
-            String legacyRendered = String.format(legacyEvent.getFormat(), bukkitPlayer.getDisplayName(), legacyEvent.getMessage());
+            String legacyRendered = String.format(legacyEvent.getFormat(), net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer.legacySection().serialize(bukkitPlayer.displayName()), legacyEvent.getMessage());
             net.kyori.adventure.text.Component legacyComponent =
                     io.lunararcdevs.lunararc.common.messaging.LunarArcComponentPipeline.legacyToAdventure(legacyRendered);
             renderer = io.papermc.paper.chat.ChatRenderer.viewerUnaware((source, displayName, msg) -> legacyComponent);
@@ -357,7 +357,7 @@ public abstract class ServerGamePacketListenerImplMixin {
     private void lunararc$onInteractEntity(
             net.minecraft.network.protocol.game.ServerboundInteractPacket packet,
             CallbackInfo ci) {
-        net.minecraft.world.entity.Entity target = packet.getTarget(this.player.serverLevel());
+        net.minecraft.world.entity.Entity target = packet.getTarget(this.player.level());
         if (target == null || target == this.player) {
             return;
         }
@@ -415,7 +415,7 @@ public abstract class ServerGamePacketListenerImplMixin {
     private void lunararc$onInteractUnknownEntity(
             net.minecraft.network.protocol.game.ServerboundInteractPacket packet,
             CallbackInfo ci) {
-        if (packet.getTarget(this.player.serverLevel()) != null) {
+        if (packet.getTarget(this.player.level()) != null) {
             return;
         }
         if (!(((EntityBridge) this.player).lunararc$getBukkitEntity() instanceof Player bukkitPlayer)) {
@@ -494,7 +494,7 @@ public abstract class ServerGamePacketListenerImplMixin {
         net.minecraft.world.phys.Vec3 look = this.player.getViewVector(1.0F);
         double blockRange = this.player.blockInteractionRange();
         net.minecraft.world.phys.Vec3 blockEnd = eye.add(look.scale(blockRange));
-        net.minecraft.world.phys.BlockHitResult blockHit = this.player.serverLevel().clip(
+        net.minecraft.world.phys.BlockHitResult blockHit = this.player.level().clip(
                 new net.minecraft.world.level.ClipContext(eye, blockEnd,
                         net.minecraft.world.level.ClipContext.Block.OUTLINE,
                         net.minecraft.world.level.ClipContext.Fluid.NONE, this.player));
@@ -504,7 +504,7 @@ public abstract class ServerGamePacketListenerImplMixin {
         net.minecraft.world.phys.Vec3 entityEnd = eye.add(look.scale(entityRange));
         net.minecraft.world.phys.AABB box = this.player.getBoundingBox().expandTowards(look.scale(entityRange)).inflate(1.0D);
         net.minecraft.world.phys.EntityHitResult entityHit = net.minecraft.world.entity.projectile.ProjectileUtil.getEntityHitResult(
-                this.player.serverLevel(), this.player, eye, entityEnd, box,
+                this.player.level(), this.player, eye, entityEnd, box,
                 entity -> !entity.isSpectator() && entity.isPickable() && !entity.isPassengerOfSameVehicle(this.player),
                 (float) (entityRange * entityRange));
         return entityHit == null;
@@ -537,7 +537,7 @@ public abstract class ServerGamePacketListenerImplMixin {
                 (io.lunararcdevs.lunararc.common.bridge.ServerPlayerGameModeBridge) this.player.gameMode;
         boolean firedInteractBefore = gameMode.lunararc$firedInteract();
 
-        if (stack.isEmpty() || !stack.isItemEnabled(this.player.serverLevel().enabledFeatures())) {
+        if (stack.isEmpty() || !stack.isItemEnabled(this.player.level().enabledFeatures())) {
             return;
         }
 
@@ -611,7 +611,7 @@ public abstract class ServerGamePacketListenerImplMixin {
         net.minecraft.world.phys.Vec3 look = this.player.getViewVector(1.0F);
         double blockRange = this.player.blockInteractionRange();
         net.minecraft.world.phys.Vec3 blockEnd = eye.add(look.scale(blockRange));
-        net.minecraft.world.phys.BlockHitResult blockHit = this.player.serverLevel().clip(
+        net.minecraft.world.phys.BlockHitResult blockHit = this.player.level().clip(
                 new net.minecraft.world.level.ClipContext(eye, blockEnd,
                         net.minecraft.world.level.ClipContext.Block.OUTLINE,
                         net.minecraft.world.level.ClipContext.Fluid.NONE, this.player));
@@ -622,7 +622,7 @@ public abstract class ServerGamePacketListenerImplMixin {
         net.minecraft.world.phys.Vec3 entityEnd = eye.add(look.scale(entityRange));
         net.minecraft.world.phys.AABB box = this.player.getBoundingBox().expandTowards(look.scale(entityRange)).inflate(1.0D);
         net.minecraft.world.phys.EntityHitResult entityHit = net.minecraft.world.entity.projectile.ProjectileUtil.getEntityHitResult(
-                this.player.serverLevel(), this.player, eye, entityEnd, box,
+                this.player.level(), this.player, eye, entityEnd, box,
                 entity -> !entity.isSpectator() && entity.isPickable() && !entity.isPassengerOfSameVehicle(this.player),
                 (float) (entityRange * entityRange));
         boolean hasEntity = entityHit != null && entityHit.getEntity() != null;
@@ -643,7 +643,7 @@ public abstract class ServerGamePacketListenerImplMixin {
         net.minecraft.world.phys.Vec3 look = this.player.getViewVector(1.0F);
         double range = this.player.blockInteractionRange();
         net.minecraft.world.phys.Vec3 end = eye.add(look.scale(range));
-        net.minecraft.world.phys.BlockHitResult hit = this.player.serverLevel().clip(
+        net.minecraft.world.phys.BlockHitResult hit = this.player.level().clip(
                 new net.minecraft.world.level.ClipContext(eye, end,
                         net.minecraft.world.level.ClipContext.Block.OUTLINE,
                         net.minecraft.world.level.ClipContext.Fluid.NONE, this.player));
@@ -671,10 +671,41 @@ public abstract class ServerGamePacketListenerImplMixin {
         LunarArcServerAccess.getCraftServer(this.player.server).getPluginManager().callEvent(event);
         if (event.isCancelled()) {
             ((ServerGamePacketListenerImpl) (Object) this).send(
-                    new ClientboundSetCarriedItemPacket(this.player.getInventory().selected));
+                    new ClientboundSetHeldSlotPacket(this.player.getInventory().selected));
             this.player.resetLastActionTime();
             ci.cancel();
         }
+    }
+
+    @org.spongepowered.asm.mixin.Unique
+    private net.minecraft.resources.Identifier lunararc$recipeKey(net.minecraft.network.protocol.game.ServerboundPlaceRecipePacket packet) {
+        var info = this.player.level().getServer().getRecipeManager().getRecipeFromDisplay(packet.recipe());
+        return info == null ? net.minecraft.resources.Identifier.withDefaultNamespace("unknown") : info.parent().id().identifier();
+    }
+
+    /** Sneak toggles arrive through the player-input packet now (Paper: PlayerInputEvent + PlayerToggleSneakEvent). */
+    @Inject(method = "handlePlayerInput", at = @At("HEAD"), cancellable = true, require = 0)
+    private void lunararc$onPlayerInput(net.minecraft.network.protocol.game.ServerboundPlayerInputPacket packet, CallbackInfo ci) {
+        if (!this.player.server.isSameThread()) return; // vanilla re-queues onto the main thread, then we run again
+        Object bukkit = ((EntityBridge) this.player).lunararc$getBukkitEntity();
+        if (!(bukkit instanceof Player bukkitPlayer)) return;
+        var craftServer = LunarArcServerAccess.getCraftServer(this.player.server);
+        net.minecraft.world.entity.player.Input last = this.player.getLastClientInput();
+        net.minecraft.world.entity.player.Input now = packet.input();
+        if (!now.equals(last)) {
+            craftServer.getPluginManager().callEvent(new org.bukkit.event.player.PlayerInputEvent(
+                    bukkitPlayer, new org.bukkit.craftbukkit.CraftInput(now)));
+        }
+        if (last.shift() == now.shift()) return;
+        org.bukkit.event.player.PlayerToggleSneakEvent event = new org.bukkit.event.player.PlayerToggleSneakEvent(bukkitPlayer, now.shift());
+        craftServer.getPluginManager().callEvent(event);
+        boolean loaded = ((ServerGamePacketListenerImpl) (Object) this).hasClientLoaded();
+        this.player.setLastClientInput(now);
+        if (loaded) {
+            this.player.resetLastActionTime();
+            if (!event.isCancelled()) this.player.setShiftKeyDown(now.shift());
+        }
+        ci.cancel();
     }
 
     @Inject(method = "handlePlayerCommand", at = @At("HEAD"), cancellable = true, require = 0)
@@ -689,16 +720,7 @@ public abstract class ServerGamePacketListenerImplMixin {
             return;
         }
         var action = packet.getAction();
-        if (action == ServerboundPlayerCommandPacket.Action.PRESS_SHIFT_KEY
-                || action == ServerboundPlayerCommandPacket.Action.RELEASE_SHIFT_KEY) {
-            boolean sneaking = action == ServerboundPlayerCommandPacket.Action.PRESS_SHIFT_KEY;
-            org.bukkit.event.player.PlayerToggleSneakEvent event =
-                    new org.bukkit.event.player.PlayerToggleSneakEvent(bukkitPlayer, sneaking);
-            LunarArcServerAccess.getCraftServer(this.player.server).getPluginManager().callEvent(event);
-            if (event.isCancelled()) {
-                ci.cancel();
-            }
-        } else if (action == ServerboundPlayerCommandPacket.Action.START_SPRINTING
+        if (action == ServerboundPlayerCommandPacket.Action.START_SPRINTING
                 || action == ServerboundPlayerCommandPacket.Action.STOP_SPRINTING) {
             boolean sprinting = action == ServerboundPlayerCommandPacket.Action.START_SPRINTING;
             org.bukkit.event.player.PlayerToggleSprintEvent event =
@@ -795,7 +817,7 @@ public abstract class ServerGamePacketListenerImplMixin {
         // QUICK_CRAFT is a multi-packet drag operation. It is handled against
         // AbstractContainerMenu's authoritative drag state by
         // AbstractContainerMenuMixin and must not be approximated as a click.
-        if (packet.getClickType() == net.minecraft.world.inventory.ClickType.QUICK_CRAFT) {
+        if (packet.clickType() == net.minecraft.world.inventory.ClickType.QUICK_CRAFT) {
             return;
         }
 
@@ -805,11 +827,11 @@ public abstract class ServerGamePacketListenerImplMixin {
         }
 
         org.bukkit.inventory.InventoryView view = craftPlayer.getOpenInventory();
-        int rawSlot = packet.getSlotNum();
+        int rawSlot = packet.slotNum();
         org.bukkit.event.inventory.InventoryType.SlotType slotType = view.getSlotType(rawSlot);
-        org.bukkit.event.inventory.ClickType click = lunararc$clickType(packet.getClickType(), packet.getButtonNum());
+        org.bukkit.event.inventory.ClickType click = lunararc$clickType(packet.clickType(), packet.buttonNum());
         org.bukkit.event.inventory.InventoryAction action = lunararc$inventoryAction(packet, view);
-        int hotbarKey = packet.getClickType() == net.minecraft.world.inventory.ClickType.SWAP ? packet.getButtonNum() : -1;
+        int hotbarKey = packet.clickType() == net.minecraft.world.inventory.ClickType.SWAP ? packet.buttonNum() : -1;
         org.bukkit.event.inventory.InventoryClickEvent event;
         if (rawSlot == 0 && view.getTopInventory() instanceof org.bukkit.inventory.CraftingInventory crafting
                 && crafting.getRecipe() != null) {
@@ -851,11 +873,11 @@ public abstract class ServerGamePacketListenerImplMixin {
             ServerboundContainerClickPacket packet, org.bukkit.inventory.InventoryView view) {
         final org.bukkit.event.inventory.InventoryAction nothing =
                 org.bukkit.event.inventory.InventoryAction.NOTHING;
-        int slotNum = packet.getSlotNum();
-        int button = packet.getButtonNum();
+        int slotNum = packet.slotNum();
+        int button = packet.buttonNum();
         net.minecraft.world.inventory.AbstractContainerMenu menu = this.player.containerMenu;
 
-        switch (packet.getClickType()) {
+        switch (packet.clickType()) {
             case PICKUP -> {
                 if (button != 0 && button != 1) return org.bukkit.event.inventory.InventoryAction.UNKNOWN;
                 if (slotNum == -999) {
@@ -1043,7 +1065,7 @@ public abstract class ServerGamePacketListenerImplMixin {
     @Inject(method = "handlePlaceRecipe", at = @At("HEAD"), cancellable = true, require = 0)
     private void lunararc$recipeClick(net.minecraft.network.protocol.game.ServerboundPlaceRecipePacket packet, CallbackInfo ci) {
         if (!this.player.server.isSameThread()) return;
-        if (!io.lunararcdevs.lunararc.common.event.LunarArcMoreEvents.recipeBookClick(this.player, packet.getRecipe(), packet.isShiftDown())) ci.cancel();
+        if (!io.lunararcdevs.lunararc.common.event.LunarArcMoreEvents.recipeBookClick(this.player, lunararc$recipeKey(packet), packet.useMaxItems())) ci.cancel();
     }
 
     @Inject(method = "handleRecipeBookChangeSettingsPacket", at = @At("HEAD"), require = 0)

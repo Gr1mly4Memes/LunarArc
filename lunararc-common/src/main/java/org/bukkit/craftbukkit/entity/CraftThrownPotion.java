@@ -6,14 +6,12 @@ import java.util.List;
 import java.util.Objects;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.item.alchemy.PotionContents;
 import org.bukkit.NamespacedKey;
 import org.bukkit.craftbukkit.CraftServer;
 import org.bukkit.craftbukkit.inventory.CraftItemStack;
-import org.bukkit.entity.LingeringPotion;
-import org.bukkit.entity.SplashPotion;
 import org.bukkit.entity.ThrownPotion;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.PotionMeta;
@@ -21,14 +19,15 @@ import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.jetbrains.annotations.NotNull;
 
-public final class CraftThrownPotion extends CraftThrowableProjectile implements ThrownPotion, SplashPotion, LingeringPotion {
-    public CraftThrownPotion(CraftServer server, net.minecraft.world.entity.projectile.ThrownPotion entity) {
+/** Base for the splash and lingering wrappers (CraftThrownSplashPotion / CraftThrownLingeringPotion come from Paper). */
+public abstract class CraftThrownPotion extends CraftThrowableProjectile implements ThrownPotion {
+    protected CraftThrownPotion(CraftServer server, net.minecraft.world.entity.projectile.throwableitemprojectile.AbstractThrownPotion entity) {
         super(server, entity);
     }
 
     @Override
-    public net.minecraft.world.entity.projectile.ThrownPotion getHandle() {
-        return (net.minecraft.world.entity.projectile.ThrownPotion) this.entity;
+    public net.minecraft.world.entity.projectile.throwableitemprojectile.AbstractThrownPotion getHandle() {
+        return (net.minecraft.world.entity.projectile.throwableitemprojectile.AbstractThrownPotion) this.entity;
     }
 
     @Override
@@ -76,7 +75,7 @@ public final class CraftThrownPotion extends CraftThrowableProjectile implements
     }
 
     private static PotionEffect toBukkit(MobEffectInstance effect) {
-        ResourceLocation id = effect.getEffect().unwrapKey().map(ResourceKey::location)
+        Identifier id = effect.getEffect().unwrapKey().map(ResourceKey::identifier)
                 .orElseGet(() -> net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value()));
         if (id == null) return null;
         PotionEffectType type = PotionEffectType.getByKey(new NamespacedKey(id.getNamespace(), id.getPath()));

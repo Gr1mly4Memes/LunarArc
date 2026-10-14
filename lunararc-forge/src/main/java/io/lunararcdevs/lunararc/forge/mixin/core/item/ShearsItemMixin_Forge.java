@@ -18,7 +18,7 @@ public abstract class ShearsItemMixin_Forge {
             target = "Lnet/minecraftforge/common/IForgeShearable;onSheared(Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;I)Ljava/util/List;"))
     private void lunararc$shear(ItemStack stack, Player player, LivingEntity entity, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
         if (CraftEventFactory.callPlayerShearEntityCancelled(player, entity, stack, hand)) {
-            cir.setReturnValue(InteractionResult.PASS);
+            cir.setReturnValue(io.lunararcdevs.lunararc.common.util.LunarArcMojangNames.pass());
         }
     }
 }

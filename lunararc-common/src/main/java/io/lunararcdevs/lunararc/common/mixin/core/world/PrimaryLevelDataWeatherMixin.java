@@ -21,7 +21,7 @@ public abstract class PrimaryLevelDataWeatherMixin {
         if (this.raining == raining || Bukkit.getServer() == null) return;
         org.bukkit.World world = Bukkit.getWorld(this.getLevelName());
         if (world == null) return;
-        WeatherChangeEvent event = new WeatherChangeEvent(world, raining);
+        WeatherChangeEvent event = new WeatherChangeEvent(world, raining, WeatherChangeEvent.Cause.UNKNOWN);
         Bukkit.getPluginManager().callEvent(event);
         if (event.isCancelled()) ci.cancel();
     }
@@ -31,7 +31,7 @@ public abstract class PrimaryLevelDataWeatherMixin {
         if (this.thundering == thundering || Bukkit.getServer() == null) return;
         org.bukkit.World world = Bukkit.getWorld(this.getLevelName());
         if (world == null) return;
-        ThunderChangeEvent event = new ThunderChangeEvent(world, thundering);
+        ThunderChangeEvent event = new ThunderChangeEvent(world, thundering, ThunderChangeEvent.Cause.UNKNOWN);
         Bukkit.getPluginManager().callEvent(event);
         if (event.isCancelled()) ci.cancel();
     }

@@ -30,7 +30,7 @@ public final class NeoForgeEntityTeleportEvents {
 
     private static PlayerTeleportEvent.TeleportCause cause(EntityTeleportEvent event) {
         if (event instanceof EntityTeleportEvent.EnderPearl) return PlayerTeleportEvent.TeleportCause.ENDER_PEARL;
-        if (event instanceof EntityTeleportEvent.ChorusFruit) return PlayerTeleportEvent.TeleportCause.CHORUS_FRUIT;
+        if (event instanceof EntityTeleportEvent.ItemConsumption) return PlayerTeleportEvent.TeleportCause.CHORUS_FRUIT;
         if (event instanceof EntityTeleportEvent.TeleportCommand || event instanceof EntityTeleportEvent.SpreadPlayersCommand) {
             return PlayerTeleportEvent.TeleportCause.COMMAND;
         }

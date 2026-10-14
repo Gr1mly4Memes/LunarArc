@@ -55,6 +55,13 @@ public final class PaperPathfinder implements Pathfinder {
         Path path = entity.getNavigation().createPath(craft.getHandle(), 0);
         return path == null ? null : new Result(path);
     }
+    @Override public @Nullable PathResult findPath(@NotNull org.bukkit.entity.Entity target) {
+        Objects.requireNonNull(target, "target");
+        if (!(target instanceof org.bukkit.craftbukkit.entity.CraftEntity craft)) throw new IllegalArgumentException("Target must be backed by LunarArc");
+        if (target.getWorld() != getEntity().getWorld()) throw new IllegalArgumentException("Target must be in the same world");
+        Path path = entity.getNavigation().createPath(craft.getHandle(), 0);
+        return path == null ? null : new Result(path);
+    }
     @Override public boolean moveTo(@NotNull PathResult result, double speed) {
         Objects.requireNonNull(result, "result");
         if (!(result instanceof Result ours)) throw new IllegalArgumentException("PathResult was not created by this LunarArc pathfinder");

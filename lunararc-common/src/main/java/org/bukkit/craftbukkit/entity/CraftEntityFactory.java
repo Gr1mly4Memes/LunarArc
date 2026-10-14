@@ -5,7 +5,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
 import org.bukkit.entity.EntityFactory;
@@ -26,18 +26,22 @@ public final class CraftEntityFactory implements EntityFactory {
         Preconditions.checkArgument(input != null, "Input string cannot be null");
         final CompoundTag tag;
         try {
-            tag = TagParser.parseTag(input);
+            tag = TagParser.parseCompoundFully(input);
         } catch (CommandSyntaxException exception) {
             throw new IllegalArgumentException("Could not parse Entity: " + input, exception);
         }
 
-        net.minecraft.world.entity.EntityType<?> minecraftType =
-                net.minecraft.world.entity.EntityType.by(tag).orElse(null);
+        net.minecraft.world.entity.EntityType<?> minecraftType;
+        try (net.minecraft.util.ProblemReporter.ScopedCollector problems = new net.minecraft.util.ProblemReporter.ScopedCollector(
+                () -> "createEntitySnapshot", org.slf4j.LoggerFactory.getLogger(CraftEntityFactory.class))) {
+            minecraftType = net.minecraft.world.entity.EntityType.by(
+                    net.minecraft.world.level.storage.TagValueInput.create(problems, org.bukkit.craftbukkit.CraftRegistry.getMinecraftRegistry(), tag)).orElse(null);
+        }
         if (minecraftType == null) {
             throw new IllegalArgumentException("Could not parse Entity: " + input);
         }
 
-        ResourceLocation id = BuiltInRegistries.ENTITY_TYPE.getKey(minecraftType);
+        Identifier id = BuiltInRegistries.ENTITY_TYPE.getKey(minecraftType);
         if (id == null) {
             throw new IllegalArgumentException("Entity type from snapshot is not registered: " + minecraftType);
         }

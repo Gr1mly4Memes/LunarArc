@@ -74,15 +74,13 @@ public abstract class FireworkRocketEntityMixin implements FireworkRocketBridge 
         ((FireworkRocketEntity) (Object) this).getEntityData().set(DATA_ID_FIREWORKS_ITEM, item);
     }
 
-    @Inject(method = "addAdditionalSaveData", at = @At("TAIL"), require = 0)
-    private void lunararc$savePaperSpawningEntity(CompoundTag tag, CallbackInfo ci) {
-        if (this.lunararc$spawningEntity != null) {
-            tag.putUUID("SpawningEntity", this.lunararc$spawningEntity);
-        }
+    @Inject(method = "addAdditionalSaveData", at = @At("TAIL"), require = 1)
+    private void lunararc$savePaperSpawningEntity(net.minecraft.world.level.storage.ValueOutput output, CallbackInfo ci) {
+        if (this.lunararc$spawningEntity != null) output.store("SpawningEntity", net.minecraft.core.UUIDUtil.CODEC, this.lunararc$spawningEntity);
     }
 
-    @Inject(method = "readAdditionalSaveData", at = @At("TAIL"), require = 0)
-    private void lunararc$loadPaperSpawningEntity(CompoundTag tag, CallbackInfo ci) {
-        this.lunararc$spawningEntity = tag.hasUUID("SpawningEntity") ? tag.getUUID("SpawningEntity") : null;
+    @Inject(method = "readAdditionalSaveData", at = @At("TAIL"), require = 1)
+    private void lunararc$loadPaperSpawningEntity(net.minecraft.world.level.storage.ValueInput input, CallbackInfo ci) {
+        this.lunararc$spawningEntity = input.read("SpawningEntity", net.minecraft.core.UUIDUtil.CODEC).orElse(null);
     }
 }

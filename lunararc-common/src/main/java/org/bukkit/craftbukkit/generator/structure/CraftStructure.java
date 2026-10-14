@@ -25,8 +25,8 @@ public final class CraftStructure extends Structure {
         java.util.Objects.requireNonNull(minecraft, "minecraft");
         net.minecraft.server.MinecraftServer server = ((org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer()).getServer();
         if (server == null) throw new IllegalStateException("MinecraftServer is not initialized");
-        net.minecraft.resources.ResourceLocation id = server.registryAccess()
-                .registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE)
+        net.minecraft.resources.Identifier id = server.registryAccess()
+                .lookupOrThrow(net.minecraft.core.registries.Registries.STRUCTURE)
                 .getKey(minecraft);
         if (id == null) throw new IllegalArgumentException("Unregistered Minecraft structure " + minecraft);
         Structure result = org.bukkit.Registry.STRUCTURE.get(
@@ -40,11 +40,11 @@ public final class CraftStructure extends Structure {
         if (bukkit instanceof CraftStructure craft) return craft.getHandle();
         net.minecraft.server.MinecraftServer server = ((org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer()).getServer();
         if (server == null) throw new IllegalStateException("MinecraftServer is not initialized");
-        net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+        net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.fromNamespaceAndPath(
                 bukkit.getKey().getNamespace(), bukkit.getKey().getKey());
         net.minecraft.world.level.levelgen.structure.Structure result = server.registryAccess()
-                .registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE)
-                .get(id);
+                .lookupOrThrow(net.minecraft.core.registries.Registries.STRUCTURE)
+                .getValue(id);
         if (result == null) throw new IllegalArgumentException("Unregistered Bukkit structure " + bukkit.getKey());
         return result;
     }

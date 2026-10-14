@@ -20,6 +20,6 @@ public interface ItemEntityAccessor extends io.lunararcdevs.lunararc.common.brid
 
     @Accessor("target") UUID lunararc$getTarget();
 
-    @Accessor("thrower") UUID lunararc$getThrower();
-    @Accessor("thrower") void lunararc$setThrower(UUID thrower);
+    @Accessor("thrower") net.minecraft.world.entity.EntityReference<net.minecraft.world.entity.Entity> lunararc$getThrower();
+    @Accessor("thrower") void lunararc$setThrower(net.minecraft.world.entity.EntityReference<net.minecraft.world.entity.Entity> thrower);
 }

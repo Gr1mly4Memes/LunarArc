@@ -2,17 +2,16 @@ package io.lunararcdevs.lunararc.forge.event;
 
 import io.lunararcdevs.lunararc.common.event.LunarArcNativeEntityEvents;
 import net.minecraftforge.event.entity.EntityTeleportEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
 import org.bukkit.event.player.PlayerTeleportEvent;
 
 public final class ForgeEntityTeleportEvents {
     private ForgeEntityTeleportEvents() {}
 
-    public static void register(IEventBus bus) {
-        bus.addListener(ForgeEntityTeleportEvents::onTeleport);
+    public static void register() {
+        EntityTeleportEvent.BUS.addListener((java.util.function.Predicate<EntityTeleportEvent>) ForgeEntityTeleportEvents::onTeleport);
     }
 
-    private static void onTeleport(EntityTeleportEvent forgeEvent) {
+    private static boolean onTeleport(EntityTeleportEvent forgeEvent) {
         LunarArcNativeEntityEvents.TeleportResult result = LunarArcNativeEntityEvents.fireNativeTeleport(
                 forgeEvent.getEntity(),
                 forgeEvent.getTargetX(),
@@ -20,12 +19,12 @@ public final class ForgeEntityTeleportEvents {
                 forgeEvent.getTargetZ(),
                 cause(forgeEvent));
         if (result.cancelled()) {
-            forgeEvent.setCanceled(true);
-            return;
+            return true;
         }
         forgeEvent.setTargetX(result.x());
         forgeEvent.setTargetY(result.y());
         forgeEvent.setTargetZ(result.z());
+        return false;
     }
 
     private static PlayerTeleportEvent.TeleportCause cause(EntityTeleportEvent event) {

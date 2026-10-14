@@ -1,68 +1,69 @@
 package org.bukkit.craftbukkit.entity;
 
+import com.google.common.collect.ImmutableList;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import net.minecraft.core.Holder;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.item.alchemy.PotionContents;
 import org.bukkit.Color;
-import org.bukkit.NamespacedKey;
-import org.bukkit.Registry;
 import org.bukkit.craftbukkit.CraftServer;
+import org.bukkit.craftbukkit.potion.CraftPotionEffectType;
+import org.bukkit.craftbukkit.potion.CraftPotionType;
+import org.bukkit.craftbukkit.potion.CraftPotionUtil;
 import org.bukkit.entity.Arrow;
 import org.bukkit.potion.PotionData;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.potion.PotionType;
-import org.jetbrains.annotations.Nullable;
 
 public class CraftArrow extends CraftAbstractArrow implements Arrow {
-    private static final int NO_EFFECT_COLOR = -1;
 
-    public CraftArrow(CraftServer server, net.minecraft.world.entity.projectile.Arrow entity) {
+    public CraftArrow(CraftServer server, net.minecraft.world.entity.projectile.arrow.Arrow entity) {
         super(server, entity);
     }
 
     @Override
-    public net.minecraft.world.entity.projectile.Arrow getHandle() {
-        return (net.minecraft.world.entity.projectile.Arrow) this.entity;
+    public net.minecraft.world.entity.projectile.arrow.Arrow getHandle() {
+        return (net.minecraft.world.entity.projectile.arrow.Arrow) this.entity;
     }
 
     @Override
-    public boolean addCustomEffect(PotionEffect effect, boolean overwrite) {
-        Objects.requireNonNull(effect, "effect");
+    public boolean addCustomEffect(PotionEffect effect, boolean override) {
         if (this.hasCustomEffect(effect.getType())) {
-            if (!overwrite) return false;
+            if (!override) {
+                return false;
+            }
             this.removeCustomEffect(effect.getType());
         }
-        this.getHandle().addEffect(toMinecraft(effect));
+        this.getHandle().addEffect(CraftPotionUtil.fromBukkit(effect));
         return true;
     }
 
     @Override
     public void clearCustomEffects() {
         PotionContents old = this.getHandle().getPotionContents();
-        this.getHandle().setPotionContents(new PotionContents(old.potion(), old.customColor(), List.of()));
+        this.getHandle().setPotionContents(new PotionContents(old.potion(), old.customColor(), List.of(), old.customName()));
     }
 
     @Override
     public List<PotionEffect> getCustomEffects() {
-        return this.getHandle().getPotionContents().customEffects().stream().map(CraftArrow::toBukkit).toList();
+        ImmutableList.Builder<PotionEffect> builder = ImmutableList.builder();
+        for (MobEffectInstance effect : this.getHandle().getPotionContents().customEffects()) {
+            builder.add(CraftPotionUtil.toBukkit(effect));
+        }
+        return builder.build();
     }
 
     @Override
-    public boolean hasCustomEffect(@Nullable PotionEffectType type) {
-        if (type == null) return false;
-        ResourceLocation wanted = ResourceLocation.parse(type.getKey().toString());
-        return this.getHandle().getPotionContents().customEffects().stream().anyMatch(effect -> {
-            ResourceLocation id = BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
-            return wanted.equals(id);
-        });
+    public boolean hasCustomEffect(PotionEffectType type) {
+        for (MobEffectInstance effect : this.getHandle().getPotionContents().customEffects()) {
+            if (CraftPotionUtil.equals(effect.getEffect(), type)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -71,84 +72,55 @@ public class CraftArrow extends CraftAbstractArrow implements Arrow {
     }
 
     @Override
-    public boolean removeCustomEffect(PotionEffectType type) {
-        Objects.requireNonNull(type, "type");
-        ResourceLocation wanted = ResourceLocation.parse(type.getKey().toString());
+    public boolean removeCustomEffect(PotionEffectType effect) {
+        if (!this.hasCustomEffect(effect)) {
+            return false;
+        }
+        Holder<MobEffect> minecraft = CraftPotionEffectType.bukkitToMinecraftHolder(effect);
+
         PotionContents old = this.getHandle().getPotionContents();
-        List<MobEffectInstance> kept = old.customEffects().stream().filter(effect -> {
-            ResourceLocation id = BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
-            return !wanted.equals(id);
-        }).toList();
-        if (kept.size() == old.customEffects().size()) return false;
-        this.getHandle().setPotionContents(new PotionContents(old.potion(), old.customColor(), kept));
+        this.getHandle().setPotionContents(new PotionContents(old.potion(), old.customColor(), old.customEffects().stream().filter((mobEffect) -> !mobEffect.getEffect().equals(minecraft)).toList(), old.customName()));
         return true;
     }
 
     @Override
-    @Deprecated
-    public void setBasePotionData(@Nullable PotionData data) {
-        this.setBasePotionType(data == null ? null : data.getType());
+    public void setBasePotionData(PotionData data) {
+        this.setBasePotionType(CraftPotionUtil.fromBukkit(data));
     }
 
     @Override
-    @Deprecated
-    public @Nullable PotionData getBasePotionData() {
-        PotionType type = this.getBasePotionType();
-        return type == null ? null : new PotionData(type);
+    public PotionData getBasePotionData() {
+        return CraftPotionUtil.toBukkit(this.getBasePotionType());
     }
 
     @Override
-    public void setBasePotionType(@Nullable PotionType type) {
-        PotionContents old = this.getHandle().getPotionContents();
-        if (type == null) {
-            this.getHandle().setPotionContents(new PotionContents(Optional.empty(), old.customColor(), old.customEffects()));
-            return;
+    public void setBasePotionType(PotionType potionType) {
+        if (potionType != null) {
+            this.getHandle().setPotionContents(this.getHandle().getPotionContents().withPotion(CraftPotionType.bukkitToMinecraftHolder(potionType)));
+        } else {
+            PotionContents old = this.getHandle().getPotionContents();
+            this.getHandle().setPotionContents(new PotionContents(Optional.empty(), old.customColor(), old.customEffects(), old.customName()));
         }
-        var registry = this.getHandle().registryAccess().registryOrThrow(Registries.POTION);
-        Holder<net.minecraft.world.item.alchemy.Potion> holder = registry.getHolder(ResourceLocation.parse(type.getKey().toString()))
-                .orElseThrow(() -> new IllegalArgumentException("Unknown potion type " + type.getKey()));
-        this.getHandle().setPotionContents(new PotionContents(Optional.of(holder), old.customColor(), old.customEffects()));
     }
 
     @Override
-    public @Nullable PotionType getBasePotionType() {
-        return this.getHandle().getPotionContents().potion().map(holder -> {
-            ResourceLocation id = this.getHandle().registryAccess().registryOrThrow(Registries.POTION).getKey(holder.value());
-            if (id == null) throw new IllegalStateException("Arrow has an unregistered potion");
-            return Registry.POTION.get(new NamespacedKey(id.getNamespace(), id.getPath()));
-        }).orElse(null);
+    public PotionType getBasePotionType() {
+        return this.getHandle().getPotionContents().potion().map(CraftPotionType::minecraftHolderToBukkit).orElse(null);
     }
 
     @Override
-    public void setColor(@Nullable Color color) {
+    public void setColor(Color color) {
+        int colorRGB = (color == null) ? net.minecraft.world.entity.projectile.arrow.Arrow.NO_EFFECT_COLOR : color.asARGB(); // Paper
         PotionContents old = this.getHandle().getPotionContents();
-        Optional<Integer> customColor = color == null ? Optional.empty() : Optional.of(color.asARGB());
-        this.getHandle().setPotionContents(new PotionContents(old.potion(), customColor, old.customEffects()));
+        this.getHandle().setPotionContents(new PotionContents(old.potion(), Optional.of(colorRGB), old.customEffects(), old.customName()));
     }
 
     @Override
-    public @Nullable Color getColor() {
-        int color = this.getHandle().getColor();
-        return color == NO_EFFECT_COLOR ? null : Color.fromARGB(color);
-    }
-
-    private static MobEffectInstance toMinecraft(PotionEffect effect) {
-        ResourceLocation id = ResourceLocation.parse(effect.getType().getKey().toString());
-        Holder<MobEffect> holder = BuiltInRegistries.MOB_EFFECT.getHolder(id)
-                .orElseThrow(() -> new IllegalArgumentException("Unknown potion effect " + effect.getType().getKey()));
-        return new MobEffectInstance(holder, effect.getDuration(), effect.getAmplifier(), effect.isAmbient(), effect.hasParticles(), effect.hasIcon());
-    }
-
-    private static PotionEffect toBukkit(MobEffectInstance effect) {
-        ResourceLocation id = BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
-        if (id == null) throw new IllegalStateException("Unregistered mob effect " + effect.getEffect());
-        PotionEffectType type = PotionEffectType.getByKey(new NamespacedKey(id.getNamespace(), id.getPath()));
-        if (type == null) throw new IllegalStateException("No Bukkit potion effect for " + id);
-        return new PotionEffect(type, effect.getDuration(), effect.getAmplifier(), effect.isAmbient(), effect.isVisible(), effect.showIcon());
-    }
-
-    @Override
-    public String toString() {
-        return "CraftArrow";
+    public Color getColor() {
+        int color = this.getHandle().getColor(); // Paper
+        if (color == net.minecraft.world.entity.projectile.arrow.Arrow.NO_EFFECT_COLOR) { // Paper
+            return null;
+        }
+        return Color.fromARGB(color); // Paper
     }
 }

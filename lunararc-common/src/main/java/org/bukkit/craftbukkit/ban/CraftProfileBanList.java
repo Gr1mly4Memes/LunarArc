@@ -9,6 +9,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.players.NameAndId;
 import net.minecraft.server.players.UserBanList;
 import net.minecraft.server.players.UserBanListEntry;
 import org.bukkit.BanEntry;
@@ -27,8 +28,9 @@ public final class CraftProfileBanList implements org.bukkit.ban.ProfileBanList 
 
     private BanEntry<com.destroystokyo.paper.profile.PlayerProfile> getBanEntry(GameProfile profile) {
         if (profile == null) return null;
-        UserBanListEntry entry = this.list.get(profile);
-        return entry == null ? null : new CraftProfileBanEntry(profile, entry, this.list);
+        NameAndId id = new NameAndId(profile);
+        UserBanListEntry entry = this.list.get(id);
+        return entry == null ? null : new CraftProfileBanEntry(id, entry, this.list);
     }
 
     @Override public @Nullable BanEntry<com.destroystokyo.paper.profile.PlayerProfile> addBan(@NotNull String target, @Nullable String reason, @Nullable Date expires, @Nullable String source) { return addBan(profileByName(target), reason, expires, source); }
@@ -40,10 +42,11 @@ public final class CraftProfileBanList implements org.bukkit.ban.ProfileBanList 
     @Override public @Nullable BanEntry<com.destroystokyo.paper.profile.PlayerProfile> addBan(@NotNull com.destroystokyo.paper.profile.PlayerProfile target, @Nullable String reason, @Nullable Duration duration, @Nullable String source) { return addBan(target, reason, duration == null ? null : Instant.now().plus(duration), source); }
 
     private BanEntry<com.destroystokyo.paper.profile.PlayerProfile> addBan(GameProfile profile, String reason, Date expires, String source) {
-        if (profile == null || profile.getId() == null) return null;
-        UserBanListEntry entry = new UserBanListEntry(profile, new Date(), blankToNull(source), expires, blankToNull(reason));
+        if (profile == null || profile.id() == null) return null;
+        NameAndId id = new NameAndId(profile);
+        UserBanListEntry entry = new UserBanListEntry(id, new Date(), blankToNull(source), expires, blankToNull(reason));
         this.list.add(entry);
-        return new CraftProfileBanEntry(profile, entry, this.list);
+        return new CraftProfileBanEntry(id, entry, this.list);
     }
 
     @Override public Set getBanEntries() { return new LinkedHashSet<>(getEntries()); }
@@ -55,11 +58,11 @@ public final class CraftProfileBanList implements org.bukkit.ban.ProfileBanList 
     @Override public boolean isBanned(@NotNull String target) { return isBanned(profile(target)); }
     @Override public boolean isBanned(@NotNull PlayerProfile target) { return isBanned(toGameProfile(target)); }
     @Override public boolean isBanned(@NotNull com.destroystokyo.paper.profile.PlayerProfile target) { return isBanned(toGameProfile(target)); }
-    private boolean isBanned(GameProfile profile) { return profile != null && this.list.isBanned(profile); }
+    private boolean isBanned(GameProfile profile) { return profile != null && this.list.isBanned(new NameAndId(profile)); }
     @Override public void pardon(@NotNull String target) { pardon(profile(target)); }
     @Override public void pardon(@NotNull PlayerProfile target) { pardon(toGameProfile(target)); }
     @Override public void pardon(@NotNull com.destroystokyo.paper.profile.PlayerProfile target) { pardon(toGameProfile(target)); }
-    private void pardon(GameProfile profile) { if (profile != null) this.list.remove(profile); }
+    private void pardon(GameProfile profile) { if (profile != null) this.list.remove(new NameAndId(profile)); }
 
     static GameProfile profile(String target) {
         java.util.Objects.requireNonNull(target, "target");
@@ -67,11 +70,11 @@ public final class CraftProfileBanList implements org.bukkit.ban.ProfileBanList 
     }
     static GameProfile profileByUuid(UUID uuid) {
         MinecraftServer server = io.lunararcdevs.lunararc.common.mod.server.LunarArcServer.minecraftServer();
-        return server == null || server.getProfileCache() == null ? null : server.getProfileCache().get(uuid).orElse(null);
+        return server == null || server.services().nameToIdCache() == null ? null : server.services().nameToIdCache().get(uuid).map(id -> new GameProfile(id.id(), id.name())).orElse(null);
     }
     static GameProfile profileByName(String name) {
         MinecraftServer server = io.lunararcdevs.lunararc.common.mod.server.LunarArcServer.minecraftServer();
-        return server == null || server.getProfileCache() == null ? null : server.getProfileCache().get(name).orElse(null);
+        return server == null || server.services().nameToIdCache() == null ? null : server.services().nameToIdCache().get(name).map(id -> new GameProfile(id.id(), id.name())).orElse(null);
     }
 
     static GameProfile toGameProfile(PlayerProfile target) {
@@ -88,12 +91,12 @@ public final class CraftProfileBanList implements org.bukkit.ban.ProfileBanList 
     }
     private static void copyProperties(com.destroystokyo.paper.profile.PlayerProfile source, GameProfile target) {
         for (com.destroystokyo.paper.profile.ProfileProperty property : source.getProperties()) {
-            target.getProperties().put(property.getName(), new Property(property.getName(), property.getValue(), property.getSignature()));
+            target.properties().put(property.getName(), new Property(property.getName(), property.getValue(), property.getSignature()));
         }
     }
     static com.destroystokyo.paper.profile.PlayerProfile toBukkit(GameProfile profile) {
-        com.destroystokyo.paper.profile.CraftPlayerProfile result = new com.destroystokyo.paper.profile.CraftPlayerProfile(profile.getId(), profile.getName());
-        for (Property property : profile.getProperties().values()) {
+        com.destroystokyo.paper.profile.CraftPlayerProfile result = new com.destroystokyo.paper.profile.CraftPlayerProfile(profile.id(), profile.name());
+        for (Property property : profile.properties().values()) {
             result.setProperty(new com.destroystokyo.paper.profile.ProfileProperty(property.name(), property.value(), property.signature()));
         }
         return result;

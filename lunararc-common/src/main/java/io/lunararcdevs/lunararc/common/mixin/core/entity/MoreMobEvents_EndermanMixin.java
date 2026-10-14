@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.At;
 @Mixin(EnderMan.class)
 public abstract class MoreMobEvents_EndermanMixin {
 
-    @ModifyReturnValue(method = "isLookingAtMe", at = @At("RETURN"), require = 0)
+    @ModifyReturnValue(method = "isBeingStaredBy", at = @At("RETURN"), require = 1)
     private boolean lunararc$looked(boolean looking, Player player) {
         return looking && LunarArcMoreEvents.endermanLooked((EnderMan) (Object) this, player);
     }

@@ -11,8 +11,8 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.MerchantRecipe;
 
 public class CraftAbstractVillager extends CraftAgeable implements org.bukkit.entity.AbstractVillager {
-    public CraftAbstractVillager(CraftServer server, net.minecraft.world.entity.npc.AbstractVillager entity) { super(server, entity); }
-    @Override public net.minecraft.world.entity.npc.AbstractVillager getHandle() { return (net.minecraft.world.entity.npc.AbstractVillager) this.entity; }
+    public CraftAbstractVillager(CraftServer server, net.minecraft.world.entity.npc.villager.AbstractVillager entity) { super(server, entity); }
+    @Override public net.minecraft.world.entity.npc.villager.AbstractVillager getHandle() { return (net.minecraft.world.entity.npc.villager.AbstractVillager) this.entity; }
     protected AbstractVillagerBridge villagerBridge() { return (AbstractVillagerBridge) (Object) getHandle(); }
 
     @Override public Inventory getInventory() { return new CraftNMSInventory(getHandle().getInventory(), this); }

@@ -2,7 +2,7 @@ package org.bukkit.craftbukkit.block;
 
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.LevelAccessor;
 import org.bukkit.Chunk;
@@ -160,9 +160,9 @@ public class CraftBlockState implements BlockState {
         if (material.isLegacy()) {
             return org.bukkit.craftbukkit.legacy.CraftLegacy.fromLegacyData(material, (byte) 0);
         }
-        ResourceLocation key = ResourceLocation.fromNamespaceAndPath(material.getKey().getNamespace(), material.getKey().getKey());
+        Identifier key = Identifier.fromNamespaceAndPath(material.getKey().getNamespace(), material.getKey().getKey());
         if (!BuiltInRegistries.BLOCK.containsKey(key)) throw new IllegalArgumentException("Material is not a block: " + material);
-        return BuiltInRegistries.BLOCK.get(key).defaultBlockState();
+        return BuiltInRegistries.BLOCK.getValue(key).defaultBlockState();
     }
 
     protected final void requirePlaced() {
@@ -383,5 +383,11 @@ public class CraftBlockState implements BlockState {
     @Override
     public String toString() {
         return "CraftBlockState{" + getType() + " @ " + this.position + ", placed=" + this.placed + '}';
+    }
+
+    @Override
+    public boolean isSuffocating() {
+        this.requirePlaced();
+        return this.data.isSuffocating(this.getWorldHandle(), this.position);
     }
 }

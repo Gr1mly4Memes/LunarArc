@@ -5,35 +5,28 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.llamalad7.mixinextras.sugar.Local;
 import io.lunararcdevs.lunararc.common.event.LunarArcMoreEvents;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.util.RandomSource;
-import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.ConversionParams;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.LightningBolt;
-import net.minecraft.world.entity.animal.Pig;
-import net.minecraft.world.entity.animal.Sheep;
-import net.minecraft.world.entity.animal.horse.AbstractHorse;
-import net.minecraft.world.entity.monster.Slime;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.animal.pig.Pig;
+import net.minecraft.world.entity.monster.zombie.ZombifiedPiglin;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(Pig.class)
 public abstract class MobEvents_PigEventsMixin {
-    @Unique private boolean lunararc$zapCancelled;
-
-    @WrapOperation(method = "thunderHit", require = 0,
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerLevel;addFreshEntity(Lnet/minecraft/world/entity/Entity;)Z"))
-    private boolean lunararc$zap(ServerLevel level, Entity piglin, Operation<Boolean> original, @Local(argsOnly = true) LightningBolt bolt) {
-        this.lunararc$zapCancelled = !LunarArcMoreEvents.pigZap((Pig) (Object) this, bolt, piglin);
-        return !this.lunararc$zapCancelled && original.call(level, piglin);
-    }
-
-    @WrapOperation(method = "thunderHit", require = 0,
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/animal/Pig;discard()V"))
-    private void lunararc$keep(Pig pig, Operation<Void> original) {
-        boolean cancelled = this.lunararc$zapCancelled;
-        this.lunararc$zapCancelled = false;
-        if (!cancelled) original.call(pig);
+    @WrapOperation(method = "thunderHit", require = 1,
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/animal/pig/Pig;convertTo(Lnet/minecraft/world/entity/EntityType;Lnet/minecraft/world/entity/ConversionParams;Lnet/minecraft/world/entity/ConversionParams$AfterConversion;)Lnet/minecraft/world/entity/Mob;"))
+    private Mob lunararc$zap(Pig pig, EntityType<?> type, ConversionParams params, ConversionParams.AfterConversion<?> after,
+            Operation<Mob> original, @Local(argsOnly = true) ServerLevel level, @Local(argsOnly = true) LightningBolt bolt) {
+        // PigZapEvent needs the piglin; build an unspawned stand-in. A null result makes vanilla take its normal lightning path.
+        ZombifiedPiglin preview = EntityType.ZOMBIFIED_PIGLIN.create(level, EntitySpawnReason.CONVERSION);
+        if (preview != null) {
+            preview.snapTo(pig.getX(), pig.getY(), pig.getZ(), pig.getYRot(), pig.getXRot());
+            if (!LunarArcMoreEvents.pigZap(pig, bolt, preview)) return null;
+        }
+        return original.call(pig, type, params, after);
     }
 }

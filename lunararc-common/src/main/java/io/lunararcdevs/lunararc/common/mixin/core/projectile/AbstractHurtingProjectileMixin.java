@@ -1,7 +1,7 @@
 package io.lunararcdevs.lunararc.common.mixin.core.projectile;
 
 import io.lunararcdevs.lunararc.common.bridge.AbstractHurtingProjectileBridge;
-import net.minecraft.world.entity.projectile.AbstractHurtingProjectile;
+import net.minecraft.world.entity.projectile.hurtingprojectile.AbstractHurtingProjectile;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 

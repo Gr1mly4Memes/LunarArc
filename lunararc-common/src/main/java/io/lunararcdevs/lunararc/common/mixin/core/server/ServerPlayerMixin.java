@@ -31,7 +31,7 @@ public abstract class ServerPlayerMixin implements ServerPlayerClientOptionsBrid
         io.lunararcdevs.lunararc.common.bridge.ServerPlayerInventoryBridge,
         io.lunararcdevs.lunararc.common.bridge.ServerPlayerDeathBridge,
         io.lunararcdevs.lunararc.common.bridge.ServerPlayerRespawnBridge,
-        io.lunararcdevs.lunararc.common.bridge.ServerPlayerSpawnBridge {
+        io.lunararcdevs.lunararc.common.bridge.ServerPlayerSpawnBridge, io.lunararcdevs.lunararc.common.bridge.ServerPlayerListOrderBridge {
     @Shadow private int containerCounter;
     @Shadow private void nextContainerCounter() {}
     @Shadow private void initMenu(net.minecraft.world.inventory.AbstractContainerMenu menu) {}
@@ -45,6 +45,17 @@ public abstract class ServerPlayerMixin implements ServerPlayerClientOptionsBrid
 
     public net.minecraft.network.chat.Component listName;
 
+    /** Public and un-prefixed: Paper classes read {@code ServerPlayer.listOrder} directly. */
+    public int listOrder = 0;
+
+    @Override public int lunararc$getListOrder() { return this.listOrder; }
+    @Override public void lunararc$setListOrder(int order) { this.listOrder = order; }
+
+    @Inject(method = "getTabListOrder", at = @At("HEAD"), cancellable = true, require = 0)
+    private void lunararc$tabListOrder(CallbackInfoReturnable<Integer> cir) {
+        cir.setReturnValue(this.listOrder);
+    }
+
     @Inject(method = "getTabListDisplayName", at = @At("HEAD"), cancellable = true, require = 0)
     private void lunararc$listName(CallbackInfoReturnable<net.minecraft.network.chat.Component> cir) {
         if (this.listName != null) cir.setReturnValue(this.listName);
@@ -55,35 +66,35 @@ public abstract class ServerPlayerMixin implements ServerPlayerClientOptionsBrid
     private String language;
 
     @Shadow
-    public abstract net.minecraft.world.level.portal.DimensionTransition findRespawnPositionAndUseSpawnBlock(
+    public abstract net.minecraft.world.level.portal.TeleportTransition findRespawnPositionAndUseSpawnBlock(
             boolean keepEverything,
-            net.minecraft.world.level.portal.DimensionTransition.PostDimensionTransition postTransition);
+            net.minecraft.world.level.portal.TeleportTransition.PostTeleportTransition postTransition);
 
     @Override
-    public net.minecraft.world.level.portal.DimensionTransition lunararc$findRespawnPositionAndUseSpawnBlock(
+    public net.minecraft.world.level.portal.TeleportTransition lunararc$findRespawnPositionAndUseSpawnBlock(
             boolean keepEverything,
-            net.minecraft.world.level.portal.DimensionTransition.PostDimensionTransition postTransition) {
+            net.minecraft.world.level.portal.TeleportTransition.PostTeleportTransition postTransition) {
         return this.findRespawnPositionAndUseSpawnBlock(keepEverything, postTransition);
     }
 
     @Unique private ServerLevel lunararc$levelBeforeDimensionChange;
 
-    @Inject(method = "changeDimension", at = @At("HEAD"), require = 0)
+    @Inject(method = "teleport(Lnet/minecraft/world/level/portal/TeleportTransition;)Lnet/minecraft/server/level/ServerPlayer;", at = @At("HEAD"), require = 1)
     private void lunararc$rememberLevelBeforeDimensionChange(
-            net.minecraft.world.level.portal.DimensionTransition transition,
-            CallbackInfoReturnable<net.minecraft.world.entity.Entity> cir) {
-        this.lunararc$levelBeforeDimensionChange = ((ServerPlayer) (Object) this).serverLevel();
+            net.minecraft.world.level.portal.TeleportTransition transition,
+            CallbackInfoReturnable<ServerPlayer> cir) {
+        this.lunararc$levelBeforeDimensionChange = ((ServerPlayer) (Object) this).level();
     }
 
-    @Inject(method = "changeDimension", at = @At("RETURN"), require = 0)
+    @Inject(method = "teleport(Lnet/minecraft/world/level/portal/TeleportTransition;)Lnet/minecraft/server/level/ServerPlayer;", at = @At("RETURN"), require = 1)
     private void lunararc$playerChangedWorldEvent(
-            net.minecraft.world.level.portal.DimensionTransition transition,
-            CallbackInfoReturnable<net.minecraft.world.entity.Entity> cir) {
+            net.minecraft.world.level.portal.TeleportTransition transition,
+            CallbackInfoReturnable<ServerPlayer> cir) {
         ServerLevel before = this.lunararc$levelBeforeDimensionChange;
         this.lunararc$levelBeforeDimensionChange = null;
         ServerPlayer self = (ServerPlayer) (Object) this;
         if (before == null || cir.getReturnValue() == null) return;
-        ServerLevel after = self.serverLevel();
+        ServerLevel after = self.level();
         if (before == after || !org.bukkit.Bukkit.isPrimaryThread()) return;
 
         Object bukkit = ((io.lunararcdevs.lunararc.common.bridge.EntityBridge) self).lunararc$getBukkitEntity();
@@ -164,36 +175,30 @@ public abstract class ServerPlayerMixin implements ServerPlayerClientOptionsBrid
     @Override public void lunararc$setDeathInventoryState(java.util.List<net.minecraft.world.item.ItemStack> state) { this.lunararc$deathInventoryState = state; }
 
     @Inject(method = "readAdditionalSaveData", at = @At("RETURN"), require = 0)
-    private void lunararc$readBukkitPlayerData(CompoundTag tag, CallbackInfo ci) {
+    private void lunararc$readBukkitPlayerData(net.minecraft.world.level.storage.ValueInput input, CallbackInfo ci) {
         this.lunararc$hasPlayedBefore = true;
-        if (!tag.contains("bukkit")) return;
-        CompoundTag bukkit = tag.getCompound("bukkit");
-        if (bukkit.contains("firstPlayed")) this.lunararc$firstPlayed = bukkit.getLong("firstPlayed");
-        if (bukkit.contains("lastPlayed")) this.lunararc$lastPlayed = bukkit.getLong("lastPlayed");
+        input.child("bukkit").ifPresent(bukkit -> {
+            this.lunararc$firstPlayed = bukkit.getLongOr("firstPlayed", this.lunararc$firstPlayed);
+            this.lunararc$lastPlayed = bukkit.getLongOr("lastPlayed", this.lunararc$lastPlayed);
+        });
     }
 
     @Inject(method = "addAdditionalSaveData", at = @At("RETURN"), require = 0)
-    private void lunararc$writeBukkitPlayerData(CompoundTag tag, CallbackInfo ci) {
+    private void lunararc$writeBukkitPlayerData(net.minecraft.world.level.storage.ValueOutput output, CallbackInfo ci) {
         long now = System.currentTimeMillis();
         this.lunararc$lastSaveTime = now;
-        CompoundTag bukkit = tag.contains("bukkit") ? tag.getCompound("bukkit") : new CompoundTag();
+        net.minecraft.world.level.storage.ValueOutput bukkit = output.child("bukkit");
         bukkit.putLong("firstPlayed", this.lunararc$firstPlayed);
         bukkit.putLong("lastPlayed", now);
         bukkit.putString("lastKnownName", ((ServerPlayer) (Object) this).getScoreboardName());
-        tag.put("bukkit", bukkit);
-        CompoundTag paper = tag.contains("Paper") ? tag.getCompound("Paper") : new CompoundTag();
+        net.minecraft.world.level.storage.ValueOutput paper = output.child("Paper");
         paper.putLong("LastLogin", this.lunararc$loginTime);
         paper.putLong("LastSeen", now);
-        tag.put("Paper", paper);
     }
 
-
-    @com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod(method = "setRespawnPosition")
+    @com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod(method = "setRespawnPosition", require = 0)
     private void lunararc$playerSpawnChangeEvent(
-            net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension,
-            BlockPos position,
-            float yaw,
-            boolean forced,
+            ServerPlayer.RespawnConfig config,
             boolean sendMessage,
             com.llamalad7.mixinextras.injector.wrapoperation.Operation<Void> original) {
         org.bukkit.event.player.PlayerSpawnChangeEvent.Cause cause = this.lunararc$spawnChangeCause;
@@ -201,20 +206,23 @@ public abstract class ServerPlayerMixin implements ServerPlayerClientOptionsBrid
         if (cause == null) cause = org.bukkit.event.player.PlayerSpawnChangeEvent.Cause.UNKNOWN;
 
         ServerPlayer self = (ServerPlayer) (Object) this;
-        ServerLevel level = dimension == null ? null : self.server.getLevel(dimension);
+        net.minecraft.world.level.storage.LevelData.RespawnData data = config == null ? null : config.respawnData();
+        ServerLevel level = data == null ? null : self.level().getServer().getLevel(data.dimension());
+        boolean forced = config != null && config.forced();
         org.bukkit.Location newSpawn = null;
-        if (position != null && level != null) {
+        if (data != null && level != null) {
             org.bukkit.craftbukkit.CraftWorld world =
-                    ((io.lunararcdevs.lunararc.common.bridge.MinecraftServerBridge) self.server)
+                    ((io.lunararcdevs.lunararc.common.bridge.MinecraftServerBridge) self.level().getServer())
                             .lunararc$getCraftServer().getCraftWorld(level);
             if (world != null) {
-                newSpawn = new org.bukkit.Location(world, position.getX(), position.getY(), position.getZ(), yaw, 0.0F);
+                BlockPos position = data.pos();
+                newSpawn = new org.bukkit.Location(world, position.getX(), position.getY(), position.getZ(), data.yaw(), data.pitch());
             }
         }
 
         Object bukkit = ((io.lunararcdevs.lunararc.common.bridge.EntityBridge) self).lunararc$getBukkitEntity();
         if (!(bukkit instanceof org.bukkit.entity.Player player)) {
-            original.call(dimension, position, yaw, forced, sendMessage);
+            original.call(config, sendMessage);
             return;
         }
 
@@ -228,25 +236,25 @@ public abstract class ServerPlayerMixin implements ServerPlayerClientOptionsBrid
         org.bukkit.Location selected = event.getNewSpawn();
         boolean selectedForced = event.isForced();
         if (selected == null) {
-            original.call(null, null, 0.0F, selectedForced, sendMessage);
+            original.call(null, sendMessage);
             return;
         }
         if (!(selected.getWorld() instanceof org.bukkit.craftbukkit.CraftWorld selectedWorld)) {
             return;
         }
-        original.call(
-                selectedWorld.getHandle().dimension(),
-                BlockPos.containing(selected.getX(), selected.getY(), selected.getZ()),
-                selected.getYaw(),
-                selectedForced,
-                sendMessage);
+        original.call(new ServerPlayer.RespawnConfig(
+                net.minecraft.world.level.storage.LevelData.RespawnData.of(
+                        selectedWorld.getHandle().dimension(),
+                        BlockPos.containing(selected.getX(), selected.getY(), selected.getZ()),
+                        selected.getYaw(), selected.getPitch()),
+                selectedForced), sendMessage);
     }
 
     @Inject(
             method = "startSleepInBed",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/server/level/ServerPlayer;setRespawnPosition(Lnet/minecraft/resources/ResourceKey;Lnet/minecraft/core/BlockPos;FZZ)V"),
+                    target = "Lnet/minecraft/server/level/ServerPlayer;setRespawnPosition(Lnet/minecraft/server/level/ServerPlayer$RespawnConfig;Z)V"),
             require = 0)
     private void lunararc$bedSpawnChangeCause(BlockPos bedPos, CallbackInfoReturnable<Either<Player.BedSleepingProblem, Unit>> cir) {
         this.lunararc$spawnChangeCause = org.bukkit.event.player.PlayerSpawnChangeEvent.Cause.BED;
@@ -273,12 +281,20 @@ public abstract class ServerPlayerMixin implements ServerPlayerClientOptionsBrid
         return converted.ifRight(successConsumer);
     }
 
+    @Unique
+    private static String lunararc$bedProblemName(Player.BedSleepingProblem problem) {
+        if (problem == Player.BedSleepingProblem.TOO_FAR_AWAY) return "TOO_FAR_AWAY";
+        if (problem == Player.BedSleepingProblem.OBSTRUCTED) return "OBSTRUCTED";
+        if (problem == Player.BedSleepingProblem.NOT_SAFE) return "NOT_SAFE";
+        return "OTHER_PROBLEM";
+    }
+
     @com.llamalad7.mixinextras.injector.ModifyReturnValue(method = "startSleepInBed", at = @At("RETURN"), require = 0)
     private Either<Player.BedSleepingProblem, Unit> lunararc$bedFailed(
             Either<Player.BedSleepingProblem, Unit> result,
             @com.llamalad7.mixinextras.sugar.Local(argsOnly = true) BlockPos bedPos) {
         result.left().ifPresent(problem -> io.lunararcdevs.lunararc.common.event.LunarArcMoreEvents.bedFailed(
-                (ServerPlayer) (Object) this, bedPos, problem.name(), problem.getMessage()));
+                (ServerPlayer) (Object) this, bedPos, lunararc$bedProblemName(problem), problem.message()));
         return result;
     }
 
@@ -302,7 +318,8 @@ public abstract class ServerPlayerMixin implements ServerPlayerClientOptionsBrid
 
         if (event != null && event.shouldSetSpawnLocation() && bedPos != null) {
             this.lunararc$spawnChangeCause = org.bukkit.event.player.PlayerSpawnChangeEvent.Cause.BED;
-            self.setRespawnPosition(self.serverLevel().dimension(), bedPos, self.getYRot(), false, true);
+            self.setRespawnPosition(new ServerPlayer.RespawnConfig(
+                    net.minecraft.world.level.storage.LevelData.RespawnData.of(self.level().dimension(), bedPos, self.getYRot(), self.getXRot()), false), true);
         }
     }
 
@@ -403,32 +420,32 @@ public abstract class ServerPlayerMixin implements ServerPlayerClientOptionsBrid
         ((io.lunararcdevs.lunararc.common.bridge.PlayerExhaustionBridge) this).lunararc$pushExhaustionReason(reason);
     }
 
-    @Inject(method = "checkMovementStatistics", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/player/Player;causeFoodExhaustion(F)V", ordinal = 0), require = 0)
+    @Inject(method = "checkMovementStatistics", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerPlayer;causeFoodExhaustion(F)V", ordinal = 0), require = 0)
     private void lunararc$swimExhaustion(double x, double y, double z, CallbackInfo ci) {
         lunararc$movementExhaustion(org.bukkit.event.entity.EntityExhaustionEvent.ExhaustionReason.SWIM);
     }
 
-    @Inject(method = "checkMovementStatistics", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/player/Player;causeFoodExhaustion(F)V", ordinal = 1), require = 0)
+    @Inject(method = "checkMovementStatistics", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerPlayer;causeFoodExhaustion(F)V", ordinal = 1), require = 0)
     private void lunararc$underwaterWalkExhaustion(double x, double y, double z, CallbackInfo ci) {
         lunararc$movementExhaustion(org.bukkit.event.entity.EntityExhaustionEvent.ExhaustionReason.WALK_UNDERWATER);
     }
 
-    @Inject(method = "checkMovementStatistics", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/player/Player;causeFoodExhaustion(F)V", ordinal = 2), require = 0)
+    @Inject(method = "checkMovementStatistics", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerPlayer;causeFoodExhaustion(F)V", ordinal = 2), require = 0)
     private void lunararc$waterSurfaceExhaustion(double x, double y, double z, CallbackInfo ci) {
         lunararc$movementExhaustion(org.bukkit.event.entity.EntityExhaustionEvent.ExhaustionReason.WALK_ON_WATER);
     }
 
-    @Inject(method = "checkMovementStatistics", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/player/Player;causeFoodExhaustion(F)V", ordinal = 3), require = 0)
+    @Inject(method = "checkMovementStatistics", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerPlayer;causeFoodExhaustion(F)V", ordinal = 3), require = 0)
     private void lunararc$sprintExhaustion(double x, double y, double z, CallbackInfo ci) {
         lunararc$movementExhaustion(org.bukkit.event.entity.EntityExhaustionEvent.ExhaustionReason.SPRINT);
     }
 
-    @Inject(method = "checkMovementStatistics", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/player/Player;causeFoodExhaustion(F)V", ordinal = 4), require = 0)
+    @Inject(method = "checkMovementStatistics", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerPlayer;causeFoodExhaustion(F)V", ordinal = 4), require = 0)
     private void lunararc$crouchExhaustion(double x, double y, double z, CallbackInfo ci) {
         lunararc$movementExhaustion(org.bukkit.event.entity.EntityExhaustionEvent.ExhaustionReason.CROUCH);
     }
 
-    @Inject(method = "checkMovementStatistics", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/player/Player;causeFoodExhaustion(F)V", ordinal = 5), require = 0)
+    @Inject(method = "checkMovementStatistics", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerPlayer;causeFoodExhaustion(F)V", ordinal = 5), require = 0)
     private void lunararc$walkExhaustion(double x, double y, double z, CallbackInfo ci) {
         lunararc$movementExhaustion(org.bukkit.event.entity.EntityExhaustionEvent.ExhaustionReason.WALK);
     }
@@ -439,7 +456,7 @@ public abstract class ServerPlayerMixin implements ServerPlayerClientOptionsBrid
         ServerPlayer self = (ServerPlayer) (Object) this;
         if (self.isRemoved() || self.level().isClientSide) return;
 
-        boolean keepInventory = self.level().getGameRules().getBoolean(net.minecraft.world.level.GameRules.RULE_KEEPINVENTORY)
+        boolean keepInventory = self.level().getGameRules().get(net.minecraft.world.level.gamerules.GameRules.KEEP_INVENTORY)
                 || self.isSpectator();
         java.util.List<org.bukkit.inventory.ItemStack> drops = new java.util.ArrayList<>();
         if (!keepInventory) {
@@ -452,7 +469,7 @@ public abstract class ServerPlayerMixin implements ServerPlayerClientOptionsBrid
             }
         }
 
-        int droppedExp = self.getExperienceReward(self.serverLevel(), source.getEntity());
+        int droppedExp = self.getExperienceReward(self.level(), source.getEntity());
         net.minecraft.network.chat.Component defaultMessage = self.getCombatTracker().getDeathMessage();
         Object bukkit = ((io.lunararcdevs.lunararc.common.bridge.EntityBridge) self).lunararc$getBukkitEntity();
         if (!(bukkit instanceof org.bukkit.entity.Player player)) return;
@@ -469,9 +486,9 @@ public abstract class ServerPlayerMixin implements ServerPlayerClientOptionsBrid
                 true);
         event.setKeepInventory(keepInventory);
         event.setKeepLevel(keepInventory);
-        double revive = player.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH) == null
+        double revive = player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH) == null
                 ? player.getMaxHealth()
-                : player.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH).getValue();
+                : player.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue();
         if (revive > 0.0D) event.setReviveHealth(revive);
         org.bukkit.Bukkit.getPluginManager().callEvent(event);
 
@@ -500,12 +517,15 @@ public abstract class ServerPlayerMixin implements ServerPlayerClientOptionsBrid
         }
     }
 
-    @ModifyExpressionValue(
-            method = "die",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/GameRules;getBoolean(Lnet/minecraft/world/level/GameRules$Key;)Z", ordinal = 0),
-            require = 0)
-    private boolean lunararc$deathMessageEnabled(boolean vanilla) {
-        return vanilla && (this.lunararc$deathEvent == null || this.lunararc$deathEvent.deathMessage() != null);
+    @com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation(method = "die", require = 1,
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/gamerules/GameRules;get(Lnet/minecraft/world/level/gamerules/GameRule;)Ljava/lang/Object;"))
+    private Object lunararc$deathMessageEnabled(net.minecraft.world.level.gamerules.GameRules rules, net.minecraft.world.level.gamerules.GameRule<?> rule,
+            com.llamalad7.mixinextras.injector.wrapoperation.Operation<Object> original) {
+        Object vanilla = original.call(rules, rule);
+        if (rule == net.minecraft.world.level.gamerules.GameRules.SHOW_DEATH_MESSAGES && vanilla instanceof Boolean enabled) {
+            return enabled && (this.lunararc$deathEvent == null || this.lunararc$deathEvent.deathMessage() != null);
+        }
+        return vanilla;
     }
 
     @WrapOperation(
@@ -530,15 +550,6 @@ public abstract class ServerPlayerMixin implements ServerPlayerClientOptionsBrid
         this.lunararc$applyPlayerDeathDrops(self, level);
     }
 
-    @Redirect(
-            method = "die",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;dropAllDeathLoot(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/damagesource/DamageSource;)V"),
-            require = 0)
-    private void lunararc$playerDeathDropsLiving(
-            net.minecraft.world.entity.LivingEntity self, ServerLevel level, net.minecraft.world.damagesource.DamageSource source) {
-        this.lunararc$applyPlayerDeathDrops((ServerPlayer) self, level);
-    }
-
     @Unique
     private void lunararc$applyPlayerDeathDrops(ServerPlayer self, ServerLevel level) {
         org.bukkit.event.entity.PlayerDeathEvent event = this.lunararc$deathEvent;
@@ -555,7 +566,7 @@ public abstract class ServerPlayerMixin implements ServerPlayerClientOptionsBrid
         for (org.bukkit.inventory.ItemStack bukkitDrop : event.getDrops()) {
             if (bukkitDrop == null || bukkitDrop.getType().isAir() || bukkitDrop.getAmount() <= 0) continue;
             net.minecraft.world.item.ItemStack nms = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(bukkitDrop);
-            if (!nms.isEmpty()) self.spawnAtLocation(nms);
+            if (!nms.isEmpty() && self.level() instanceof ServerLevel dropLevel) self.spawnAtLocation(dropLevel, nms);
         }
 
         java.util.List<org.bukkit.inventory.ItemStack> keep = new java.util.ArrayList<>(event.getItemsToKeep());

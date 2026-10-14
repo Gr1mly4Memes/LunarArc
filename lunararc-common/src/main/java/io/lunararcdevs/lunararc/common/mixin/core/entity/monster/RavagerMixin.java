@@ -17,11 +17,11 @@ public abstract class RavagerMixin {
             method = "aiStep",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/world/level/Level;destroyBlock("
+                    target = "Lnet/minecraft/server/level/ServerLevel;destroyBlock("
                             + "Lnet/minecraft/core/BlockPos;Z"
                             + "Lnet/minecraft/world/entity/Entity;)Z"))
     private boolean lunararc$ravagerBreakLeaves(
-            Level level, BlockPos pos, boolean drop, Entity breaker, Operation<Boolean> original) {
+            net.minecraft.server.level.ServerLevel level, BlockPos pos, boolean drop, Entity breaker, Operation<Boolean> original) {
         // Read before the block goes, so the event describes the position after the break.
         net.minecraft.world.level.block.state.BlockState after =
                 level.getBlockState(pos).getFluidState().createLegacyBlock();

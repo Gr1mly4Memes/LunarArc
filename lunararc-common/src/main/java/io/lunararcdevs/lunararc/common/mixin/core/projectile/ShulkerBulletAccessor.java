@@ -10,9 +10,8 @@ import java.util.UUID;
 
 @Mixin(ShulkerBullet.class)
 public interface ShulkerBulletAccessor extends io.lunararcdevs.lunararc.common.bridge.access.ShulkerBulletAccessBridge {
-    @Accessor("finalTarget") Entity lunararc$getFinalTarget();
-    @Accessor("finalTarget") void lunararc$setFinalTarget(Entity target);
-    @Accessor("targetId") void lunararc$setTargetId(UUID targetId);
+    @Accessor("finalTarget") net.minecraft.world.entity.EntityReference<Entity> lunararc$getFinalTarget();
+    @Accessor("finalTarget") void lunararc$setFinalTarget(net.minecraft.world.entity.EntityReference<Entity> target);
     @Accessor("currentMoveDirection") Direction lunararc$getCurrentMoveDirection();
     @Accessor("currentMoveDirection") void lunararc$setCurrentMoveDirection(Direction direction);
     @Accessor("flightSteps") int lunararc$getFlightSteps();

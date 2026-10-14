@@ -17,7 +17,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class SetSpawnCommandMixin {
     @Inject(method = "setSpawn", at = @At("HEAD"), require = 0)
     private static void lunararc$spawnCommandCause(
-            CommandSourceStack source, Collection<ServerPlayer> players, BlockPos pos, float angle,
+            CommandSourceStack source, Collection<ServerPlayer> players, BlockPos pos, net.minecraft.commands.arguments.coordinates.Coordinates rotation,
             CallbackInfoReturnable<Integer> cir) {
         for (ServerPlayer player : players) {
             ((ServerPlayerSpawnBridge) player)

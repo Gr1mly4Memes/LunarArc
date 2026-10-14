@@ -38,8 +38,8 @@ public final class PaperInventoryCustomHolderContainer implements Container {
     @Override public boolean stillValid(net.minecraft.world.entity.player.Player player) { return delegate.stillValid(player); }
     @Override public void clearContent() { delegate.clearContent(); }
     @Override public boolean canPlaceItem(int slot, ItemStack stack) { return delegate.canPlaceItem(slot, stack); }
-    @Override public void startOpen(net.minecraft.world.entity.player.Player player) { delegate.startOpen(player); }
-    @Override public void stopOpen(net.minecraft.world.entity.player.Player player) { delegate.stopOpen(player); }
+    @Override public void startOpen(net.minecraft.world.entity.ContainerUser user) { delegate.startOpen(user); }
+    @Override public void stopOpen(net.minecraft.world.entity.ContainerUser user) { delegate.stopOpen(user); }
     public java.util.List<ItemStack> getContents() {
         return new java.util.AbstractList<>() {
             @Override public ItemStack get(int index) { return delegate.getItem(index); }

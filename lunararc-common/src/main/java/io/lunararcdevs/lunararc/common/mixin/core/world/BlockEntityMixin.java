@@ -26,24 +26,18 @@ public abstract class BlockEntityMixin implements BlockEntityBridge {
         return container;
     }
 
-    @Inject(
-            method = "loadAdditional(Lnet/minecraft/nbt/CompoundTag;Lnet/minecraft/core/HolderLookup$Provider;)V",
-            at = @At("RETURN"))
-    private void lunararc$loadPersistentData(CompoundTag tag, HolderLookup.Provider registries, CallbackInfo ci) {
+    @Inject(method = "loadAdditional(Lnet/minecraft/world/level/storage/ValueInput;)V", at = @At("RETURN"))
+    private void lunararc$loadPersistentData(net.minecraft.world.level.storage.ValueInput input, CallbackInfo ci) {
         CraftPersistentDataContainer container = new CraftPersistentDataContainer();
-        if (tag.contains("PublicBukkitValues")) {
-            container.putAll(tag.getCompound("PublicBukkitValues"));
-        }
+        input.read("PublicBukkitValues", CompoundTag.CODEC).ifPresent(container::putAll);
         this.lunararc$persistentDataContainer = container;
     }
 
-    @Inject(
-            method = "saveAdditional(Lnet/minecraft/nbt/CompoundTag;Lnet/minecraft/core/HolderLookup$Provider;)V",
-            at = @At("RETURN"))
-    private void lunararc$savePersistentData(CompoundTag tag, HolderLookup.Provider registries, CallbackInfo ci) {
+    @Inject(method = "saveAdditional(Lnet/minecraft/world/level/storage/ValueOutput;)V", at = @At("RETURN"))
+    private void lunararc$savePersistentData(net.minecraft.world.level.storage.ValueOutput output, CallbackInfo ci) {
         CraftPersistentDataContainer container = this.lunararc$persistentDataContainer;
         if (container != null && !container.isEmpty()) {
-            tag.put("PublicBukkitValues", container.toTagCompound());
+            output.store("PublicBukkitValues", CompoundTag.CODEC, container.toTagCompound());
         }
     }
 }

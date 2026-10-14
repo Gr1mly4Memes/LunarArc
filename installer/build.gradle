@@ -52,7 +52,8 @@ processResources {
             quiltInstaller: libs.versions.quilt.installer.get(),
             paperBuild:    libs.versions.paper.build.get(),
             dataVersion:   libs.versions.data.version.get(),
-            buildName:     libs.versions.build.name.get()
+            buildName:     libs.versions.build.name.get(),
+            gitBranch:     rootProject.ext.gitBranch
         )
     }
 }

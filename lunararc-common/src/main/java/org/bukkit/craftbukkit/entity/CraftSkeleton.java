@@ -5,8 +5,8 @@ import org.bukkit.craftbukkit.CraftServer;
 import org.bukkit.entity.Skeleton;
 
 public final class CraftSkeleton extends CraftAbstractSkeleton implements Skeleton {
-    public CraftSkeleton(CraftServer server, net.minecraft.world.entity.monster.Skeleton entity) { super(server, entity); }
-    @Override public net.minecraft.world.entity.monster.Skeleton getHandle() { return (net.minecraft.world.entity.monster.Skeleton) this.entity; }
+    public CraftSkeleton(CraftServer server, net.minecraft.world.entity.monster.skeleton.Skeleton entity) { super(server, entity); }
+    @Override public net.minecraft.world.entity.monster.skeleton.Skeleton getHandle() { return (net.minecraft.world.entity.monster.skeleton.Skeleton) this.entity; }
     private SkeletonBridge skeletonBridge() { return (SkeletonBridge) (Object) getHandle(); }
     @Override public boolean isConverting() { return getHandle().isFreezeConverting(); }
     @Override public int getConversionTime() {

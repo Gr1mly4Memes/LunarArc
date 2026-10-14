@@ -166,7 +166,7 @@ public final class LunarArcServerSettings {
     }
 
     private static String keyFor(Block block) {
-        net.minecraft.resources.ResourceLocation id = BuiltInRegistries.BLOCK.getKey(block);
+        net.minecraft.resources.Identifier id = BuiltInRegistries.BLOCK.getKey(block);
         if (id == null || !"minecraft".equals(id.getNamespace())) return null;
         String path = id.getPath();
         return switch (path) {

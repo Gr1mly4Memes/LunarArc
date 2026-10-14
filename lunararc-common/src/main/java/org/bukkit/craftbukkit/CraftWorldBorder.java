@@ -30,7 +30,12 @@ public final class CraftWorldBorder implements WorldBorder {
 
     @Override
     public void reset() {
-        handle.applySettings(net.minecraft.world.level.border.WorldBorder.DEFAULT_SETTINGS);
+        handle.setCenter(0.0D, 0.0D);
+        handle.setDamagePerBlock(0.2D);
+        handle.setSafeZone(5.0D);
+        handle.setWarningBlocks(5);
+        handle.setWarningTime(300);
+        handle.setSize(5.9999968E7D);
     }
 
     @Override
@@ -62,7 +67,7 @@ public final class CraftWorldBorder implements WorldBorder {
             millis = Long.MAX_VALUE;
         }
         if (millis == 0L) handle.setSize(newSize);
-        else handle.lerpSizeBetween(handle.getSize(), newSize, millis);
+        else handle.lerpSizeBetween(handle.getSize(), newSize, Math.max(1L, millis / 50L), world == null ? 0L : world.getGameTime());
     }
 
     @Override
@@ -89,12 +94,12 @@ public final class CraftWorldBorder implements WorldBorder {
     }
 
     @Override
-    public double getDamageBuffer() { return handle.getDamageSafeZone(); }
+    public double getDamageBuffer() { return handle.getSafeZone(); }
 
     @Override
     public void setDamageBuffer(double blocks) {
         if (blocks < 0.0D || !Double.isFinite(blocks)) throw new IllegalArgumentException("blocks must be finite and non-negative");
-        handle.setDamageSafeZone(blocks);
+        handle.setSafeZone(blocks);
     }
 
     @Override
@@ -107,12 +112,12 @@ public final class CraftWorldBorder implements WorldBorder {
     }
 
     @Override
-    public int getWarningTime() { return handle.getWarningTime(); }
+    public int getWarningTime() { return handle.getWarningTime() / 20; }
 
     @Override
     public void setWarningTime(int seconds) {
         if (seconds < 0) throw new IllegalArgumentException("warning time cannot be negative");
-        handle.setWarningTime(seconds);
+        handle.setWarningTime(seconds * 20);
     }
 
     @Override
@@ -147,5 +152,27 @@ public final class CraftWorldBorder implements WorldBorder {
 
     public boolean isVirtual() {
         return world == null;
+    }
+
+    @Override
+    public int getWarningTimeTicks() {
+        return handle.getWarningTime();
+    }
+
+    @Override
+    public void setWarningTimeTicks(final int ticks) {
+        com.google.common.base.Preconditions.checkArgument(ticks >= 0, "ticks cannot be lower than 0");
+        handle.setWarningTime(ticks);
+    }
+
+    @Override
+    public void changeSize(double newSize, long ticks) {
+        com.google.common.base.Preconditions.checkArgument(ticks >= 0 && ticks <= Integer.MAX_VALUE, "ticks must be between 0-%s", Integer.MAX_VALUE);
+        com.google.common.base.Preconditions.checkArgument(newSize >= 1.0D && newSize <= getMaxSize(), "newSize must be between 1.0D and %s", getMaxSize());
+        if (ticks > 0L) {
+            handle.lerpSizeBetween(handle.getSize(), newSize, ticks, world == null ? 0L : world.getGameTime());
+        } else {
+            handle.setSize(newSize);
+        }
     }
 }
