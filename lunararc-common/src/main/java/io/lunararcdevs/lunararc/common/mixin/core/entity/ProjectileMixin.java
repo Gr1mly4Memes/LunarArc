@@ -95,6 +95,10 @@ public abstract class ProjectileMixin implements ProjectileBridge {
 
         org.bukkit.event.entity.ProjectileHitEvent event =
                 new org.bukkit.event.entity.ProjectileHitEvent(bukkitProjectile, hitEntity, hitBlock, hitFace);
+        // Paper's older ProjectileCollideEvent still runs first for entity hits; its cancellation carries into the modern event.
+        if (hitEntity != null && io.lunararcdevs.lunararc.common.event.LunarArcMobEvents.projectileCollide(bukkitProjectile, hitEntity)) {
+            event.setCancelled(true);
+        }
         org.bukkit.Bukkit.getPluginManager().callEvent(event);
         this.lunararc$hitCancelled = event.isCancelled();
 

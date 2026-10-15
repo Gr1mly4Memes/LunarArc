@@ -677,7 +677,7 @@ tasks.register('verifyCraftNmsOwnership') {
 tasks.register('preparePaperImplementationSurface') {
     dependsOn tasks.named('verifyCraftNmsOwnership')
     group = 'build setup'
-    description = 'Extracts missing exact Paper 1.21.1 CraftBukkit/Spigot implementation classes, plus Paper\'s own loader-independent config framework (io.papermc.paper.configuration.*), for loader remapping.'
+    description = 'Extracts missing exact Paper 1.21.11 CraftBukkit/Spigot implementation classes, plus Paper\'s own loader-independent config framework (io.papermc.paper.configuration.*), for loader remapping.'
     dependsOn rootProject.tasks.named('preparePaperCompileReference')
     inputs.file(rootProject.ext.paperServerJar)
     inputs.files(configurations.paperApiReference)
@@ -693,7 +693,7 @@ tasks.register('preparePaperImplementationSurface') {
 
         File paperJar = rootProject.ext.paperServerJar
         if (!paperJar.isFile()) {
-            throw new GradleException("Paper 1.21.1 implementation reference is missing: ${paperJar}")
+            throw new GradleException("Paper 1.21.11 implementation reference is missing: ${paperJar}")
         }
 
         List<String> unownedValidBlocksUsers = []
@@ -990,12 +990,12 @@ tasks.register('preparePaperImplementationSurface') {
 
         if (donatedClasses < 100) {
             throw new GradleException(
-                "Paper 1.21.1 implementation donor extracted only ${donatedClasses} classes; expected a full CraftBukkit/Spigot surface"
+                "Paper 1.21.11 implementation donor extracted only ${donatedClasses} classes; expected a full CraftBukkit/Spigot surface"
             )
         }
         if (blockImplClasses.size() < 100) {
             throw new GradleException(
-                "Paper 1.21.1 implementation donor found only ${blockImplClasses.size()} generated block implementations"
+                "Paper 1.21.11 implementation donor found only ${blockImplClasses.size()} generated block implementations"
             )
         }
         Set<String> resolvable = new HashSet<>()
@@ -1041,7 +1041,7 @@ tasks.register('preparePaperImplementationSurface') {
         }
 
         logger.lifecycle(
-            "Prepared exact Paper 1.21.1 implementation surface: ${donatedClasses} donated classes, " +
+            "Prepared exact Paper 1.21.11 implementation surface: ${donatedClasses} donated classes, " +
             "${ownedClasses} LunarArc-owned classes retained, ${blockImplClasses.size()} generated block implementations"
         )
     }

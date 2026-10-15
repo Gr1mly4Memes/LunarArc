@@ -313,7 +313,8 @@ public abstract class EntityMixin implements EntityBridge, CommandSourceBridge {
     @WrapMethod(method = "igniteForSeconds")
     private void lunararc$combust(float seconds, Operation<Void> original) {
         Entity self = (Entity) (Object) this;
-        if (self.level().isClientSide || !org.bukkit.Bukkit.isPrimaryThread() || this.lunararc$combustEventFired) {
+        if (self.level().isClientSide || !org.bukkit.Bukkit.isPrimaryThread() || this.lunararc$combustEventFired
+                || io.lunararcdevs.lunararc.common.event.LunarArcMobEvents.combustSuppressed) {
             original.call(seconds);
             return;
         }

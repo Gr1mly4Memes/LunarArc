@@ -109,7 +109,6 @@ public final class PaperVersionFetcher implements VersionFetcher {
                     String tagName = stringValue(release, "tag_name");
                     String htmlUrl = stringValue(release, "html_url");
                     if (tagName.isBlank() || htmlUrl.isBlank()) continue;
-                    // Same rule as the launcher's update check: a build only compares against releases cut from its own branch.
                     if (branchKnown(branch) && !normalize(stringValue(release, "target_commitish")).equals(normalize(branch))) continue;
                     if (latest == null) latest = new Release(tagName, htmlUrl, stringValue(release, "name"), -1);
                     if (isSameVersion(current, tagName)) {
