@@ -32,6 +32,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.Set;
 
 public class CraftBlockData implements BlockData {
+    public static final BlockFace[] ROTATION_CYCLE = {
+        BlockFace.SOUTH, BlockFace.SOUTH_SOUTH_WEST, BlockFace.SOUTH_WEST, BlockFace.WEST_SOUTH_WEST,
+        BlockFace.WEST, BlockFace.WEST_NORTH_WEST, BlockFace.NORTH_WEST, BlockFace.NORTH_NORTH_WEST,
+        BlockFace.NORTH, BlockFace.NORTH_NORTH_EAST, BlockFace.NORTH_EAST, BlockFace.EAST_NORTH_EAST,
+        BlockFace.EAST, BlockFace.EAST_SOUTH_EAST, BlockFace.SOUTH_EAST, BlockFace.SOUTH_SOUTH_EAST
+    };
+
     private BlockState state;
     private Set<String> parsedProperties;
 
@@ -252,7 +259,11 @@ public class CraftBlockData implements BlockData {
 
     private static CraftBlockData createConcreteData(BlockState state) {
         ensureGeneratedImplementationsLoaded();
-        Constructor<? extends CraftBlockData> constructor = GENERATED_IMPLEMENTATIONS.get(state.getBlock().getClass());
+        // modded blocks usually extend a vanilla class, so walk up to the nearest block class that has an implementation
+        Constructor<? extends CraftBlockData> constructor = null;
+        for (Class<?> type = state.getBlock().getClass(); type != null && type != Object.class && constructor == null; type = type.getSuperclass()) {
+            constructor = GENERATED_IMPLEMENTATIONS.get(type);
+        }
         if (constructor == null) return new CraftBlockData(state);
         try {
             return constructor.newInstance(state);

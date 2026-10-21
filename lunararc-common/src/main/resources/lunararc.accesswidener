@@ -737,7 +737,6 @@ accessible field net/minecraft/world/inventory/CraftingMenu access Lnet/minecraf
 accessible field net/minecraft/world/inventory/DispenserMenu dispenser Lnet/minecraft/world/Container;
 accessible field net/minecraft/world/inventory/Slot slot I
 accessible field net/minecraft/world/item/AdventureModePredicate predicates Ljava/util/List;
-accessible field net/minecraft/world/item/BucketItem content Lnet/minecraft/world/level/material/Fluid;
 accessible field net/minecraft/world/item/CrossbowItem FIREWORK_POWER F
 accessible method net/minecraft/world/item/DebugStickItem handleInteraction (Lnet/minecraft/world/entity/player/Player;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/LevelAccessor;Lnet/minecraft/core/BlockPos;ZLnet/minecraft/world/item/ItemStack;)Z
 accessible field net/minecraft/world/item/ItemCooldowns cooldowns Ljava/util/Map;

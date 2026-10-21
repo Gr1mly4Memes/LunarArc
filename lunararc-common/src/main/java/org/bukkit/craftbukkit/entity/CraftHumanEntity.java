@@ -15,7 +15,6 @@ import org.bukkit.permissions.PermissionAttachment;
 import org.bukkit.permissions.PermissionAttachmentInfo;
 import org.bukkit.plugin.Plugin;
 
-import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -47,7 +46,11 @@ public abstract class CraftHumanEntity extends CraftLivingEntity {
 
     public static @Nullable Holder<net.minecraft.world.entity.ai.attributes.Attribute> toNms(@Nullable Attribute attribute) {
         if (attribute == null) return null;
-        return ATTRIBUTE_MAP.get(attribute);
+        // every registered attribute, not just a fixed list: 26.x added scale, gravity, below_name_distance, waypoint ranges, ...
+        Holder<net.minecraft.world.entity.ai.attributes.Attribute> known = ATTRIBUTE_MAP.get(attribute);
+        if (known != null) return known;
+        return net.minecraft.core.registries.BuiltInRegistries.ATTRIBUTE
+                .get(net.minecraft.resources.Identifier.parse(attribute.getKey().toString())).orElse(null);
     }
 
     public CraftHumanEntity(CraftServer server, Player entity) {
@@ -97,6 +100,7 @@ public abstract class CraftHumanEntity extends CraftLivingEntity {
         net.minecraft.world.entity.ai.attributes.AttributeInstance instance = living.getAttribute(nmsAttr);
         return instance == null ? null : new CraftAttributeInstance(instance, attribute);
     }
+
 
     @Override
     public void registerAttribute(@NotNull Attribute attribute) { super.registerAttribute(attribute); }

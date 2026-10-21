@@ -442,6 +442,12 @@ public final class PaperAdventure {
         return TextColor.color(color);
     }
 
+    /** Paper-signature overload that plugins such as FancyNpcs link against for team colours. */
+    public static @Nullable ChatFormatting asVanilla(final net.kyori.adventure.text.format.NamedTextColor color) {
+        final String name = net.kyori.adventure.text.format.NamedTextColor.NAMES.key(color);
+        return name == null ? null : ChatFormatting.getByName(name);
+    }
+
     public static @Nullable ChatFormatting asVanilla(final TextColor color) {
         // Real Paper adds ChatFormatting.getByHexValue via its AT/patch; LunarArc inlines the identical loop.
         final int hex = color.value();

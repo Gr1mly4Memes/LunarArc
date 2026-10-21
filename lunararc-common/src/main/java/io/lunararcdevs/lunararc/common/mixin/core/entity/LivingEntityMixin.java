@@ -10,7 +10,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 import net.kyori.adventure.util.TriState;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
 import org.bukkit.craftbukkit.event.CraftEventFactory;
@@ -160,14 +159,6 @@ public abstract class LivingEntityMixin implements LivingEntityBridge {
             net.minecraft.world.entity.Entity source,
             Operation<Boolean> original) {
         LivingEntity entity = (LivingEntity) (Object) this;
-        // Structure/entity-spawn generation genuinely runs on worker threads even in vanilla
-        // (confirmed by a real crash: ChunkGenerationTask -> StructureTemplate.addEntitiesToWorld
-        // -> a mod's spawn-time potion-effect application -> this method, all on a
-        // ForkJoinWorkerThread). PaperEventManager correctly refuses to fire a synchronous event
-        // off the main thread (that's real, correct Paper safety behavior, not a bug) — so this
-        // must not even attempt to fire the event in that case. Falling through to the real
-        // vanilla/modded behavior unmodified, same as the existing suppressed/client-side cases
-        // below, rather than crashing the whole chunk generation task.
         if (this.lunararc$suppressEffectEvent || entity.level().isClientSide || !org.bukkit.Bukkit.isPrimaryThread()) {
             return original.call(incoming, source);
         }

@@ -7,7 +7,6 @@ import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.animal.fish.AbstractFish;
@@ -23,7 +22,6 @@ import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -107,6 +105,7 @@ public abstract class EntityMixin implements EntityBridge, CommandSourceBridge {
     private boolean lunararc$visualFireState(boolean isOnFire) {
         return this.visualFire.toBooleanOrElse(isOnFire);
     }
+    @org.spongepowered.asm.mixin.Shadow private Entity.RemovalReason removalReason;
     @Override public boolean lunararc$isPersistent() { return this.lunararc$persistent; }
     @Override public void lunararc$setPersistent(boolean persistent) { this.lunararc$persistent = persistent; }
     @Override public void lunararc$setLevel(Level level) { ((Entity) (Object) this).setLevel(level); }
@@ -114,7 +113,17 @@ public abstract class EntityMixin implements EntityBridge, CommandSourceBridge {
         Entity self = (Entity) (Object) this;
         try (net.minecraft.util.ProblemReporter.ScopedCollector problems = new net.minecraft.util.ProblemReporter.ScopedCollector(self.problemPath(), org.slf4j.LoggerFactory.getLogger(EntityMixin.class))) {
             net.minecraft.world.level.storage.TagValueOutput output = net.minecraft.world.level.storage.TagValueOutput.createWithContext(problems, self.registryAccess());
-            if (!self.saveAsPassenger(output)) return false;
+            // Paper snapshots entities that are already being removed (e.g. plugins that pick up a mob), so do not let the
+            // removal reason veto the save.
+            Entity.RemovalReason reason = this.removalReason;
+            if (reason != null && !reason.shouldSave()) this.removalReason = null;
+            boolean saved;
+            try {
+                saved = self.saveAsPassenger(output);
+            } finally {
+                if (reason != null) this.removalReason = reason;
+            }
+            if (!saved) return false;
             tag.merge(output.buildResult());
             return true;
         }

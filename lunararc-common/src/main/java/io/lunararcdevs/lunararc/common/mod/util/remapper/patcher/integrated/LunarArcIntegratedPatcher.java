@@ -72,6 +72,41 @@ public final class LunarArcIntegratedPatcher implements PluginPatcher {
         if (node.name.startsWith(WORLDEDIT_ADAPTER_PREFIX) && node.name.endsWith(WORLDEDIT_PROPERTY_LOADER_SUFFIX)) {
             patchWorldEditUnknownProperties(node);
         }
+        if (isWorldEditRegenAdapter(node.name)) {
+            patchWorldEditSetValue(node);
+        }
+    }
+
+    private static void patchWorldEditSetValue(ClassNode node) {
+        for (MethodNode method : node.methods) {
+            for (AbstractInsnNode insn : method.instructions.toArray()) {
+                // Fabric/Quilt plugins are already remapped to intermediary by the time they get here (method_11657 / class_2769)
+                if (insn instanceof MethodInsnNode call && call.getOpcode() == Opcodes.INVOKEVIRTUAL
+                        && (("setValue".equals(call.name) && call.desc.startsWith("(Lnet/minecraft/world/level/block/state/properties/Property;Ljava/lang/Comparable;)"))
+                        || ("method_11657".equals(call.name) && call.desc.startsWith("(Lnet/minecraft/class_2769;Ljava/lang/Comparable;)")))) {
+                    method.instructions.set(call, new MethodInsnNode(Opcodes.INVOKESTATIC, WORLDEDIT_PROPERTY_COMPAT, "worldEditSetValue",
+                            "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;", false));
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings({"unchecked", "rawtypes"})
+    public static Object worldEditSetValue(Object state, Object property, Object value) {
+        net.minecraft.world.level.block.state.properties.Property prop = (net.minecraft.world.level.block.state.properties.Property) property;
+        if (value instanceof String name && !prop.getValueClass().isInstance(value)) {
+            for (Object candidate : prop.getPossibleValues()) {
+                if (name.equals(prop.getName((Comparable) candidate))) {
+                    value = candidate;
+                    break;
+                }
+            }
+        }
+        try {
+            return ((net.minecraft.world.level.block.state.StateHolder) state).setValue(prop, (Comparable) value);
+        } catch (ClassCastException unsupported) {
+            return state;
+        }
     }
 
     private static boolean isWorldEditRegenAdapter(String name) {
@@ -246,13 +281,6 @@ public final class LunarArcIntegratedPatcher implements PluginPatcher {
         return current;
     }
 
-    /**
-     * Walks backward from a constructor call to the NEW instruction that allocated its receiver,
-     * treating every other complete NEW/INVOKESPECIAL<init> pair encountered along the way as a
-     * balanced, already-closed argument expression (e.g. a nested {@code new LevelStem(...)}) to
-     * skip over rather than mistake for our own - simple bracket-style matching, valid because
-     * javac never emits an unmatched NEW.
-     */
     private static TypeInsnNode findMatchingNew(MethodInsnNode ctorCall) {
         int pending = 0;
         for (AbstractInsnNode current = ctorCall.getPrevious(); current != null; current = current.getPrevious()) {

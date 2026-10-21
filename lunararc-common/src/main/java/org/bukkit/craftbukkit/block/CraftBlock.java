@@ -321,6 +321,14 @@ public class CraftBlock implements Block {
     @Override
     public boolean isLiquid() { return !world.getFluidState(position).isEmpty(); }
 
+    public net.minecraft.world.level.block.state.BlockState getBlockState() {
+        return world.getBlockState(position);
+    }
+
+    public net.minecraft.world.level.LevelAccessor getLevel() {
+        return world;
+    }
+
     @Override
     public boolean isPassable() { return !nmsState().blocksMotion(); }
 

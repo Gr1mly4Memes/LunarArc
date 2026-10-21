@@ -1294,8 +1294,8 @@ public class CraftWorld implements World {
         net.minecraft.core.Holder<net.minecraft.world.level.gameevent.GameEvent> nmsEvent =
                 net.minecraft.core.registries.BuiltInRegistries.GAME_EVENT.get(eventKey)
                         .orElseThrow(() -> new IllegalArgumentException("Unknown game event " + event.getKey()));
-        world.gameEvent(nmsSource, nmsEvent, new net.minecraft.core.BlockPos(
-                (int) Math.floor(position.getX()), (int) Math.floor(position.getY()), (int) Math.floor(position.getZ())));
+        world.gameEvent(nmsEvent, new net.minecraft.world.phys.Vec3(position.getX(), position.getY(), position.getZ()),
+                net.minecraft.world.level.gameevent.GameEvent.Context.of(nmsSource));
     }
 
     @Override
@@ -1991,6 +1991,31 @@ public class CraftWorld implements World {
             throw new IllegalStateException("FallingBlockEntity did not produce a FallingBlock wrapper");
         }
         return fallingBlock;
+    }
+
+    public Iterable<net.minecraft.world.entity.Entity> getNMSEntities() {
+        return world.getAllEntities();
+    }
+
+    public void addEntityWithPassengers(net.minecraft.world.entity.Entity entity, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason reason) {
+        ((io.lunararcdevs.lunararc.common.bridge.ServerLevelBridge) world).lunararc$addFreshEntityWithPassengers(entity, reason);
+    }
+
+    public void setBiome(int x, int y, int z, net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> holder) {
+        net.minecraft.world.level.chunk.LevelChunk chunk = world.getChunk(x >> 4, z >> 4);
+        int sectionIndex = chunk.getSectionIndex(y);
+        if (sectionIndex < 0 || sectionIndex >= chunk.getSections().length) {
+            throw new IllegalArgumentException("Y coordinate outside world bounds: " + y);
+        }
+        net.minecraft.world.level.chunk.LevelChunkSection section = chunk.getSection(sectionIndex);
+        if (!(section.getBiomes() instanceof net.minecraft.world.level.chunk.PalettedContainer<?> raw)) {
+            throw new IllegalStateException("Biome palette is not mutable");
+        }
+        @SuppressWarnings("unchecked")
+        net.minecraft.world.level.chunk.PalettedContainer<net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome>> biomes =
+                (net.minecraft.world.level.chunk.PalettedContainer<net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome>>) raw;
+        biomes.set((x & 15) >> 2, (y & 15) >> 2, (z & 15) >> 2, holder);
+        chunk.markUnsaved();
     }
 
     @Override

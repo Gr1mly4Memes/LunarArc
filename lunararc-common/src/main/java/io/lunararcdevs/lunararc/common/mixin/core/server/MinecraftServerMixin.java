@@ -14,7 +14,6 @@ import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerChunkCache;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.gamerules.GameRules;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
@@ -207,6 +206,32 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
 
     public long nextTickTime = 0L;
 
+    /**
+     * The watchdog measures "time since the tick should have started" from this value. Before the first tick it can still be unset (zero),
+     * which made it report a tick as long as the machine's uptime and kill a healthy server during startup. A real stall keeps a real value.
+     */
+    @com.llamalad7.mixinextras.injector.ModifyReturnValue(method = "getNextTickTime", at = @At("RETURN"), require = 0)
+    private long lunararc$watchdogTickTime(long nextTickTimeNanos) {
+        if (nextTickTimeNanos <= 0L) return net.minecraft.util.Util.getNanos();
+        // Fabric and Quilt fire "server started" (and mods such as ComputerCraft rebuild every creative tab in it) before the first tick, and
+        // the watchdog is already running by then; long mod start-up work there is not a stalled tick.
+        if (!this.lunararc$ticked && lunararc$fabricLike()) return net.minecraft.util.Util.getNanos();
+        return nextTickTimeNanos;
+    }
+
+    @Unique private volatile boolean lunararc$ticked;
+
+    @Unique
+    private static boolean lunararc$fabricLike() {
+        String platform = io.lunararcdevs.lunararc.common.mod.server.LunarArcServer.platformName();
+        return "Fabric".equalsIgnoreCase(platform) || "Quilt".equalsIgnoreCase(platform);
+    }
+
+    @Inject(method = "tickServer", at = @At("HEAD"), require = 0)
+    private void lunararc$firstTick(java.util.function.BooleanSupplier hasTimeLeft, CallbackInfo ci) {
+        this.lunararc$ticked = true;
+    }
+
     @Unique private final java.util.Set<String> lunararc$pluginsBlockingSleep = new java.util.HashSet<>();
 
     @Override
@@ -284,8 +309,6 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
             this.lunararc$tps5.add(currentTps, elapsed);
             this.lunararc$tps15.add(currentTps, elapsed);
             this.lunararc$tpsSampleStartedNanos = now;
-            // Publish to the CraftBukkit-named field in the same place, so a plugin reading
-            // recentTps directly and one calling getTPS() can never disagree.
             this.recentTps[0] = this.lunararc$tps1.getAverage();
             this.recentTps[1] = this.lunararc$tps5.getAverage();
             this.recentTps[2] = this.lunararc$tps15.getAverage();
@@ -334,6 +357,7 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
             throw fatal;
         }
 
+        io.lunararcdevs.lunararc.common.server.LunarArcDatapackDiscovery.discover();
         this.lunararc$enablePlugins(craftServer, PluginLoadOrder.STARTUP);
     }
 
@@ -364,6 +388,7 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
             craftServer.getPluginManager().callEvent(new org.bukkit.event.world.WorldLoadEvent(craftWorld));
         }
 
+        io.lunararcdevs.lunararc.common.server.LunarArcDatapackDiscovery.apply((MinecraftServer) (Object) this);
         this.lunararc$enablePlugins(craftServer, PluginLoadOrder.POSTWORLD);
 
         long commandSyncStarted = System.nanoTime();
