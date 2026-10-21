@@ -108,9 +108,9 @@ public final class PluginCompatibilityRegressionTest {
                     "empty translations did not fall back");
             check(io.lunararcdevs.lunararc.common.server.LunarArcPluginFixManager.translationEntries(
                     java.util.Map.of("key", "value")).size() == 1, "valid translations lost");
-            var missingRecipe = net.minecraft.resources.ResourceLocation.parse("farmingforblockheads:market/missing");
-            var validRecipe = net.minecraft.resources.ResourceLocation.parse("farmingforblockheads:market/valid");
-            var unrelated = net.minecraft.resources.ResourceLocation.parse("example:market/missing");
+            var missingRecipe = net.minecraft.resources.Identifier.parse("farmingforblockheads:market/missing");
+            var validRecipe = net.minecraft.resources.Identifier.parse("farmingforblockheads:market/valid");
+            var unrelated = net.minecraft.resources.Identifier.parse("example:market/missing");
             var missing = com.google.gson.JsonParser.parseString(
                     "{\"type\":\"farmingforblockheads:market\",\"result\":{\"item\":\"absent:sapling\"}}");
             var valid = com.google.gson.JsonParser.parseString(

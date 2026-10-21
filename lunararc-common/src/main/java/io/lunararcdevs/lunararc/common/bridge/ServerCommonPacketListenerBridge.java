@@ -116,4 +116,7 @@ public interface ServerCommonPacketListenerBridge {
         }
     }
 
+
+    /** Adventure resource-pack callbacks awaiting the client's response, by pack id. */
+    java.util.Map<java.util.UUID, net.kyori.adventure.resource.ResourcePackCallback> lunararc$getPackCallbacks();
 }

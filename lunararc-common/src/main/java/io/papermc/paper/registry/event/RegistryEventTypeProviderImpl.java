@@ -2,20 +2,23 @@ package io.papermc.paper.registry.event;
 
 import io.papermc.paper.plugin.bootstrap.BootstrapContext;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEventType;
-import io.papermc.paper.plugin.lifecycle.event.types.PrioritizableLifecycleEventType;
+import io.papermc.paper.registry.PaperRegistryListenerManager;
 import io.papermc.paper.registry.RegistryBuilder;
 import io.papermc.paper.registry.event.type.RegistryEntryAddEventType;
-import io.papermc.paper.registry.event.type.RegistryEntryAddEventTypeImpl;
 
-public final class RegistryEventTypeProviderImpl implements RegistryEventTypeProvider {
-    @Override
-    public <T, B extends RegistryBuilder<T>> RegistryEntryAddEventType<T, B> registryEntryAdd(RegistryEventProvider<T, B> provider) {
-        return new RegistryEntryAddEventTypeImpl<>(provider.registryKey(), "registry_entry_add:" + provider.registryKey());
+public class RegistryEventTypeProviderImpl implements RegistryEventTypeProvider {
+
+    public static RegistryEventTypeProviderImpl instance() {
+        return (RegistryEventTypeProviderImpl) RegistryEventTypeProvider.provider();
     }
 
     @Override
-    public <T, B extends RegistryBuilder<T>> LifecycleEventType.Prioritizable<BootstrapContext, RegistryFreezeEvent<T, B>> registryFreeze(
-            RegistryEventProvider<T, B> provider) {
-        return new PrioritizableLifecycleEventType.Simple<>("registry_freeze:" + provider.registryKey(), BootstrapContext.class);
+    public <T, B extends RegistryBuilder<T>> RegistryEntryAddEventType<T, B> registryEntryAdd(final RegistryEventProvider<T, B> type) {
+        return PaperRegistryListenerManager.INSTANCE.getRegistryValueAddEventType(type);
+    }
+
+    @Override
+    public <T, B extends RegistryBuilder<T>> LifecycleEventType.Prioritizable<BootstrapContext, RegistryComposeEvent<T, B>> registryCompose(final RegistryEventProvider<T, B> type) {
+        return PaperRegistryListenerManager.INSTANCE.getRegistryComposeEventType(type);
     }
 }

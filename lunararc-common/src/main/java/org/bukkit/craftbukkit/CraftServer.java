@@ -1,5 +1,6 @@
 package org.bukkit.craftbukkit;
 
+import io.lunararcdevs.lunararc.common.LunarArcServerAccess;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.players.PlayerList;
 import org.bukkit.*;
@@ -49,7 +50,12 @@ public class CraftServer implements Server {
     private final org.bukkit.potion.PotionBrewer potionBrewer;
     private final MinecraftServer console;
     private final PlayerList playerList;
-    private final Logger logger = LunarArcLogger.getLogger("Minecraft");
+    private final Logger logger = initLogger();
+
+    private static Logger initLogger() {
+        LunarArcLogger.bridgeRootLogger();
+        return LunarArcLogger.getLogger("Minecraft");
+    }
     private final SimpleCommandMap commandMap = new org.bukkit.craftbukkit.command.CraftCommandMap(this);
     private final PluginManager pluginManager;
     private final SimplePluginManager simplePluginManager;
@@ -64,6 +70,9 @@ public class CraftServer implements Server {
     public org.bukkit.metadata.MetadataStore<org.bukkit.entity.Entity> getEntityMetadata() {
         return entityMetadata;
     }
+
+    /** Spigot compatibility switches enabled in bukkit.yml (settings.compatibility.*); read by the plugin bytecode rewriter. */
+    public static volatile java.util.Set<String> ACTIVE_COMPATIBILITIES = java.util.Set.of();
 
     private final YamlConfiguration bukkitConfig = new YamlConfiguration();
     private final YamlConfiguration spigotConfig = new YamlConfiguration();
@@ -115,7 +124,6 @@ public class CraftServer implements Server {
             new org.bukkit.craftbukkit.scheduler.CraftPaperSchedulers(scheduler);
     private final io.papermc.paper.datapack.PaperDatapackManager datapackManager;
     private final CraftServerTickManager serverTickManager;
-    private final org.bukkit.craftbukkit.packs.CraftDataPackManager legacyDataPackManager;
     private final org.bukkit.craftbukkit.structure.CraftStructureManager structureManager;
     private final CraftServerLinks serverLinks;
     private final org.bukkit.craftbukkit.scoreboard.CraftScoreboardManager scoreboardManager;
@@ -214,7 +222,6 @@ public class CraftServer implements Server {
 
         this.simplePluginManager.registerInterface(io.lunararcdevs.lunararc.common.server.LunarArcPluginLoader.class);
         this.datapackManager = new io.papermc.paper.datapack.PaperDatapackManager(console);
-        this.legacyDataPackManager = new org.bukkit.craftbukkit.packs.CraftDataPackManager(console);
         this.serverTickManager = new CraftServerTickManager(console);
         this.structureManager = new org.bukkit.craftbukkit.structure.CraftStructureManager(console);
         this.serverLinks = console instanceof net.minecraft.server.dedicated.DedicatedServer dedicated
@@ -272,6 +279,9 @@ public class CraftServer implements Server {
             bukkitConfig.addDefault("settings.query-plugins", true);
             bukkitConfig.addDefault("settings.deprecated-verbose", "default");
             bukkitConfig.addDefault("settings.shutdown-message", "Server closed");
+            // Spigot's switch for plugins built when Biome, Sound, Attribute and friends were still enums (EnumMap, Enum#valueOf,
+            // ordinal and so on). Paper ships it off; LunarArc keeps the option so older plugins can be run.
+            bukkitConfig.addDefault("settings.compatibility.enum-compatibility-mode", false);
             bukkitConfig.addDefault("spawn-limits.monsters", 70);
             bukkitConfig.addDefault("spawn-limits.animals", 10);
             bukkitConfig.addDefault("spawn-limits.water-animals", 5);
@@ -290,6 +300,17 @@ public class CraftServer implements Server {
             bukkitConfig.addDefault("aliases", "noworld");
             bukkitConfig.options().copyDefaults(true);
             bukkitConfig.save(bukkitFile);
+            {
+                org.bukkit.configuration.ConfigurationSection compatibilities = bukkitConfig.getConfigurationSection("settings.compatibility");
+                java.util.Set<String> active = new java.util.HashSet<>();
+                if (compatibilities != null) {
+                    for (String key : compatibilities.getKeys(false)) if (compatibilities.getBoolean(key)) active.add(key);
+                }
+                ACTIVE_COMPATIBILITIES = java.util.Set.copyOf(active);
+                if (active.contains("enum-compatibility-mode")) {
+                    java.util.logging.Logger.getLogger("Minecraft").warning("Loading plugins in enum compatibility mode. This will affect plugin performance. Use only as a transition period or when absolutely necessary.");
+                }
+            }
 
             spigotConfig.addDefault("settings.debug", false);
             spigotConfig.addDefault("settings.bungeecord", false);
@@ -497,7 +518,7 @@ public class CraftServer implements Server {
         CraftWorld craft = new CraftWorld(level, name, generator, biomeProvider);
         CraftWorld previous = worldByDimension.putIfAbsent(level.dimension(), craft);
         if (previous != null && previous != craft) {
-            throw new IllegalStateException("A Bukkit world is already registered for " + level.dimension().location());
+            throw new IllegalStateException("A Bukkit world is already registered for " + level.dimension().identifier());
         }
         worlds.put(name, craft);
         worldCache.put(craft.getUID(), craft);
@@ -623,7 +644,7 @@ public class CraftServer implements Server {
     @Override
     public void setMaxPlayers(int maxPlayers) {
         if (maxPlayers < 0) throw new IllegalArgumentException("maxPlayers must be >= 0");
-        playerList.maxPlayers = maxPlayers;
+        ((net.minecraft.server.dedicated.DedicatedServer) console).setMaxPlayers(maxPlayers);
     }
 
     @Override
@@ -647,7 +668,7 @@ public class CraftServer implements Server {
             Object raw = propertiesField.get(dedicatedProperties());
             if (raw instanceof java.util.Properties props) return props.getProperty("level-type", "minecraft:normal");
         } catch (ReflectiveOperationException ex) {
-            throw new IllegalStateException("Unable to read the 1.21.1 level-type server property", ex);
+            throw new IllegalStateException("Unable to read the level-type server property", ex);
         }
         return "minecraft:normal";
     }
@@ -659,12 +680,12 @@ public class CraftServer implements Server {
 
     @Override
     public int getViewDistance() {
-        return dedicatedProperties().viewDistance;
+        return ((net.minecraft.server.dedicated.DedicatedServer) console).viewDistance();
     }
 
     @Override
     public int getSimulationDistance() {
-        return dedicatedProperties().simulationDistance;
+        return ((net.minecraft.server.dedicated.DedicatedServer) console).simulationDistance();
     }
 
     @Override
@@ -684,7 +705,7 @@ public class CraftServer implements Server {
 
     @Override
     public int getSpawnRadius() {
-        return console.getSpawnProtectionRadius();
+        return ((net.minecraft.server.dedicated.DedicatedServer) console).spawnProtectionRadius();
     }
 
     public int getBukkitSpawnRadius() {
@@ -708,7 +729,7 @@ public class CraftServer implements Server {
 
     @Override
     public boolean getAllowFlight() {
-        return console.isFlightAllowed();
+        return console.allowFlight();
     }
 
     @Override
@@ -718,12 +739,12 @@ public class CraftServer implements Server {
 
     @Override
     public boolean getHideOnlinePlayers() {
-        return dedicatedProperties().hideOnlinePlayers;
+        return dedicatedProperties().hideOnlinePlayers.get();
     }
 
     @Override
     public boolean getAllowNether() {
-        return dedicatedProperties().allowNether;
+        return io.papermc.paper.configuration.GlobalConfiguration.get().misc.enableNether;
     }
 
     @Override
@@ -738,7 +759,7 @@ public class CraftServer implements Server {
 
     @Override
     public void setWhitelist(boolean value) {
-        playerList.setUsingWhiteList(value);
+        console.setUsingWhitelist(value);
     }
 
     @Override
@@ -904,8 +925,8 @@ public class CraftServer implements Server {
         for (net.minecraft.server.level.ServerLevel level : console.getAllLevels()) {
             CraftWorld craft = craftWorld(level);
             if (craft.getName().equalsIgnoreCase(name)
-                    || level.dimension().location().toString().equalsIgnoreCase(name)
-                    || level.dimension().location().getPath().equalsIgnoreCase(name)) {
+                    || level.dimension().identifier().toString().equalsIgnoreCase(name)
+                    || level.dimension().identifier().getPath().equalsIgnoreCase(name)) {
                 return craft;
             }
         }
@@ -916,7 +937,7 @@ public class CraftServer implements Server {
             case "world_the_end" -> "minecraft:the_end";
             default -> name.contains(":") ? name : "minecraft:" + name;
         };
-        net.minecraft.resources.ResourceLocation rl = net.minecraft.resources.ResourceLocation.tryParse(qualified);
+        net.minecraft.resources.Identifier rl = net.minecraft.resources.Identifier.tryParse(qualified);
         if (rl == null) return null;
         net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> key = net.minecraft.resources.ResourceKey
                 .create(net.minecraft.core.registries.Registries.DIMENSION, rl);
@@ -1200,14 +1221,18 @@ public class CraftServer implements Server {
         if (online != null) return online;
 
         try {
-            var profile = console.getProfileCache().get(name);
+            var profile = console.services().nameToIdCache().get(name);
             if (profile.isPresent()) {
                 return new org.bukkit.craftbukkit.entity.CraftOfflinePlayer(
-                        profile.get().getId(), name);
+                        profile.get().id(), name);
             }
         } catch (Throwable ignored) {}
         return new org.bukkit.craftbukkit.entity.CraftOfflinePlayer(
                 UUID.nameUUIDFromBytes(("OfflinePlayer:" + name).getBytes(java.nio.charset.StandardCharsets.UTF_8)), name);
+    }
+
+    public @NotNull OfflinePlayer getOfflinePlayer(net.minecraft.server.players.NameAndId nameAndId) {
+        return getOfflinePlayer(nameAndId.id());
     }
 
     @Override
@@ -1216,10 +1241,10 @@ public class CraftServer implements Server {
         if (online != null) return online;
 
         try {
-            var profile = console.getProfileCache().get(id);
+            var profile = console.services().nameToIdCache().get(id);
             if (profile.isPresent()) {
                 return new org.bukkit.craftbukkit.entity.CraftOfflinePlayer(
-                        id, profile.get().getName());
+                        id, profile.get().name());
             }
         } catch (Throwable ignored) {}
         return new org.bukkit.craftbukkit.entity.CraftOfflinePlayer(id, null);
@@ -1230,10 +1255,10 @@ public class CraftServer implements Server {
         Player online = getPlayer(name);
         if (online != null) return online;
         try {
-            var profile = console.getProfileCache().get(name);
+            var profile = console.services().nameToIdCache().get(name);
             if (profile.isPresent()) {
                 return new org.bukkit.craftbukkit.entity.CraftOfflinePlayer(
-                        profile.get().getId(), name);
+                        profile.get().id(), name);
             }
         } catch (Throwable ignored) {}
         return null;
@@ -1374,7 +1399,7 @@ public class CraftServer implements Server {
 
     @Override
     public int getIdleTimeout() {
-        return this.console.getPlayerIdleTimeout();
+        return this.console.playerIdleTimeout();
     }
 
     @Override
@@ -1408,12 +1433,12 @@ public class CraftServer implements Server {
     }
 
     @Override
-    public @NotNull org.bukkit.entity.EntityFactory getEntityFactory() {
+    public @NotNull org.bukkit.craftbukkit.entity.CraftEntityFactory getEntityFactory() {
         return org.bukkit.craftbukkit.entity.CraftEntityFactory.instance();
     }
 
     @Override
-    public @NotNull org.bukkit.inventory.ItemFactory getItemFactory() {
+    public @NotNull org.bukkit.craftbukkit.inventory.CraftItemFactory getItemFactory() {
         return org.bukkit.craftbukkit.inventory.CraftItemFactory.instance();
     }
 
@@ -1430,11 +1455,6 @@ public class CraftServer implements Server {
     @Override
     public @NotNull org.bukkit.ServerLinks getServerLinks() {
         return this.serverLinks;
-    }
-
-    @Override
-    public @NotNull org.bukkit.packs.DataPackManager getDataPackManager() {
-        return legacyDataPackManager;
     }
 
     @Override
@@ -1625,24 +1645,24 @@ public class CraftServer implements Server {
         java.util.stream.Stream<? extends net.minecraft.tags.TagKey<?>> keys;
         if (org.bukkit.Tag.REGISTRY_ITEMS.equals(registry)) {
             if (clazz != Material.class) throw new IllegalArgumentException("Item tags require Material values");
-            keys = net.minecraft.core.registries.BuiltInRegistries.ITEM.getTags().map(pair -> pair.getFirst());
+            keys = net.minecraft.core.registries.BuiltInRegistries.ITEM.getTags().map(net.minecraft.core.HolderSet.Named::key);
         } else if (org.bukkit.Tag.REGISTRY_BLOCKS.equals(registry)) {
             if (clazz != Material.class) throw new IllegalArgumentException("Block tags require Material values");
-            keys = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getTags().map(pair -> pair.getFirst());
+            keys = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getTags().map(net.minecraft.core.HolderSet.Named::key);
         } else if (org.bukkit.Tag.REGISTRY_FLUIDS.equals(registry)) {
             if (clazz != org.bukkit.Fluid.class) throw new IllegalArgumentException("Fluid tags require Fluid values");
-            keys = net.minecraft.core.registries.BuiltInRegistries.FLUID.getTags().map(pair -> pair.getFirst());
+            keys = net.minecraft.core.registries.BuiltInRegistries.FLUID.getTags().map(net.minecraft.core.HolderSet.Named::key);
         } else if (org.bukkit.Tag.REGISTRY_ENTITY_TYPES.equals(registry)) {
             if (clazz != org.bukkit.entity.EntityType.class) throw new IllegalArgumentException("Entity tags require EntityType values");
-            keys = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getTags().map(pair -> pair.getFirst());
+            keys = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getTags().map(net.minecraft.core.HolderSet.Named::key);
         } else if (org.bukkit.Tag.REGISTRY_GAME_EVENTS.equals(registry)) {
             if (clazz != org.bukkit.GameEvent.class) throw new IllegalArgumentException("Game-event tags require GameEvent values");
-            keys = net.minecraft.core.registries.BuiltInRegistries.GAME_EVENT.getTags().map(pair -> pair.getFirst());
+            keys = net.minecraft.core.registries.BuiltInRegistries.GAME_EVENT.getTags().map(net.minecraft.core.HolderSet.Named::key);
         } else {
             throw new IllegalArgumentException("Unsupported Bukkit tag registry: " + registry);
         }
         keys.forEach(key -> {
-            net.minecraft.resources.ResourceLocation id = key.location();
+            net.minecraft.resources.Identifier id = key.location();
             Tag<T> value = getTag(registry, new NamespacedKey(id.getNamespace(), id.getPath()), clazz);
             if (value != null) tags.add(value);
         });
@@ -1836,7 +1856,8 @@ public class CraftServer implements Server {
         if (sender instanceof CraftPlayer craftPlayer) {
             source = craftPlayer.getHandle().createCommandSourceStack();
         } else if (sender instanceof org.bukkit.craftbukkit.entity.CraftEntity craftEntity) {
-            source = craftEntity.getHandle().createCommandSourceStack();
+            source = craftEntity.getHandle().level() instanceof net.minecraft.server.level.ServerLevel serverLevel
+                    ? craftEntity.getHandle().createCommandSourceStackForNameResolution(serverLevel) : null;
         } else if (sender instanceof org.bukkit.craftbukkit.CraftConsoleCommandSender) {
             source = console.createCommandSourceStack();
         } else {
@@ -1869,13 +1890,13 @@ public class CraftServer implements Server {
         Objects.requireNonNull(registry, "registry");
         Objects.requireNonNull(tag, "tag");
         Objects.requireNonNull(clazz, "clazz");
-        net.minecraft.resources.ResourceLocation location = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+        net.minecraft.resources.Identifier location = net.minecraft.resources.Identifier.fromNamespaceAndPath(
                 tag.getNamespace(), tag.getKey());
 
         if (org.bukkit.Tag.REGISTRY_ITEMS.equals(registry)) {
             if (clazz != Material.class) throw new IllegalArgumentException("Item tags require Material values");
             var key = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ITEM, location);
-            var holders = net.minecraft.core.registries.BuiltInRegistries.ITEM.getTag(key);
+            var holders = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(key);
             if (holders.isEmpty()) return null;
             java.util.LinkedHashSet<T> values = new java.util.LinkedHashSet<>();
             for (var holder : holders.get()) {
@@ -1888,7 +1909,7 @@ public class CraftServer implements Server {
         if (org.bukkit.Tag.REGISTRY_BLOCKS.equals(registry)) {
             if (clazz != Material.class) throw new IllegalArgumentException("Block tags require Material values");
             var key = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.BLOCK, location);
-            var holders = net.minecraft.core.registries.BuiltInRegistries.BLOCK.getTag(key);
+            var holders = net.minecraft.core.registries.BuiltInRegistries.BLOCK.get(key);
             if (holders.isEmpty()) return null;
             java.util.LinkedHashSet<T> values = new java.util.LinkedHashSet<>();
             for (var holder : holders.get()) {
@@ -1901,7 +1922,7 @@ public class CraftServer implements Server {
         if (org.bukkit.Tag.REGISTRY_FLUIDS.equals(registry)) {
             if (clazz != org.bukkit.Fluid.class) throw new IllegalArgumentException("Fluid tags require Fluid values");
             var key = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.FLUID, location);
-            var holders = net.minecraft.core.registries.BuiltInRegistries.FLUID.getTag(key);
+            var holders = net.minecraft.core.registries.BuiltInRegistries.FLUID.get(key);
             if (holders.isEmpty()) return null;
             java.util.LinkedHashSet<T> values = new java.util.LinkedHashSet<>();
             for (var holder : holders.get()) {
@@ -1917,7 +1938,7 @@ public class CraftServer implements Server {
         if (org.bukkit.Tag.REGISTRY_ENTITY_TYPES.equals(registry)) {
             if (clazz != org.bukkit.entity.EntityType.class) throw new IllegalArgumentException("Entity tags require EntityType values");
             var key = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.ENTITY_TYPE, location);
-            var holders = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getTag(key);
+            var holders = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.get(key);
             if (holders.isEmpty()) return null;
             java.util.LinkedHashSet<T> values = new java.util.LinkedHashSet<>();
             for (var holder : holders.get()) {
@@ -1931,7 +1952,7 @@ public class CraftServer implements Server {
         if (org.bukkit.Tag.REGISTRY_GAME_EVENTS.equals(registry)) {
             if (clazz != org.bukkit.GameEvent.class) throw new IllegalArgumentException("Game-event tags require GameEvent values");
             var key = net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.GAME_EVENT, location);
-            var holders = net.minecraft.core.registries.BuiltInRegistries.GAME_EVENT.getTag(key);
+            var holders = net.minecraft.core.registries.BuiltInRegistries.GAME_EVENT.get(key);
             if (holders.isEmpty()) return null;
             java.util.LinkedHashSet<T> values = new java.util.LinkedHashSet<>();
             Registry<org.bukkit.GameEvent> gameEvents = io.papermc.paper.registry.PaperRegistryAccess.INSTANCE
@@ -2010,8 +2031,8 @@ public class CraftServer implements Server {
     @Override
     public @Nullable Advancement getAdvancement(@NotNull NamespacedKey key) {
         Objects.requireNonNull(key, "key");
-        net.minecraft.resources.ResourceLocation id =
-                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(key.getNamespace(), key.getKey());
+        net.minecraft.resources.Identifier id =
+                net.minecraft.resources.Identifier.fromNamespaceAndPath(key.getNamespace(), key.getKey());
         return wrapAdvancement(console.getAdvancements().get(id));
     }
 
@@ -2127,8 +2148,8 @@ public class CraftServer implements Server {
     public @NotNull PlayerProfile createPlayerProfile(@NotNull UUID uniqueId) {
         String name = null;
         try {
-            var profile = console.getProfileCache().get(uniqueId);
-            if (profile.isPresent()) name = profile.get().getName();
+            var profile = console.services().nameToIdCache().get(uniqueId);
+            if (profile.isPresent()) name = profile.get().name();
         } catch (Throwable ignored) {}
         return new com.destroystokyo.paper.profile.CraftPlayerProfile(uniqueId, name);
     }
@@ -2146,8 +2167,8 @@ public class CraftServer implements Server {
         if (online != null) return online.getUniqueId();
 
         try {
-            var profile = console.getProfileCache().get(name);
-            if (profile.isPresent()) return profile.get().getId();
+            var profile = console.services().nameToIdCache().get(name);
+            if (profile.isPresent()) return profile.get().id();
         } catch (Throwable ignored) {}
         return null;
     }
@@ -2266,7 +2287,7 @@ public class CraftServer implements Server {
             @Override
             public void remove() {
                 if (current == null) throw new IllegalStateException("next() has not been called");
-                if (recipeManagerBridge().lunararc$removeRecipe(current.id())) updateRecipes();
+                if (recipeManagerBridge().lunararc$removeRecipe(current.id().identifier())) updateRecipes();
                 current = null;
             }
         };
@@ -2402,10 +2423,11 @@ public class CraftServer implements Server {
         org.bukkit.craftbukkit.inventory.CraftItemCraftResult craftResult =
                 new org.bukkit.craftbukkit.inventory.CraftItemCraftResult(
                         org.bukkit.craftbukkit.inventory.CraftItemStack.asBukkitCopy(result));
+        net.minecraft.world.item.crafting.CraftingInput craftingInput = crafting.asCraftInput();
         net.minecraft.core.NonNullList<net.minecraft.world.item.ItemStack> remaining =
-                console.getRecipeManager().getRemainingItemsFor(
-                        net.minecraft.world.item.crafting.RecipeType.CRAFTING,
-                        crafting.asCraftInput(), world);
+                world.recipeAccess().getRecipeFor(net.minecraft.world.item.crafting.RecipeType.CRAFTING, craftingInput, world)
+                        .map(holder -> holder.value().getRemainingItems(craftingInput))
+                        .orElseGet(() -> net.minecraft.world.item.crafting.CraftingRecipe.defaultCraftingReminder(craftingInput));
         for (int i = 0; i < remaining.size(); i++) {
             net.minecraft.world.item.ItemStack original = crafting.getItem(i).copy();
             net.minecraft.world.item.ItemStack remainder = remaining.get(i);
@@ -2472,10 +2494,10 @@ public class CraftServer implements Server {
         final net.minecraft.core.RegistryAccess.Frozen dimensions =
                 console.registries().getLayer(net.minecraft.server.RegistryLayer.DIMENSIONS);
         final net.minecraft.core.Registry<net.minecraft.world.level.dimension.LevelStem> stems =
-                dimensions.registryOrThrow(net.minecraft.core.registries.Registries.LEVEL_STEM);
-        final net.minecraft.world.level.dimension.LevelStem stem = stems.get(stemKey);
+                dimensions.lookupOrThrow(net.minecraft.core.registries.Registries.LEVEL_STEM);
+        final net.minecraft.world.level.dimension.LevelStem stem = stems.getValue(stemKey);
         if (stem == null) {
-            throw new IllegalArgumentException("The running loader has no level stem for " + stemKey.location());
+            throw new IllegalArgumentException("The running loader has no level stem for " + stemKey.identifier());
         }
 
         final net.minecraft.world.level.storage.LevelStorageSource.LevelStorageAccess session;
@@ -2517,13 +2539,13 @@ public class CraftServer implements Server {
                 net.minecraft.world.level.storage.LevelDataAndDimensions loaded =
                         net.minecraft.world.level.storage.LevelStorageSource.getLevelDataAndDimensions(
                                 dynamic, context.dataConfiguration(),
-                                context.datapackDimensions().registryOrThrow(net.minecraft.core.registries.Registries.LEVEL_STEM),
+                                context.datapackDimensions().lookupOrThrow(net.minecraft.core.registries.Registries.LEVEL_STEM),
                                 context.datapackWorldgen());
                 levelData = (net.minecraft.world.level.storage.PrimaryLevelData) loaded.worldData();
             } else {
                 net.minecraft.world.level.LevelSettings settings = new net.minecraft.world.level.LevelSettings(
                         name, net.minecraft.world.level.GameType.byId(getDefaultGameMode().getValue()), creator.hardcore(),
-                        net.minecraft.world.Difficulty.EASY, false, new net.minecraft.world.level.GameRules(), context.dataConfiguration());
+                        net.minecraft.world.Difficulty.EASY, false, new net.minecraft.world.level.gamerules.GameRules(context.dataConfiguration().enabledFeatures()), context.dataConfiguration());
                 net.minecraft.world.level.levelgen.WorldOptions options = new net.minecraft.world.level.levelgen.WorldOptions(
                         creator.seed(), creator.generateStructures(), false);
                 net.minecraft.world.level.storage.WorldData template = console.getWorldData();
@@ -2544,7 +2566,7 @@ public class CraftServer implements Server {
                             new net.minecraft.world.level.levelgen.PatrolSpawner(),
                             new net.minecraft.world.entity.npc.CatSpawner(),
                             new net.minecraft.world.entity.ai.village.VillageSiege(),
-                            new net.minecraft.world.entity.npc.WanderingTraderSpawner(levelData))
+                            new net.minecraft.world.entity.npc.wanderingtrader.WanderingTraderSpawner(levelData))
                     : java.util.List.of();
 
             String mainLevelName = dedicatedProperties().levelName;
@@ -2556,20 +2578,12 @@ public class CraftServer implements Server {
             } else {
                 worldKey = net.minecraft.resources.ResourceKey.create(
                         net.minecraft.core.registries.Registries.DIMENSION,
-                        net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+                        net.minecraft.resources.Identifier.fromNamespaceAndPath(
                                 creator.key().getNamespace(), creator.key().getKey()));
             }
             if (((io.lunararcdevs.lunararc.common.bridge.access.MinecraftServerAccessBridge) (Object) console).lunararc$getLevels().containsKey(worldKey)) {
-                throw new IllegalArgumentException("A world is already registered with key " + worldKey.location());
+                throw new IllegalArgumentException("A world is already registered with key " + worldKey.identifier());
             }
-
-            if (creator.keepSpawnLoaded() == net.kyori.adventure.util.TriState.FALSE) {
-                levelData.getGameRules().getRule(net.minecraft.world.level.GameRules.RULE_SPAWN_CHUNK_RADIUS).set(0, null);
-            }
-
-            net.minecraft.server.level.progress.ChunkProgressListener listener =
-                    console.progressListenerFactory
-                            .create(levelData.getGameRules().getInt(net.minecraft.world.level.GameRules.RULE_SPAWN_CHUNK_RADIUS));
 
             org.bukkit.generator.ChunkGenerator bukkitGenerator = creator.generator();
             org.bukkit.generator.BiomeProvider bukkitBiomeProvider = creator.biomeProvider();
@@ -2580,7 +2594,7 @@ public class CraftServer implements Server {
                 // the identity the world actually ends up with rather than one from a folder named
                 // after it.
                 java.util.UUID generationUid = org.bukkit.craftbukkit.CraftWorld.loadOrCreateWorldUid(
-                        session.getDimensionPath(worldKey), name, worldKey.location().toString());
+                        session.getDimensionPath(worldKey), name, worldKey.identifier().toString());
                 net.minecraft.world.level.dimension.DimensionType dimensionType = stem.type().value();
                 org.bukkit.craftbukkit.generator.CraftWorldInfo worldInfo =
                         new org.bukkit.craftbukkit.generator.CraftWorldInfo(
@@ -2594,7 +2608,7 @@ public class CraftServer implements Server {
                 if (bukkitBiomeProvider != null) {
                     effectiveBiomeSource = new org.bukkit.craftbukkit.generator.CustomWorldChunkManager(
                             worldInfo, bukkitBiomeProvider,
-                            console.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.BIOME),
+                            console.registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.BIOME),
                             stem.generator().getBiomeSource());
                 }
                 customGenerator = new org.bukkit.craftbukkit.generator.CustomChunkGenerator(
@@ -2603,14 +2617,14 @@ public class CraftServer implements Server {
             }
 
             createdLevel = new net.minecraft.server.level.ServerLevel(
-                    console, console, session, levelData, worldKey, effectiveStem, listener,
+                    console, console, session, levelData, worldKey, effectiveStem,
                     levelData.isDebugWorld(), biomeSeed, spawners, true, console.overworld().getRandomSequences());
             if (customGenerator != null) customGenerator.attachWorld(createdLevel);
 
             serverBridge.lunararc$addLevel(createdLevel);
             createdWorld = registerDynamicWorld(createdLevel, name, bukkitGenerator, bukkitBiomeProvider);
             serverBridge.lunararc$initializeDynamicLevel(createdLevel, levelData, false);
-            serverBridge.lunararc$prepareDynamicLevel(createdLevel, listener);
+            serverBridge.lunararc$prepareDynamicLevel(createdLevel);
             worldLoadEventFired.add(createdLevel.dimension());
             simplePluginManager.callEvent(new org.bukkit.event.world.WorldLoadEvent(createdWorld));
             return createdWorld;
@@ -2768,5 +2782,73 @@ public class CraftServer implements Server {
     private String lunararcFeatureFlagId(Object flag) {
         if (flag instanceof org.bukkit.Keyed keyed) return keyed.getKey().toString();
         return null;
+    }
+
+    @Override
+    public void allowPausing(final org.bukkit.plugin.Plugin plugin, final boolean value) {
+        ((io.lunararcdevs.lunararc.common.bridge.MinecraftServerBridge) (Object) getServer()).lunararc$setPluginAllowingSleep(plugin.getName(), value);
+    }
+
+    @Override
+    public boolean isPaused() {
+        net.minecraft.server.MinecraftServer server = getServer();
+        return server.emptyTicks > 0 && server.emptyTicks >= server.pauseWhenEmptySeconds() * 20;
+    }
+
+    @Override
+    public boolean isGlobalTickThread() {
+        return org.bukkit.Bukkit.isPrimaryThread();
+    }
+
+    @Override
+    public boolean isOwnedByCurrentRegion(@NotNull World world, int minChunkX, int minChunkZ, int maxChunkX, int maxChunkZ) {
+        Objects.requireNonNull(world, "world");
+        return this.console.isSameThread();
+    }
+
+    @Override
+    public void restart() {
+        org.spigotmc.RestartCommand.restart();
+    }
+
+    @Override
+    public int getPauseWhenEmptyTime() {
+        return ((net.minecraft.server.dedicated.DedicatedServer) console).pauseWhenEmptySeconds();
+    }
+
+    @Override
+    public void setPauseWhenEmptyTime(int seconds) {
+        ((net.minecraft.server.dedicated.DedicatedServer) console).setPauseWhenEmptySeconds(seconds);
+    }
+
+    @Override
+    public boolean forcesDefaultGameMode() {
+        return dedicatedProperties().forceGameMode.get();
+    }
+
+    @Override
+    public @NotNull Merchant createMerchant() {
+        return new org.bukkit.craftbukkit.inventory.CraftMerchantCustom(org.bukkit.event.inventory.InventoryType.MERCHANT.defaultTitle());
+    }
+
+    @Override
+    public @NotNull World getRespawnWorld() {
+        return LunarArcServerAccess.getCraftWorld(console.findRespawnDimension());
+    }
+
+    @Override
+    public void setRespawnWorld(@NotNull World world) {
+        Objects.requireNonNull(world, "world cannot be null");
+        net.minecraft.server.level.ServerLevel overworld = console.overworld();
+        net.minecraft.world.level.storage.LevelData.RespawnData current = overworld.getRespawnData();
+        overworld.setRespawnData(net.minecraft.world.level.storage.LevelData.RespawnData.of(
+                ((CraftWorld) world).getHandle().dimension(), current.pos(), current.yaw(), current.pitch()));
+    }
+
+    private final io.papermc.paper.configuration.ServerConfiguration lunararcServerConfig = new io.papermc.paper.configuration.PaperServerConfiguration();
+
+    @Override
+    public @NotNull io.papermc.paper.configuration.ServerConfiguration getServerConfig() {
+        return lunararcServerConfig;
     }
 }

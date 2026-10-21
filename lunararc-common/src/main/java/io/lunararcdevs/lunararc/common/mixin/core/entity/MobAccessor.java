@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 @Mixin(Mob.class)
 public interface MobAccessor extends io.lunararcdevs.lunararc.common.bridge.access.MobAccessBridge {
     @Accessor("persistenceRequired") void lunararc$setPersistenceRequired(boolean value);
-    @Accessor("bodyArmorDropChance") float lunararc$getBodyArmorDropChance();
-    @Accessor("bodyArmorDropChance") void lunararc$setBodyArmorDropChance(float value);
+    @Accessor("dropChances") net.minecraft.world.entity.DropChances lunararc$getDropChances();
+    @Accessor("dropChances") void lunararc$setDropChances(net.minecraft.world.entity.DropChances value);
     @Invoker("getAmbientSound") SoundEvent lunararc$invokeGetAmbientSound();
 }

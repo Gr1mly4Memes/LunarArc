@@ -15,7 +15,6 @@ import org.bukkit.permissions.PermissionAttachment;
 import org.bukkit.permissions.PermissionAttachmentInfo;
 import org.bukkit.plugin.Plugin;
 
-import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
 
@@ -25,29 +24,33 @@ public abstract class CraftHumanEntity extends CraftLivingEntity {
     protected PermissibleBase perm = new PermissibleBase(this);
 
     private static final Map<Attribute, Holder<net.minecraft.world.entity.ai.attributes.Attribute>> ATTRIBUTE_MAP =
-            new EnumMap<>(Attribute.class);
+            new java.util.HashMap<>();
     static {
-        ATTRIBUTE_MAP.put(Attribute.GENERIC_MAX_HEALTH,         Attributes.MAX_HEALTH);
-        ATTRIBUTE_MAP.put(Attribute.GENERIC_FOLLOW_RANGE,       Attributes.FOLLOW_RANGE);
-        ATTRIBUTE_MAP.put(Attribute.GENERIC_KNOCKBACK_RESISTANCE, Attributes.KNOCKBACK_RESISTANCE);
-        ATTRIBUTE_MAP.put(Attribute.GENERIC_MOVEMENT_SPEED,     Attributes.MOVEMENT_SPEED);
-        ATTRIBUTE_MAP.put(Attribute.GENERIC_FLYING_SPEED,       Attributes.FLYING_SPEED);
-        ATTRIBUTE_MAP.put(Attribute.GENERIC_ATTACK_DAMAGE,      Attributes.ATTACK_DAMAGE);
-        ATTRIBUTE_MAP.put(Attribute.GENERIC_ATTACK_KNOCKBACK,   Attributes.ATTACK_KNOCKBACK);
-        ATTRIBUTE_MAP.put(Attribute.GENERIC_ATTACK_SPEED,       Attributes.ATTACK_SPEED);
-        ATTRIBUTE_MAP.put(Attribute.GENERIC_ARMOR,              Attributes.ARMOR);
-        ATTRIBUTE_MAP.put(Attribute.GENERIC_ARMOR_TOUGHNESS,    Attributes.ARMOR_TOUGHNESS);
-        ATTRIBUTE_MAP.put(Attribute.GENERIC_LUCK,               Attributes.LUCK);
-        ATTRIBUTE_MAP.put(Attribute.GENERIC_MAX_ABSORPTION,     Attributes.MAX_ABSORPTION);
-        ATTRIBUTE_MAP.put(Attribute.GENERIC_JUMP_STRENGTH,      Attributes.JUMP_STRENGTH);
-        ATTRIBUTE_MAP.put(Attribute.PLAYER_BLOCK_INTERACTION_RANGE, Attributes.BLOCK_INTERACTION_RANGE);
-        ATTRIBUTE_MAP.put(Attribute.PLAYER_ENTITY_INTERACTION_RANGE, Attributes.ENTITY_INTERACTION_RANGE);
-        ATTRIBUTE_MAP.put(Attribute.PLAYER_BLOCK_BREAK_SPEED,   Attributes.BLOCK_BREAK_SPEED);
+        ATTRIBUTE_MAP.put(Attribute.MAX_HEALTH,         Attributes.MAX_HEALTH);
+        ATTRIBUTE_MAP.put(Attribute.FOLLOW_RANGE,       Attributes.FOLLOW_RANGE);
+        ATTRIBUTE_MAP.put(Attribute.KNOCKBACK_RESISTANCE, Attributes.KNOCKBACK_RESISTANCE);
+        ATTRIBUTE_MAP.put(Attribute.MOVEMENT_SPEED,     Attributes.MOVEMENT_SPEED);
+        ATTRIBUTE_MAP.put(Attribute.FLYING_SPEED,       Attributes.FLYING_SPEED);
+        ATTRIBUTE_MAP.put(Attribute.ATTACK_DAMAGE,      Attributes.ATTACK_DAMAGE);
+        ATTRIBUTE_MAP.put(Attribute.ATTACK_KNOCKBACK,   Attributes.ATTACK_KNOCKBACK);
+        ATTRIBUTE_MAP.put(Attribute.ATTACK_SPEED,       Attributes.ATTACK_SPEED);
+        ATTRIBUTE_MAP.put(Attribute.ARMOR,              Attributes.ARMOR);
+        ATTRIBUTE_MAP.put(Attribute.ARMOR_TOUGHNESS,    Attributes.ARMOR_TOUGHNESS);
+        ATTRIBUTE_MAP.put(Attribute.LUCK,               Attributes.LUCK);
+        ATTRIBUTE_MAP.put(Attribute.MAX_ABSORPTION,     Attributes.MAX_ABSORPTION);
+        ATTRIBUTE_MAP.put(Attribute.JUMP_STRENGTH,      Attributes.JUMP_STRENGTH);
+        ATTRIBUTE_MAP.put(Attribute.BLOCK_INTERACTION_RANGE, Attributes.BLOCK_INTERACTION_RANGE);
+        ATTRIBUTE_MAP.put(Attribute.ENTITY_INTERACTION_RANGE, Attributes.ENTITY_INTERACTION_RANGE);
+        ATTRIBUTE_MAP.put(Attribute.BLOCK_BREAK_SPEED,   Attributes.BLOCK_BREAK_SPEED);
     }
 
     public static @Nullable Holder<net.minecraft.world.entity.ai.attributes.Attribute> toNms(@Nullable Attribute attribute) {
         if (attribute == null) return null;
-        return ATTRIBUTE_MAP.get(attribute);
+        // every registered attribute, not just a fixed list: 26.x added scale, gravity, below_name_distance, waypoint ranges, ...
+        Holder<net.minecraft.world.entity.ai.attributes.Attribute> known = ATTRIBUTE_MAP.get(attribute);
+        if (known != null) return known;
+        return net.minecraft.core.registries.BuiltInRegistries.ATTRIBUTE
+                .get(net.minecraft.resources.Identifier.parse(attribute.getKey().toString())).orElse(null);
     }
 
     public CraftHumanEntity(CraftServer server, Player entity) {
@@ -74,7 +77,7 @@ public abstract class CraftHumanEntity extends CraftLivingEntity {
         try {
             net.minecraft.server.players.PlayerList playerList = server.getServer().getPlayerList();
             if (playerList != null) {
-                return playerList.isOp(handle.getGameProfile());
+                return playerList.isOp(new net.minecraft.server.players.NameAndId(handle.getGameProfile()));
             }
         } catch (Throwable ignored) {
         }
@@ -85,8 +88,8 @@ public abstract class CraftHumanEntity extends CraftLivingEntity {
     public void setOp(boolean value) {
         if (value == isOp()) return;
         net.minecraft.server.players.PlayerList playerList = server.getServer().getPlayerList();
-        if (value) playerList.op(getHandle().getGameProfile());
-        else playerList.deop(getHandle().getGameProfile());
+        if (value) playerList.op(new net.minecraft.server.players.NameAndId(getHandle().getGameProfile()));
+        else playerList.deop(new net.minecraft.server.players.NameAndId(getHandle().getGameProfile()));
         perm.recalculatePermissions();
     }
 
@@ -97,6 +100,7 @@ public abstract class CraftHumanEntity extends CraftLivingEntity {
         net.minecraft.world.entity.ai.attributes.AttributeInstance instance = living.getAttribute(nmsAttr);
         return instance == null ? null : new CraftAttributeInstance(instance, attribute);
     }
+
 
     @Override
     public void registerAttribute(@NotNull Attribute attribute) { super.registerAttribute(attribute); }
@@ -144,7 +148,7 @@ public abstract class CraftHumanEntity extends CraftLivingEntity {
         net.minecraft.core.BlockPos position = new net.minecraft.core.BlockPos(
                 location.getBlockX(), location.getBlockY(), location.getBlockZ());
         net.minecraft.world.level.block.entity.BlockEntity blockEntity =
-                craftPlayer.getHandle().serverLevel().getBlockEntity(position);
+                craftPlayer.getHandle().level().getBlockEntity(position);
         if (!(blockEntity instanceof net.minecraft.world.level.block.entity.SignBlockEntity signBlockEntity)) {
             throw new IllegalArgumentException("Sign does not reference a live sign block entity");
         }

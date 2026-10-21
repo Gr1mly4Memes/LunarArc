@@ -27,9 +27,9 @@ public abstract class BlockAttachedEntityMixin {
         if (lunararc$breakCancelled(cause, null)) ci.cancel();
     }
 
-    @Inject(method = "hurt", cancellable = true,
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/decoration/BlockAttachedEntity;kill()V"))
-    private void lunararc$breakOnHurt(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+    @Inject(method = "hurtServer", cancellable = true,
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/decoration/BlockAttachedEntity;kill(Lnet/minecraft/server/level/ServerLevel;)V"))
+    private void lunararc$breakOnHurt(net.minecraft.server.level.ServerLevel level, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
         Entity damager = !source.isDirect() && source.getEntity() != null ? source.getEntity() : source.getDirectEntity();
         boolean explosion = source.is(DamageTypeTags.IS_EXPLOSION);
         RemoveCause cause = explosion ? RemoveCause.EXPLOSION : damager != null ? RemoveCause.ENTITY : RemoveCause.DEFAULT;
@@ -37,7 +37,7 @@ public abstract class BlockAttachedEntityMixin {
     }
 
     @Inject(method = "move", cancellable = true,
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/decoration/BlockAttachedEntity;kill()V"))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/decoration/BlockAttachedEntity;kill(Lnet/minecraft/server/level/ServerLevel;)V"))
     private void lunararc$breakOnMove(MoverType type, Vec3 movement, CallbackInfo ci) {
         if (lunararc$breakCancelled(RemoveCause.PHYSICS, null)) ci.cancel();
     }

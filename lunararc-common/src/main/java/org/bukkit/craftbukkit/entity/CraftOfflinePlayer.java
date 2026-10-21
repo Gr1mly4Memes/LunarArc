@@ -54,25 +54,25 @@ public class CraftOfflinePlayer implements OfflinePlayer {
     @Override public boolean isWhitelisted() {
         Player player = getPlayer();
         if (player != null) return player.isWhitelisted();
-        return ((org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer()).getServer().getPlayerList().getWhiteList().isWhiteListed(gameProfile());
+        return ((org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer()).getServer().getPlayerList().getWhiteList().isWhiteListed(nameAndId());
     }
     @Override public void setWhitelisted(boolean value) {
         Player player = getPlayer();
         if (player != null) { player.setWhitelisted(value); return; }
         net.minecraft.server.players.UserWhiteList list = ((org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer()).getServer().getPlayerList().getWhiteList();
-        if (value) list.add(new net.minecraft.server.players.UserWhiteListEntry(gameProfile()));
-        else list.remove(gameProfile());
+        if (value) list.add(new net.minecraft.server.players.UserWhiteListEntry(nameAndId()));
+        else list.remove(nameAndId());
     }
     @Override public boolean isOp() {
         Player player = getPlayer();
         if (player != null) return player.isOp();
-        return ((org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer()).getServer().getPlayerList().isOp(gameProfile());
+        return ((org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer()).getServer().getPlayerList().isOp(nameAndId());
     }
     @Override public void setOp(boolean value) {
         Player player = getPlayer();
         if (player != null) { player.setOp(value); return; }
-        if (value) ((org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer()).getServer().getPlayerList().op(gameProfile());
-        else ((org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer()).getServer().getPlayerList().deop(gameProfile());
+        if (value) ((org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer()).getServer().getPlayerList().op(nameAndId());
+        else ((org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer()).getServer().getPlayerList().deop(nameAndId());
     }
     @Override public @Nullable Location getBedSpawnLocation() { return getRespawnLocation(); }
     @Override public @Nullable Location getRespawnLocation() {
@@ -89,16 +89,21 @@ public class CraftOfflinePlayer implements OfflinePlayer {
             if (data == null || !java.nio.file.Files.isRegularFile(data)) return null;
             net.minecraft.nbt.CompoundTag tag = net.minecraft.nbt.NbtIo.readCompressed(data, net.minecraft.nbt.NbtAccounter.unlimitedHeap());
             if (tag == null) return null;
-            if (!tag.contains("SpawnX") || !tag.contains("SpawnY") || !tag.contains("SpawnZ")) return null;
-            String dimension = tag.contains("SpawnDimension") ? tag.getString("SpawnDimension") : "minecraft:overworld";
-            org.bukkit.World world = lunararcWorldFromDimension(dimension);
-            if (world == null) return null;
-            Location location = new Location(world, tag.getInt("SpawnX"), tag.getInt("SpawnY"), tag.getInt("SpawnZ"));
-            if (!loadLocationAndValidate) return location;
-            int y = location.getBlockY();
-            if (y < world.getMinHeight() || y >= world.getMaxHeight()) return null;
-            return location;
-        } catch (Throwable ignored) {
+            final net.minecraft.server.level.ServerPlayer.RespawnConfig respawnConfig =
+                    tag.read("respawn", net.minecraft.server.level.ServerPlayer.RespawnConfig.CODEC).orElse(null);
+            if (respawnConfig == null) return null;
+            net.minecraft.server.MinecraftServer server = io.lunararcdevs.lunararc.common.LunarArcServerAccess.getMinecraftServer();
+            final net.minecraft.server.level.ServerLevel level = server.getLevel(respawnConfig.respawnData().dimension());
+            if (level == null) return null;
+            org.bukkit.World world = io.lunararcdevs.lunararc.common.LunarArcServerAccess.getCraftWorld(level);
+            if (!loadLocationAndValidate) {
+                net.minecraft.core.BlockPos pos = respawnConfig.respawnData().pos();
+                return new Location(world, pos.getX(), pos.getY(), pos.getZ(), respawnConfig.respawnData().yaw(), respawnConfig.respawnData().pitch());
+            }
+            return net.minecraft.server.level.ServerPlayer.findRespawnAndUseSpawnBlock(level, respawnConfig, false)
+                    .map(resolved -> new Location(world, resolved.position().x, resolved.position().y, resolved.position().z, resolved.yaw(), resolved.pitch()))
+                    .orElse(null);
+        } catch (Exception ignored) {
             return null;
         }
     }
@@ -106,7 +111,7 @@ public class CraftOfflinePlayer implements OfflinePlayer {
         Player p = getPlayer();
         if (p != null) return p.getFirstPlayed();
         net.minecraft.nbt.CompoundTag data = bukkitDataTag();
-        if (data != null && data.contains("firstPlayed")) return data.getLong("firstPlayed");
+        if (data != null && data.contains("firstPlayed")) return data.getLongOr("firstPlayed", 0L);
         java.nio.file.Path file = lunararcPlayerDataPath();
         return file != null && java.nio.file.Files.isRegularFile(file) ? file.toFile().lastModified() : 0L;
     }
@@ -114,7 +119,7 @@ public class CraftOfflinePlayer implements OfflinePlayer {
         Player p = getPlayer();
         if (p != null) return p.getLastPlayed();
         net.minecraft.nbt.CompoundTag data = bukkitDataTag();
-        if (data != null && data.contains("lastPlayed")) return data.getLong("lastPlayed");
+        if (data != null && data.contains("lastPlayed")) return data.getLongOr("lastPlayed", 0L);
         java.nio.file.Path file = lunararcPlayerDataPath();
         return file != null && java.nio.file.Files.isRegularFile(file) ? file.toFile().lastModified() : 0L;
     }
@@ -122,7 +127,7 @@ public class CraftOfflinePlayer implements OfflinePlayer {
         Player p = getPlayer();
         if (p != null) return p.getLastLogin();
         net.minecraft.nbt.CompoundTag data = paperDataTag();
-        if (data != null && data.contains("LastLogin")) return data.getLong("LastLogin");
+        if (data != null && data.contains("LastLogin")) return data.getLongOr("LastLogin", 0L);
         java.nio.file.Path file = lunararcPlayerDataPath();
         return file != null && java.nio.file.Files.isRegularFile(file) ? file.toFile().lastModified() : 0L;
     }
@@ -130,7 +135,7 @@ public class CraftOfflinePlayer implements OfflinePlayer {
         Player p = getPlayer();
         if (p != null) return p.getLastSeen();
         net.minecraft.nbt.CompoundTag data = paperDataTag();
-        if (data != null && data.contains("LastSeen")) return data.getLong("LastSeen");
+        if (data != null && data.contains("LastSeen")) return data.getLongOr("LastSeen", 0L);
         java.nio.file.Path file = lunararcPlayerDataPath();
         return file != null && java.nio.file.Files.isRegularFile(file) ? file.toFile().lastModified() : 0L;
     }
@@ -138,7 +143,7 @@ public class CraftOfflinePlayer implements OfflinePlayer {
         Player p = getPlayer();
         if (p != null) return p.getLastDeathLocation();
         net.minecraft.nbt.CompoundTag data = playerDataTag();
-        if (data == null || !data.contains("LastDeathLocation", 10)) return null;
+        if (data == null || !data.contains("LastDeathLocation")) return null;
         return net.minecraft.core.GlobalPos.CODEC.parse(net.minecraft.nbt.NbtOps.INSTANCE, data.get("LastDeathLocation"))
                 .result()
                 .map(globalPos -> {
@@ -161,11 +166,11 @@ public class CraftOfflinePlayer implements OfflinePlayer {
         if (position == null || rotation == null || position.size() < 3 || rotation.size() < 2) return null;
         org.bukkit.World world = null;
         if (data.contains("WorldUUIDMost") && data.contains("WorldUUIDLeast")) {
-            world = org.bukkit.Bukkit.getWorld(new UUID(data.getLong("WorldUUIDMost"), data.getLong("WorldUUIDLeast")));
+            world = org.bukkit.Bukkit.getWorld(new UUID(data.getLongOr("WorldUUIDMost", 0L), data.getLongOr("WorldUUIDLeast", 0L)));
         }
-        if (world == null && data.contains("Dimension")) world = lunararcWorldFromDimension(data.getString("Dimension"));
+        if (world == null && data.contains("Dimension")) world = lunararcWorldFromDimension(data.getStringOr("Dimension", ""));
         if (world == null) return null;
-        return new Location(world, position.getDouble(0), position.getDouble(1), position.getDouble(2), rotation.getFloat(0), rotation.getFloat(1));
+        return new Location(world, position.getDoubleOr(0, 0.0D), position.getDoubleOr(1, 0.0D), position.getDoubleOr(2, 0.0D), rotation.getFloatOr(0, 0.0F), rotation.getFloatOr(1, 0.0F));
     }
 
     @Override public void incrementStatistic(@NotNull Statistic statistic) { incrementStatistic(statistic, 1); }
@@ -218,18 +223,18 @@ public class CraftOfflinePlayer implements OfflinePlayer {
 
     private @Nullable net.minecraft.nbt.CompoundTag bukkitDataTag() {
         net.minecraft.nbt.CompoundTag data = playerDataTag();
-        return data != null && data.contains("bukkit", 10) ? data.getCompound("bukkit") : null;
+        return data != null && data.contains("bukkit") ? data.getCompoundOrEmpty("bukkit") : null;
     }
 
     private @Nullable net.minecraft.nbt.CompoundTag paperDataTag() {
         net.minecraft.nbt.CompoundTag data = playerDataTag();
-        return data != null && data.contains("Paper", 10) ? data.getCompound("Paper") : null;
+        return data != null && data.contains("Paper") ? data.getCompoundOrEmpty("Paper") : null;
     }
 
     private net.minecraft.stats.ServerStatsCounter offlineStatsCounter() {
         net.minecraft.server.MinecraftServer server = io.lunararcdevs.lunararc.common.LunarArcServerAccess.getMinecraftServer();
         java.nio.file.Path file = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.PLAYER_STATS_DIR).resolve(uuid + ".json");
-        return new net.minecraft.stats.ServerStatsCounter(server, file.toFile());
+        return new net.minecraft.stats.ServerStatsCounter(server, file);
     }
 
     private static boolean statisticArgumentMatches(Class<?> parameter, Object argument) {
@@ -350,6 +355,10 @@ public class CraftOfflinePlayer implements OfflinePlayer {
             } catch (Throwable ignored) {}
         }
         return null;
+    }
+
+    private net.minecraft.server.players.NameAndId nameAndId() {
+        return new net.minecraft.server.players.NameAndId(gameProfile());
     }
 
     private com.mojang.authlib.GameProfile gameProfile() {

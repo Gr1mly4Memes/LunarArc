@@ -1,9 +1,11 @@
 package org.bukkit.craftbukkit.persistence;
 
-import net.minecraft.core.HolderLookup;
+import com.mojang.serialization.Codec;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.datafix.DataFixTypes;
 import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraft.world.level.saveddata.SavedDataType;
 
 /**
  * Persists Bukkit/Paper world PDC values inside the real Minecraft per-level
@@ -14,6 +16,12 @@ public final class CraftWorldPersistentData extends SavedData {
     private static final String NAME = "lunararc_bukkit_values";
     private static final String BUKKIT_VALUES = "BukkitValues";
 
+    private static final Codec<CraftWorldPersistentData> CODEC = CompoundTag.CODEC.xmap(
+            CraftWorldPersistentData::new,
+            CraftWorldPersistentData::toTag);
+    private static final SavedDataType<CraftWorldPersistentData> TYPE = new SavedDataType<>(
+            NAME, CraftWorldPersistentData::new, CODEC, DataFixTypes.SAVED_DATA_COMMAND_STORAGE);
+
     private final CraftPersistentDataContainer container;
 
     private CraftWorldPersistentData() {
@@ -23,26 +31,21 @@ public final class CraftWorldPersistentData extends SavedData {
     private CraftWorldPersistentData(CompoundTag tag) {
         this();
         if (tag.contains(BUKKIT_VALUES)) {
-            this.container.putAll(tag.getCompound(BUKKIT_VALUES));
+            this.container.putAll(tag.getCompoundOrEmpty(BUKKIT_VALUES));
         }
     }
 
     public static CraftWorldPersistentData get(ServerLevel level) {
         java.util.Objects.requireNonNull(level, "level");
-        SavedData.Factory<CraftWorldPersistentData> factory = new SavedData.Factory<>(
-                CraftWorldPersistentData::new,
-                (tag, provider) -> new CraftWorldPersistentData(tag),
-                null);
-        return level.getDataStorage().computeIfAbsent(factory, NAME);
+        return level.getDataStorage().computeIfAbsent(TYPE);
     }
 
     public CraftPersistentDataContainer container() {
         return this.container;
     }
 
-    @Override
-    public CompoundTag save(CompoundTag tag, HolderLookup.Provider provider) {
-        java.util.Objects.requireNonNull(tag, "tag");
+    private CompoundTag toTag() {
+        CompoundTag tag = new CompoundTag();
         if (!this.container.isEmpty()) {
             tag.put(BUKKIT_VALUES, this.container.toTagCompound());
         }

@@ -22,8 +22,8 @@ public abstract class RespawnAnchorBlockMixin {
             method = "useWithoutItem",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/server/level/ServerPlayer;setRespawnPosition(Lnet/minecraft/resources/ResourceKey;Lnet/minecraft/core/BlockPos;FZZ)V"),
-            require = 0)
+                    target = "Lnet/minecraft/server/level/ServerPlayer;setRespawnPosition(Lnet/minecraft/server/level/ServerPlayer$RespawnConfig;Z)V"),
+            require = 1)
     private void lunararc$respawnAnchorCause(
             BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit,
             CallbackInfoReturnable<InteractionResult> cir) {

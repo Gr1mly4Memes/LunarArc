@@ -1,5 +1,6 @@
 package io.lunararcdevs.lunararc.common.mixin.core.server;
 
+import org.spongepowered.asm.mixin.injection.Redirect;
 import io.lunararcdevs.lunararc.common.bridge.CommandSourceBridge;
 import io.lunararcdevs.lunararc.common.bridge.MinecraftServerBridge;
 import io.lunararcdevs.lunararc.common.config.LunarArcConfig;
@@ -12,11 +13,7 @@ import net.minecraft.server.WorldLoader;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerChunkCache;
-import net.minecraft.server.level.PlayerRespawnLogic;
-import net.minecraft.server.level.progress.ChunkProgressListener;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.GameRules;
-import net.minecraft.world.level.ForcedChunksSavedData;
 import net.minecraft.world.level.levelgen.Heightmap;
 import net.minecraft.core.BlockPos;
 import net.minecraft.util.Mth;
@@ -74,7 +71,7 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
     private boolean lunararc$tickingWorlds;
 
     @Unique
-    private long lunararc$tpsSampleStartedNanos = net.minecraft.Util.getNanos();
+    private long lunararc$tpsSampleStartedNanos = net.minecraft.util.Util.getNanos();
 
     @Unique
     private final LunarArcRollingAverage lunararc$tps1 = new LunarArcRollingAverage(60);
@@ -96,7 +93,7 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
         Objects.requireNonNull(level, "level");
         ServerLevel previous = this.levels.putIfAbsent(level.dimension(), level);
         if (previous != null && previous != level) {
-            throw new IllegalStateException("A ServerLevel is already registered for " + level.dimension().location());
+            throw new IllegalStateException("A ServerLevel is already registered for " + level.dimension().identifier());
         }
         if (previous == null) {
             this.lunararc$loaderLevelLoad(level);
@@ -126,52 +123,34 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
     }
 
     @Override
-    public void lunararc$prepareDynamicLevel(ServerLevel level, ChunkProgressListener listener) {
+    public void lunararc$prepareDynamicLevel(ServerLevel level) {
         Objects.requireNonNull(level, "level");
-        Objects.requireNonNull(listener, "listener");
         this.lunararc$loaderMarkLevelsDirty();
-        BlockPos spawn = level.getSharedSpawnPos();
-        listener.updateSpawnPos(new ChunkPos(spawn));
-
-        int radius = level.getGameRules().getInt(GameRules.RULE_SPAWN_CHUNK_RADIUS);
-        if (radius > 0) {
-
-            level.getChunk(spawn.getX() >> 4, spawn.getZ() >> 4);
-        }
-
-        ForcedChunksSavedData forced = level.getDataStorage().get(ForcedChunksSavedData.factory(), "chunks");
-        if (forced != null) {
-            it.unimi.dsi.fastutil.longs.LongIterator iterator = forced.getChunks().iterator();
-            while (iterator.hasNext()) {
-                level.getChunkSource().updateChunkForced(new ChunkPos(iterator.nextLong()), true);
-            }
-            this.lunararc$loaderReinstatePersistentChunks(level, forced);
-        }
-        listener.stop();
-        level.setSpawnSettings(true, true);
+        this.lunararc$loaderReinstatePersistentChunks(level);
+        level.getChunkSource().setSpawnSettings(true);
     }
 
     @Unique
     private static void lunararc$setInitialSpawn(ServerLevel level, net.minecraft.world.level.storage.ServerLevelData data,
             boolean bonusChest, boolean debug) {
         if (debug) {
-            data.setSpawn(BlockPos.ZERO.above(80), 0.0F);
+            data.setSpawn(net.minecraft.world.level.storage.LevelData.RespawnData.of(level.dimension(), BlockPos.ZERO.above(80), 0.0F, 0.0F));
             return;
         }
         ServerChunkCache chunks = level.getChunkSource();
         ChunkPos origin = new ChunkPos(chunks.randomState().sampler().findSpawnPosition());
         int height = chunks.getGenerator().getSpawnHeight(level);
-        if (height < level.getMinBuildHeight()) {
+        if (height < level.getMinY()) {
             BlockPos pos = origin.getWorldPosition();
             height = level.getHeight(Heightmap.Types.WORLD_SURFACE, pos.getX() + 8, pos.getZ() + 8);
         }
-        data.setSpawn(origin.getWorldPosition().offset(8, height, 8), 0.0F);
+        data.setSpawn(net.minecraft.world.level.storage.LevelData.RespawnData.of(level.dimension(), origin.getWorldPosition().offset(8, height, 8), 0.0F, 0.0F));
         int x = 0, z = 0, dx = 0, dz = -1;
         for (int i = 0; i < Mth.square(11); ++i) {
             if (x >= -5 && x <= 5 && z >= -5 && z <= 5) {
-                BlockPos candidate = PlayerRespawnLogic.getSpawnPosInChunk(level, new ChunkPos(origin.x + x, origin.z + z));
+                BlockPos candidate = net.minecraft.server.level.PlayerSpawnFinder.getSpawnPosInChunk(level, new ChunkPos(origin.x + x, origin.z + z));
                 if (candidate != null) {
-                    data.setSpawn(candidate, 0.0F);
+                    data.setSpawn(net.minecraft.world.level.storage.LevelData.RespawnData.of(level.dimension(), candidate, 0.0F, 0.0F));
                     break;
                 }
             }
@@ -184,9 +163,9 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
             z += dz;
         }
         if (bonusChest) {
-            level.registryAccess().registry(net.minecraft.core.registries.Registries.CONFIGURED_FEATURE)
-                    .flatMap(reg -> reg.getHolder(net.minecraft.data.worldgen.features.MiscOverworldFeatures.BONUS_CHEST))
-                    .ifPresent(feature -> feature.value().place(level, chunks.getGenerator(), level.random, data.getSpawnPos()));
+            level.registryAccess().lookup(net.minecraft.core.registries.Registries.CONFIGURED_FEATURE)
+                    .flatMap(reg -> reg.get(net.minecraft.data.worldgen.features.MiscOverworldFeatures.BONUS_CHEST))
+                    .ifPresent(feature -> feature.value().place(level, chunks.getGenerator(), level.random, data.getRespawnData().pos()));
         }
     }
 
@@ -227,6 +206,49 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
 
     public long nextTickTime = 0L;
 
+    /**
+     * The watchdog measures "time since the tick should have started" from this value. Before the first tick it can still be unset (zero),
+     * which made it report a tick as long as the machine's uptime and kill a healthy server during startup. A real stall keeps a real value.
+     */
+    @com.llamalad7.mixinextras.injector.ModifyReturnValue(method = "getNextTickTime", at = @At("RETURN"), require = 0)
+    private long lunararc$watchdogTickTime(long nextTickTimeNanos) {
+        if (nextTickTimeNanos <= 0L) return net.minecraft.util.Util.getNanos();
+        // Fabric and Quilt fire "server started" (and mods such as ComputerCraft rebuild every creative tab in it) before the first tick, and
+        // the watchdog is already running by then; long mod start-up work there is not a stalled tick.
+        if (!this.lunararc$ticked && lunararc$fabricLike()) return net.minecraft.util.Util.getNanos();
+        return nextTickTimeNanos;
+    }
+
+    @Unique private volatile boolean lunararc$ticked;
+
+    @Unique
+    private static boolean lunararc$fabricLike() {
+        String platform = io.lunararcdevs.lunararc.common.mod.server.LunarArcServer.platformName();
+        return "Fabric".equalsIgnoreCase(platform) || "Quilt".equalsIgnoreCase(platform);
+    }
+
+    @Inject(method = "tickServer", at = @At("HEAD"), require = 0)
+    private void lunararc$firstTick(java.util.function.BooleanSupplier hasTimeLeft, CallbackInfo ci) {
+        this.lunararc$ticked = true;
+    }
+
+    @Unique private final java.util.Set<String> lunararc$pluginsBlockingSleep = new java.util.HashSet<>();
+
+    @Override
+    public void lunararc$setPluginAllowingSleep(String pluginName, boolean value) {
+        if (!value) this.lunararc$pluginsBlockingSleep.add(pluginName);
+        else this.lunararc$pluginsBlockingSleep.remove(pluginName);
+    }
+
+    /** Paper's allowPausing API: a plugin that disallows sleeping keeps the empty-server pause counter at zero. */
+    @Redirect(method = "tickServer", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/ServerTickRateManager;isSprinting()Z", ordinal = 0), require = 0)
+    private boolean lunararc$pluginBlockedSleep(net.minecraft.server.ServerTickRateManager manager) {
+        if (!this.lunararc$pluginsBlockingSleep.isEmpty()) {
+            this.lunararc$pluginsBlockingSleep.removeIf(name -> !org.bukkit.Bukkit.getPluginManager().isPluginEnabled(name));
+        }
+        return manager.isSprinting() || !this.lunararc$pluginsBlockingSleep.isEmpty();
+    }
+
     @Override
     public double[] lunararc$getTps() {
 
@@ -236,8 +258,24 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
     @Unique
     private long lunararc$tickStartedNanos;
 
+    @Unique
+    private void lunararc$drainQueuedTasks() {
+        Runnable task;
+        while ((task = this.lunararc$taskQueue.poll()) != null) {
+            try {
+                task.run();
+            } catch (Throwable exception) {
+                lunararc$logger.error("Error executing queued LunarArc task", exception);
+            }
+        }
+    }
+
     @Inject(method = "tickServer", at = @At("HEAD"), require = 0)
     private void lunararc$tickStart(java.util.function.BooleanSupplier hasTimeLeft, CallbackInfo ci) {
+        // A server paused for being empty returns from tickServer before tickChildren, so the end-of-tick drain never
+        // runs. A joining player's login finishes through this queue and only then counts as online, which is what
+        // unpauses the server, so it would hang on "Connecting" forever. Drain here too.
+        this.lunararc$drainQueuedTasks();
         this.lunararc$tickStartedNanos = System.nanoTime();
         if (com.destroystokyo.paper.event.server.ServerTickStartEvent.getHandlerList().getRegisteredListeners().length == 0
                 || this.lunararc$craftServer == null) return;
@@ -263,7 +301,7 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
     private void lunararc$processTasks(CallbackInfo ci) {
         this.lunararc$tickingWorlds = false;
         if (this.tickCount > 0 && this.tickCount % 20 == 0) {
-            long now = net.minecraft.Util.getNanos();
+            long now = net.minecraft.util.Util.getNanos();
             long elapsed = Math.max(1L, now - this.lunararc$tpsSampleStartedNanos);
             BigDecimal currentTps = BigDecimal.valueOf(20_000_000_000L)
                     .divide(BigDecimal.valueOf(elapsed), 30, RoundingMode.HALF_UP);
@@ -271,32 +309,25 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
             this.lunararc$tps5.add(currentTps, elapsed);
             this.lunararc$tps15.add(currentTps, elapsed);
             this.lunararc$tpsSampleStartedNanos = now;
-            // Publish to the CraftBukkit-named field in the same place, so a plugin reading
-            // recentTps directly and one calling getTPS() can never disagree.
             this.recentTps[0] = this.lunararc$tps1.getAverage();
             this.recentTps[1] = this.lunararc$tps5.getAverage();
             this.recentTps[2] = this.lunararc$tps15.getAverage();
         }
 
-        Runnable task;
-        while ((task = this.lunararc$taskQueue.poll()) != null) {
-            try {
-                task.run();
-            } catch (Exception exception) {
-                lunararc$logger.error("Error executing queued LunarArc task", exception);
-            }
-        }
+        this.lunararc$drainQueuedTasks();
 
         CraftServer craftServer = this.lunararc$craftServer;
         if (craftServer != null) {
             ((CraftScheduler) craftServer.getScheduler()).mainThreadHeartbeat(this.tickCount);
         }
 
-        io.papermc.paper.adventure.providers.ClickCallbackProviderImpl.CALLBACK_MANAGER.handleQueue(this.tickCount);
+        io.papermc.paper.adventure.providers.ClickCallbackProviderImpl.ADVENTURE_CLICK_MANAGER.handleQueue(this.tickCount);
+        io.papermc.paper.adventure.providers.ClickCallbackProviderImpl.DIALOG_CLICK_MANAGER.handleQueue(this.tickCount);
     }
 
     @Inject(method = "<init>", at = @At("RETURN"))
     private void lunararc$onInit(CallbackInfo ci) {
+        io.lunararcdevs.lunararc.common.server.LunarArcLogger.quietNettyNativeProbes();
 
         this.lunararc$dataLoadContext = io.lunararcdevs.lunararc.common.mod.util.LunarArcWorldLoaderCapture.take();
         LunarArcServer.attach((MinecraftServer) (Object) this);
@@ -314,11 +345,6 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
         if (this.lunararc$startupPluginsEnabled) return;
         this.lunararc$startupPluginsEnabled = true;
 
-        if (System.getProperty("worldedit.bukkit.adapter") == null) {
-            System.setProperty("worldedit.bukkit.adapter",
-                    "com.sk89q.worldedit.bukkit.adapter.impl.v1_21.PaperweightAdapter");
-        }
-
         CraftServer craftServer = this.lunararc$requireCraftServer();
         this.lunararc$bukkitStartupStartedNanos = System.nanoTime();
         io.lunararcdevs.lunararc.common.server.LunarArcWorldVersionStamp.stamp((MinecraftServer) (Object) this);
@@ -331,6 +357,7 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
             throw fatal;
         }
 
+        io.lunararcdevs.lunararc.common.server.LunarArcDatapackDiscovery.discover();
         this.lunararc$enablePlugins(craftServer, PluginLoadOrder.STARTUP);
     }
 
@@ -339,6 +366,17 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
     private void lunararc$afterWorldLoad(CallbackInfo ci) {
         if (this.lunararc$postWorldPluginsEnabled) return;
         this.lunararc$postWorldPluginsEnabled = true;
+
+        // Developer aid: -Dlunararc.auditMixins=true force-loads every mixin target so a broken injection fails here, at boot,
+        // instead of the first time that class happens to load in play.
+        if (Boolean.getBoolean("lunararc.auditMixins")) {
+            try {
+                org.spongepowered.asm.mixin.MixinEnvironment.getCurrentEnvironment().audit();
+                lunararc$logger.info("Mixin audit finished: every mixin target applied cleanly");
+            } catch (Throwable failure) {
+                lunararc$logger.error("Mixin audit found a mixin that does not apply", failure);
+            }
+        }
 
         MinecraftServer minecraftServer = (MinecraftServer) (Object) this;
         CraftServer craftServer = this.lunararc$requireCraftServer();
@@ -350,6 +388,7 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
             craftServer.getPluginManager().callEvent(new org.bukkit.event.world.WorldLoadEvent(craftWorld));
         }
 
+        io.lunararcdevs.lunararc.common.server.LunarArcDatapackDiscovery.apply((MinecraftServer) (Object) this);
         this.lunararc$enablePlugins(craftServer, PluginLoadOrder.POSTWORLD);
 
         long commandSyncStarted = System.nanoTime();
@@ -373,7 +412,7 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
 
 
         long startupMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - this.lunararc$bukkitStartupStartedNanos);
-        LunarArcConsole.success(lunararc$logger, "Bukkit/Paper 1.21.1 compatibility layer ready ({}ms)", startupMillis);
+        LunarArcConsole.success(lunararc$logger, "Bukkit/Paper {} compatibility layer ready ({}ms)", io.lunararcdevs.lunararc.common.compat.PaperCompatibility.RUNTIME_MINECRAFT, startupMillis);
 
     }
 
@@ -469,4 +508,9 @@ public abstract class MinecraftServerMixin implements MinecraftServerBridge, Com
                 + io.lunararcdevs.lunararc.common.server.LunarArcVersionInfo.lunarArcVersion());
     }
 
+
+    @org.spongepowered.asm.mixin.injection.Inject(method = "setUsingWhitelist", at = @org.spongepowered.asm.mixin.injection.At("HEAD"), require = 1)
+    private void lunararc$whitelistToggle(boolean enabled, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+        io.lunararcdevs.lunararc.common.event.LunarArcPaperEvents.whitelistToggle(enabled);
+    }
 }

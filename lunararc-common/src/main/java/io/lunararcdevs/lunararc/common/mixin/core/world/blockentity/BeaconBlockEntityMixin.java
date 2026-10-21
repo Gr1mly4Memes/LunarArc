@@ -106,12 +106,12 @@ public abstract class BeaconBlockEntityMixin implements BeaconRangeBridge, io.lu
     }
 
     @Inject(method = "loadAdditional", at = @At("TAIL"))
-    private void lunararc$loadRange(CompoundTag tag, HolderLookup.Provider registries, CallbackInfo ci) {
-        this.lunararc$effectRange = tag.contains(RANGE_KEY) ? tag.getDouble(RANGE_KEY) : -1.0D;
+    private void lunararc$loadRange(net.minecraft.world.level.storage.ValueInput input, CallbackInfo ci) {
+        this.lunararc$effectRange = input.getDoubleOr(RANGE_KEY, -1.0D);
     }
 
     @Inject(method = "saveAdditional", at = @At("TAIL"))
-    private void lunararc$saveRange(CompoundTag tag, HolderLookup.Provider registries, CallbackInfo ci) {
-        if (this.lunararc$effectRange >= 0.0D) tag.putDouble(RANGE_KEY, this.lunararc$effectRange);
+    private void lunararc$saveRange(net.minecraft.world.level.storage.ValueOutput output, CallbackInfo ci) {
+        if (this.lunararc$effectRange >= 0.0D) output.putDouble(RANGE_KEY, this.lunararc$effectRange);
     }
 }

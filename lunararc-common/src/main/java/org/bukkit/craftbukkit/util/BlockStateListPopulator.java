@@ -116,7 +116,7 @@ public final class BlockStateListPopulator extends DummyGeneratorAccess {
         throw new IllegalStateException("LevelAccessor is not backed by a ServerLevel: " + world.getClass().getName());
     }
     @Override public ServerLevel getLevel() { return getMinecraftWorld(); }
-    @Override public int getMinBuildHeight() { return world.getMinBuildHeight(); }
+    @Override public int getMinY() { return world.getMinY(); }
     @Override public int getHeight() { return world.getHeight(); }
     @Override public boolean isStateAtPosition(BlockPos pos, Predicate<BlockState> predicate) { return predicate.test(getBlockState(pos)); }
     @Override public boolean isFluidAtPosition(BlockPos pos, Predicate<FluidState> predicate) { return predicate.test(getFluidState(pos)); }

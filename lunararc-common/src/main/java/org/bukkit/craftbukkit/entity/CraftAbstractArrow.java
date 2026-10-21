@@ -3,9 +3,9 @@ package org.bukkit.craftbukkit.entity;
 import java.util.Objects;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvent;
-import net.minecraft.world.entity.projectile.AbstractArrow;
+import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Sound;
 import org.bukkit.block.Block;
@@ -43,7 +43,7 @@ public class CraftAbstractArrow extends CraftProjectile implements org.bukkit.en
 
     @Override
     public double getDamage() {
-        return this.getHandle().getBaseDamage();
+        return this.getHandle().baseDamage;
     }
 
     @Override
@@ -114,7 +114,8 @@ public class CraftAbstractArrow extends CraftProjectile implements org.bukkit.en
 
     @Override
     public boolean isShotFromCrossbow() {
-        return this.arrowAccess().lunararc$shotFromCrossbow();
+        net.minecraft.world.item.ItemStack weapon = this.arrowAccess().lunararc$getFiredFromWeapon();
+        return weapon != null && weapon.is(net.minecraft.world.item.Items.CROSSBOW);
     }
 
     @Override
@@ -170,7 +171,7 @@ public class CraftAbstractArrow extends CraftProjectile implements org.bukkit.en
     @Override
     public Sound getHitSound() {
         SoundEvent event = this.arrowAccess().lunararc$getSoundEvent();
-        ResourceLocation key = BuiltInRegistries.SOUND_EVENT.getKey(event);
+        Identifier key = BuiltInRegistries.SOUND_EVENT.getKey(event);
         Sound sound = key == null ? null : org.bukkit.Registry.SOUNDS.get(new NamespacedKey(key.getNamespace(), key.getPath()));
         if (sound == null) throw new IllegalStateException("No Bukkit sound registered for arrow hit sound " + key);
         return sound;
@@ -179,8 +180,8 @@ public class CraftAbstractArrow extends CraftProjectile implements org.bukkit.en
     @Override
     public void setHitSound(Sound sound) {
         Objects.requireNonNull(sound, "sound");
-        ResourceLocation key = ResourceLocation.fromNamespaceAndPath(sound.getKey().getNamespace(), sound.getKey().getKey());
-        SoundEvent event = BuiltInRegistries.SOUND_EVENT.get(key);
+        Identifier key = Identifier.fromNamespaceAndPath(sound.getKey().getNamespace(), sound.getKey().getKey());
+        SoundEvent event = BuiltInRegistries.SOUND_EVENT.getValue(key);
         if (event == null) throw new IllegalArgumentException("Unknown sound " + sound.getKey());
         this.getHandle().setSoundEvent(event);
     }
@@ -197,5 +198,16 @@ public class CraftAbstractArrow extends CraftProjectile implements org.bukkit.en
     @Override
     public String toString() {
         return "CraftAbstractArrow";
+    }
+
+    @Override
+    public java.util.List<org.bukkit.block.Block> getAttachedBlocks() {
+        if (!this.isInBlock()) {
+            return com.google.common.collect.ImmutableList.of();
+        }
+        net.minecraft.world.phys.AABB box = new net.minecraft.world.phys.AABB(this.getHandle().position(), this.getHandle().position()).inflate(0.06);
+        return com.google.common.collect.ImmutableList.copyOf(new net.minecraft.world.level.BlockCollisions<>(
+                this.getHandle().level(), (net.minecraft.world.entity.Entity) null, box, false,
+                (mutableBlockPos, voxelShape) -> org.bukkit.craftbukkit.block.CraftBlock.at(this.getHandle().level(), mutableBlockPos)));
     }
 }

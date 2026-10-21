@@ -1,7 +1,7 @@
 package io.lunararcdevs.lunararc.common.mixin.core.entity;
 import io.lunararcdevs.lunararc.common.bridge.entity.BeeBridge;
 import net.kyori.adventure.util.TriState;
-import net.minecraft.world.entity.animal.Bee;
+import net.minecraft.world.entity.animal.bee.Bee;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;

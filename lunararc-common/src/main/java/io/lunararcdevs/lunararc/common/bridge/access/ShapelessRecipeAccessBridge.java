@@ -1,6 +1,6 @@
 package io.lunararcdevs.lunararc.common.bridge.access;
 
-import net.minecraft.core.NonNullList;
+import java.util.List;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.CraftingBookCategory;
 import net.minecraft.world.item.crafting.Ingredient;
@@ -10,5 +10,5 @@ public interface ShapelessRecipeAccessBridge {
     String lunararc$group();
     CraftingBookCategory lunararc$category();
     ItemStack lunararc$result();
-    NonNullList<Ingredient> lunararc$ingredients();
+    List<Ingredient> lunararc$ingredients();
 }

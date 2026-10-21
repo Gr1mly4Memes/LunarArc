@@ -20,7 +20,7 @@ public final class NeoForgeBlockPlaceEvents {
         if (bukkit == null) {
             net.neoforged.neoforge.common.util.BlockSnapshot snapshot = neoEvent.getBlockSnapshot();
             bukkit = org.bukkit.craftbukkit.event.CraftEventFactory.callBlockPlaceEvent(
-                    player.serverLevel(), neoEvent.getPos(), player, InteractionHand.MAIN_HAND,
+                    player.level(), neoEvent.getPos(), player, InteractionHand.MAIN_HAND,
                     neoEvent.getPlacedBlock(), snapshot.getState(), snapshot.getTag());
         }
         neoEvent.setCanceled(bukkit != null && bukkit.isCancelled());

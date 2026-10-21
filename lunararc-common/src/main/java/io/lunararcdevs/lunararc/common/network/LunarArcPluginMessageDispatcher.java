@@ -1,7 +1,7 @@
 package io.lunararcdevs.lunararc.common.network;
 
 import io.lunararcdevs.lunararc.common.LunarArcServerAccess;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import org.bukkit.entity.Player;
 
@@ -13,7 +13,7 @@ import org.bukkit.entity.Player;
 public final class LunarArcPluginMessageDispatcher {
     private LunarArcPluginMessageDispatcher() {}
 
-    public static void dispatch(MinecraftServer server, Player player, ResourceLocation channel, byte[] data) {
+    public static void dispatch(MinecraftServer server, Player player, Identifier channel, byte[] data) {
         dispatch(server, player, channel.toString(), data);
     }
 

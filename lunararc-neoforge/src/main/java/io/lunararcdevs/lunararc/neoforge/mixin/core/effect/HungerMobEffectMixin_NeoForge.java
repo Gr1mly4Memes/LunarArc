@@ -15,7 +15,7 @@ public abstract class HungerMobEffectMixin_NeoForge {
             remap = false,
             at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/player/Player;causeFoodExhaustion(F)V", remap = false),
             require = 0)
-    private void lunararc$hungerExhaustion(LivingEntity entity, int amplifier, CallbackInfoReturnable<Boolean> cir) {
+    private void lunararc$hungerExhaustion(net.minecraft.server.level.ServerLevel level, LivingEntity entity, int amplifier, CallbackInfoReturnable<Boolean> cir) {
         if (entity instanceof Player player) {
             ((PlayerExhaustionBridge) player).lunararc$pushExhaustionReason(
                     org.bukkit.event.entity.EntityExhaustionEvent.ExhaustionReason.HUNGER_EFFECT);

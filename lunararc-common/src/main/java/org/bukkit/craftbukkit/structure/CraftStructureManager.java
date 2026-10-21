@@ -15,7 +15,7 @@ import java.util.Optional;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplate;
 import net.minecraft.world.level.levelgen.structure.templatesystem.StructureTemplateManager;
@@ -36,16 +36,16 @@ public final class CraftStructureManager implements StructureManager {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<ResourceLocation, Optional<StructureTemplate>> repository() {
+    private Map<Identifier, Optional<StructureTemplate>> repository() {
         return ((StructureTemplateManagerAccessBridge) (Object) handle).lunararc$getStructureRepository();
     }
 
-    private static ResourceLocation id(NamespacedKey key) {
+    private static Identifier id(NamespacedKey key) {
         Objects.requireNonNull(key, "key");
-        return ResourceLocation.fromNamespaceAndPath(key.getNamespace(), key.getKey());
+        return Identifier.fromNamespaceAndPath(key.getNamespace(), key.getKey());
     }
 
-    private static NamespacedKey key(ResourceLocation id) {
+    private static NamespacedKey key(Identifier id) {
         return new NamespacedKey(id.getNamespace(), id.getPath());
     }
 
@@ -75,7 +75,7 @@ public final class CraftStructureManager implements StructureManager {
 
     @Override
     public @Nullable Structure registerStructure(@NotNull NamespacedKey structureKey, @NotNull Structure structure) {
-        ResourceLocation id = id(structureKey);
+        Identifier id = id(structureKey);
         Optional<StructureTemplate> previous = repository().put(id, Optional.of(unwrap(structure)));
         return previous != null && previous.isPresent() ? wrap(previous.get()) : null;
     }
@@ -88,7 +88,7 @@ public final class CraftStructureManager implements StructureManager {
 
     @Override
     public @Nullable Structure loadStructure(@NotNull NamespacedKey structureKey, boolean register) {
-        ResourceLocation id = id(structureKey);
+        Identifier id = id(structureKey);
         Optional<StructureTemplate> existing = repository().get(id);
         if (existing != null && existing.isPresent()) return wrap(existing.get());
         Optional<StructureTemplate> loaded = handle.get(id);

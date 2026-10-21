@@ -12,7 +12,7 @@ import net.minecraft.network.protocol.common.ClientboundStoreCookiePacket;
 import net.minecraft.network.protocol.cookie.ClientboundCookieRequestPacket;
 import net.minecraft.network.protocol.cookie.ServerboundCookieResponsePacket;
 import net.minecraft.network.protocol.common.custom.BrandPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.CommonListenerCookie;
@@ -36,9 +36,9 @@ import java.util.concurrent.ConcurrentHashMap;
 @Mixin(ServerCommonPacketListenerImpl.class)
 public abstract class ServerCommonPacketListenerImplMixin implements ServerCommonPacketListenerBridge {
 
-    @Unique private static final ResourceLocation LUNARARC_REGISTER = ResourceLocation.withDefaultNamespace("register");
-    @Unique private static final ResourceLocation LUNARARC_UNREGISTER = ResourceLocation.withDefaultNamespace("unregister");
-    @Unique private static final ResourceLocation LUNARARC_BRAND = ResourceLocation.withDefaultNamespace("brand");
+    @Unique private static final Identifier LUNARARC_REGISTER = Identifier.withDefaultNamespace("register");
+    @Unique private static final Identifier LUNARARC_UNREGISTER = Identifier.withDefaultNamespace("unregister");
+    @Unique private static final Identifier LUNARARC_BRAND = Identifier.withDefaultNamespace("brand");
 
     @Shadow @Final protected MinecraftServer server;
     @Shadow @Final public Connection connection;
@@ -47,14 +47,33 @@ public abstract class ServerCommonPacketListenerImplMixin implements ServerCommo
     @Unique private final Set<String> lunararc$pluginChannels = ConcurrentHashMap.newKeySet();
     @Unique private final Set<String> lunararc$vanillaPluginChannels = ConcurrentHashMap.newKeySet();
     @Unique private final Set<String> lunararc$loaderPluginChannels = ConcurrentHashMap.newKeySet();
-    @Unique private final java.util.Map<ResourceLocation, CompletableFuture<byte[]>> lunararc$requestedCookies = new ConcurrentHashMap<>();
+    @Unique private final java.util.Map<Identifier, CompletableFuture<byte[]>> lunararc$requestedCookies = new ConcurrentHashMap<>();
     @Unique private String lunararc$clientBrand;
     @Unique private boolean lunararc$transferred;
+
+    // Paper-named members that donated Paper classes (configuration/game connections) read directly.
+    public final Set<String> pluginMessagerChannels = this.lunararc$pluginChannels;
+    public final java.util.Map<java.util.UUID, net.kyori.adventure.resource.ResourcePackCallback> packCallbacks = new ConcurrentHashMap<>();
+    public org.bukkit.craftbukkit.CraftServer cserver;
+
+    @Override
+    public java.util.Map<java.util.UUID, net.kyori.adventure.resource.ResourcePackCallback> lunararc$getPackCallbacks() {
+        return this.packCallbacks;
+    }
+
+    public boolean isTransferred() {
+        return this.lunararc$transferred;
+    }
+
+    public void disconnect(net.minecraft.network.chat.Component reason, io.papermc.paper.connection.DisconnectionReason cause) {
+        ((ServerCommonPacketListenerImpl) (Object) this).disconnect(reason);
+    }
 
     @Inject(method = "<init>", at = @At("RETURN"))
     private void lunararc$init(MinecraftServer server, Connection connection, CommonListenerCookie cookie, CallbackInfo ci) {
         this.lunararc$player = ((ConnectionBridge) connection).lunararc$getLoginPlayer();
         this.lunararc$transferred = cookie.transferred();
+        this.cserver = (org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer();
     }
 
     @Override
@@ -105,7 +124,7 @@ public abstract class ServerCommonPacketListenerImplMixin implements ServerCommo
     @Override
     public CompletableFuture<byte[]> lunararc$retrieveCookie(NamespacedKey key) {
         java.util.Objects.requireNonNull(key, "key");
-        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(key.getNamespace(), key.getKey());
+        Identifier id = Identifier.fromNamespaceAndPath(key.getNamespace(), key.getKey());
         CompletableFuture<byte[]> future = new CompletableFuture<>();
         CompletableFuture<byte[]> previous = this.lunararc$requestedCookies.put(id, future);
         if (previous != null) {
@@ -122,7 +141,7 @@ public abstract class ServerCommonPacketListenerImplMixin implements ServerCommo
         if (value.length > 5120) {
             throw new IllegalArgumentException("Cookie value too large, must be smaller than 5120 bytes");
         }
-        ResourceLocation id = ResourceLocation.fromNamespaceAndPath(key.getNamespace(), key.getKey());
+        Identifier id = Identifier.fromNamespaceAndPath(key.getNamespace(), key.getKey());
         this.connection.send(new ClientboundStoreCookiePacket(id, value));
     }
 
@@ -134,6 +153,23 @@ public abstract class ServerCommonPacketListenerImplMixin implements ServerCommo
         }
         future.complete(packet.payload());
         ci.cancel();
+    }
+
+    @Inject(method = "handleResourcePackResponse", at = @At("RETURN"), require = 0)
+    private void lunararc$adventurePackCallbacks(ServerboundResourcePackPacket packet, CallbackInfo ci) {
+        net.kyori.adventure.resource.ResourcePackCallback callback = packet.action().isTerminal()
+                ? this.packCallbacks.remove(packet.id()) : this.packCallbacks.get(packet.id());
+        if (callback == null) return;
+        net.kyori.adventure.audience.Audience audience = null;
+        Object self = this;
+        if (self instanceof net.minecraft.server.network.ServerConfigurationPacketListenerImpl configuration) {
+            audience = ((io.lunararcdevs.lunararc.common.bridge.ConfigurationConnectionBridge) configuration).lunararc$paperConnection().getAudience();
+        } else if (this.lunararc$player != null
+                && ((EntityBridge) this.lunararc$player).lunararc$getBukkitEntity() instanceof org.bukkit.craftbukkit.entity.CraftPlayer craftPlayer) {
+            audience = craftPlayer;
+        }
+        if (audience == null) return;
+        callback.packEventReceived(packet.id(), net.kyori.adventure.resource.ResourcePackStatus.valueOf(packet.action().name()), audience);
     }
 
     @Inject(method = "handleResourcePackResponse", at = @At("HEAD"), require = 0)
@@ -164,7 +200,7 @@ public abstract class ServerCommonPacketListenerImplMixin implements ServerCommo
             return;
         }
 
-        ResourceLocation id = payload.id();
+        Identifier id = payload.id();
         if (!LUNARARC_REGISTER.equals(id) && !LUNARARC_UNREGISTER.equals(id) && !LUNARARC_BRAND.equals(id)
                 && io.lunararcdevs.lunararc.common.network.LunarArcPluginMessageOwnership.isNativeInbound(id)) return;
         byte[] data = payload.data();
@@ -177,7 +213,7 @@ public abstract class ServerCommonPacketListenerImplMixin implements ServerCommo
     }
 
     @Unique
-    private void lunararc$processCustomPayload(ServerGamePacketListenerImpl gameListener, ResourceLocation id, byte[] data) {
+    private void lunararc$processCustomPayload(ServerGamePacketListenerImpl gameListener, Identifier id, byte[] data) {
         org.bukkit.entity.Entity bukkitEntity = ((EntityBridge) gameListener.player).lunararc$getBukkitEntity();
         if (!(bukkitEntity instanceof Player player)) {
             throw new IllegalStateException("ServerGamePacketListenerImpl player is not a Bukkit Player");

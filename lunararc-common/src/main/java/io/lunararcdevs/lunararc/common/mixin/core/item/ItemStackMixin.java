@@ -24,30 +24,6 @@ import org.spongepowered.asm.mixin.Mixin;
 @Mixin(ItemStack.class)
 public abstract class ItemStackMixin implements ItemStackBridge {
 
-    @WrapMethod(
-            method = "save(Lnet/minecraft/core/HolderLookup$Provider;Lnet/minecraft/nbt/Tag;)Lnet/minecraft/nbt/Tag;",
-            require = 0)
-    private Tag lunararc$saveWithRegistry(
-            HolderLookup.Provider provider, Tag tag, Operation<Tag> original) {
-        if (provider == null) {
-            net.minecraft.server.MinecraftServer server = LunarArcServerAccess.getMinecraftServer();
-            if (server != null) provider = server.registryAccess();
-        }
-        return original.call(provider, tag);
-    }
-
-    @WrapMethod(method = "save(Lnet/minecraft/core/HolderLookup$Provider;)Lnet/minecraft/nbt/Tag;")
-    private Tag lunararc$saveWithRegistry(HolderLookup.Provider provider, Operation<Tag> original) {
-        if (provider == null) provider = LunarArcServerAccess.getMinecraftServer().registryAccess();
-        return original.call(provider);
-    }
-
-    @WrapMethod(method = "saveOptional(Lnet/minecraft/core/HolderLookup$Provider;)Lnet/minecraft/nbt/Tag;")
-    private Tag lunararc$saveOptionalWithRegistry(HolderLookup.Provider provider, Operation<Tag> original) {
-        if (provider == null) provider = LunarArcServerAccess.getMinecraftServer().registryAccess();
-        return original.call(provider);
-    }
-
     @Override
     public void lunararc$hurtAndBreak(int amount, LivingEntity owner, EquipmentSlot slot, boolean force) {
         ItemStack stack = (ItemStack) (Object) this;

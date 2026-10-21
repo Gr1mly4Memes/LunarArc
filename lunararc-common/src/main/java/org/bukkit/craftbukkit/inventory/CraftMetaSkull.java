@@ -4,9 +4,9 @@ import com.mojang.authlib.properties.Property;
 import com.mojang.authlib.properties.PropertyMap;
 import java.util.Optional;
 import java.util.UUID;
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.core.component.DataComponents;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.component.ResolvableProfile;
 import org.bukkit.Bukkit;
@@ -22,7 +22,7 @@ import org.jetbrains.annotations.Nullable;
 public final class CraftMetaSkull extends CraftItemMeta implements SkullMeta {
     private static final int MAX_OWNER_LENGTH = 16;
     private ResolvableProfile profile;
-    private ResourceLocation noteBlockSound;
+    private Identifier noteBlockSound;
 
     public CraftMetaSkull() { super(); }
     public CraftMetaSkull(ItemStack nms) {
@@ -46,15 +46,15 @@ public final class CraftMetaSkull extends CraftItemMeta implements SkullMeta {
         net.minecraft.server.MinecraftServer server = io.lunararcdevs.lunararc.common.mod.server.LunarArcServer.minecraftServer();
         net.minecraft.server.level.ServerPlayer online = server == null ? null : server.getPlayerList().getPlayerByName(owner);
         this.profile = online != null
-                ? new ResolvableProfile(online.getGameProfile())
-                : new ResolvableProfile(Optional.of(owner), Optional.empty(), new PropertyMap());
+                ? ResolvableProfile.createResolved(online.getGameProfile())
+                : ResolvableProfile.createUnresolved(owner);
         return true;
     }
 
     @Override public @Nullable OfflinePlayer getOwningPlayer() {
         if (this.profile == null) return null;
-        Optional<UUID> id = this.profile.id();
-        if (id.isPresent() && !Util.NIL_UUID.equals(id.get())) return Bukkit.getOfflinePlayer(id.get());
+        UUID id = this.profile.partialProfile().id();
+        if (id != null && !Util.NIL_UUID.equals(id)) return Bukkit.getOfflinePlayer(id);
         Optional<String> name = this.profile.name();
         return name.filter(s -> !s.isEmpty()).map(Bukkit::getOfflinePlayer).orElse(null);
     }
@@ -63,8 +63,8 @@ public final class CraftMetaSkull extends CraftItemMeta implements SkullMeta {
         if (owner == null) { this.profile = null; return true; }
         net.minecraft.server.MinecraftServer server = io.lunararcdevs.lunararc.common.mod.server.LunarArcServer.minecraftServer();
         net.minecraft.server.level.ServerPlayer online = server == null ? null : server.getPlayerList().getPlayer(owner.getUniqueId());
-        if (online != null) this.profile = new ResolvableProfile(online.getGameProfile());
-        else this.profile = new ResolvableProfile(Optional.ofNullable(owner.getName()), Optional.of(owner.getUniqueId()), new PropertyMap());
+        if (online != null) this.profile = ResolvableProfile.createResolved(online.getGameProfile());
+        else this.profile = fromIdAndName(owner.getName(), owner.getUniqueId(), com.google.common.collect.ImmutableMultimap.of());
         return true;
     }
 
@@ -84,31 +84,42 @@ public final class CraftMetaSkull extends CraftItemMeta implements SkullMeta {
         UUID id = profile.getUniqueId();
         String name = profile.getName();
         if (id == null && (name == null || name.isBlank())) throw new IllegalArgumentException("PlayerProfile must contain a UUID or name");
-        this.profile = new ResolvableProfile(Optional.ofNullable(name), Optional.ofNullable(id), new PropertyMap());
+        this.profile = fromIdAndName(name, id, com.google.common.collect.ImmutableMultimap.of());
     }
 
     private static ResolvableProfile fromPaperProfile(com.destroystokyo.paper.profile.PlayerProfile source) {
         UUID id = source.getId();
         String name = source.getName();
         if (id == null && (name == null || name.isBlank())) throw new IllegalArgumentException("PlayerProfile must contain a UUID or name");
-        PropertyMap properties = new PropertyMap();
+        com.google.common.collect.Multimap<String, Property> properties = com.google.common.collect.LinkedHashMultimap.create();
         for (com.destroystokyo.paper.profile.ProfileProperty p : source.getProperties()) {
             properties.put(p.getName(), new Property(p.getName(), p.getValue(), p.getSignature()));
         }
-        return new ResolvableProfile(Optional.ofNullable(name), Optional.ofNullable(id), properties);
+        return fromIdAndName(name, id, properties);
+    }
+
+    private static ResolvableProfile fromIdAndName(@Nullable String name, @Nullable UUID id,
+                                                   com.google.common.collect.Multimap<String, Property> properties) {
+        if (properties.isEmpty() && (id == null) != (name == null)) {
+            return id != null ? ResolvableProfile.createUnresolved(id) : ResolvableProfile.createUnresolved(name);
+        }
+        UUID resolvedId = id != null ? id : (name != null ? net.minecraft.core.UUIDUtil.createOfflinePlayerUUID(name) : Util.NIL_UUID);
+        return ResolvableProfile.createResolved(new com.mojang.authlib.GameProfile(resolvedId, name == null ? "" : name, new PropertyMap(properties)));
     }
 
     private static com.destroystokyo.paper.profile.PlayerProfile toPaperProfile(ResolvableProfile source) {
+        com.mojang.authlib.GameProfile partial = source.partialProfile();
+        UUID id = partial.id();
         com.destroystokyo.paper.profile.CraftPlayerProfile result =
-                new com.destroystokyo.paper.profile.CraftPlayerProfile(source.id().orElse(null), source.name().orElse(null));
-        for (Property p : source.properties().values()) {
+                new com.destroystokyo.paper.profile.CraftPlayerProfile(Util.NIL_UUID.equals(id) ? null : id, source.name().orElse(null));
+        for (Property p : partial.properties().values()) {
             result.setProperty(new com.destroystokyo.paper.profile.ProfileProperty(p.name(), p.value(), p.signature()));
         }
         return result;
     }
 
     @Override public void setNoteBlockSound(@Nullable NamespacedKey sound) {
-        this.noteBlockSound = sound == null ? null : ResourceLocation.fromNamespaceAndPath(sound.getNamespace(), sound.getKey());
+        this.noteBlockSound = sound == null ? null : Identifier.fromNamespaceAndPath(sound.getNamespace(), sound.getKey());
     }
     @Override public @Nullable NamespacedKey getNoteBlockSound() {
         return this.noteBlockSound == null ? null : new NamespacedKey(this.noteBlockSound.getNamespace(), this.noteBlockSound.getPath());

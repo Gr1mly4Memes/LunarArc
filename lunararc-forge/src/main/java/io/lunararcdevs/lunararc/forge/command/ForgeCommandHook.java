@@ -32,7 +32,7 @@ public final class ForgeCommandHook {
         if (reader.canRead() && reader.peek() == '/') reader.skip();
         ParseResults<CommandSourceStack> parse = dispatcher(LunarArcServer.requireMinecraftServer()).parse(reader, source);
         CommandEvent event = new CommandEvent(parse);
-        if (MinecraftForge.EVENT_BUS.post(event) || event.getException() != null) {
+        if (CommandEvent.BUS.post(event) || event.getException() != null) {
             return LunarArcCommandRouter.HookResult.cancel();
         }
 

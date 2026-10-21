@@ -7,7 +7,7 @@ import java.util.Optional;
 import net.minecraft.core.Holder;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.effect.MobEffect;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.item.ItemStack;
@@ -30,6 +30,7 @@ public final class CraftMetaPotion extends CraftItemMeta implements PotionMeta {
     private PotionType baseType;
     private List<PotionEffect> customEffects = new ArrayList<>();
     private Integer color;
+    private String customName;
 
     public CraftMetaPotion() {
         super();
@@ -42,6 +43,7 @@ public final class CraftMetaPotion extends CraftItemMeta implements PotionMeta {
         if (contents == null) return;
         this.baseType = contents.potion().map(CraftMetaPotion::toBukkitPotion).orElse(null);
         this.color = contents.customColor().orElse(null);
+        this.customName = contents.customName().orElse(null);
         for (MobEffectInstance effect : contents.customEffects()) {
             PotionEffect converted = toBukkitEffect(effect);
             if (converted != null) this.customEffects.add(converted);
@@ -54,10 +56,10 @@ public final class CraftMetaPotion extends CraftItemMeta implements PotionMeta {
         Optional<Holder<Potion>> potion = this.baseType == null ? Optional.empty() : Optional.of(toMinecraftPotion(this.baseType));
         Optional<Integer> customColor = this.color == null ? Optional.empty() : Optional.of(this.color);
         List<MobEffectInstance> effects = this.customEffects.stream().map(CraftMetaPotion::toMinecraftEffect).toList();
-        if (potion.isEmpty() && customColor.isEmpty() && effects.isEmpty()) {
+        if (potion.isEmpty() && customColor.isEmpty() && effects.isEmpty() && this.customName == null) {
             nms.remove(net.minecraft.core.component.DataComponents.POTION_CONTENTS);
         } else {
-            nms.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS, new PotionContents(potion, customColor, effects));
+            nms.set(net.minecraft.core.component.DataComponents.POTION_CONTENTS, new PotionContents(potion, customColor, effects, Optional.ofNullable(this.customName)));
         }
     }
 
@@ -127,6 +129,7 @@ public final class CraftMetaPotion extends CraftItemMeta implements PotionMeta {
     public CraftMetaPotion clone() {
         CraftMetaPotion clone = (CraftMetaPotion) super.clone();
         clone.customEffects = new ArrayList<>(this.customEffects);
+        clone.customName = this.customName;
         return clone;
     }
 
@@ -138,8 +141,8 @@ public final class CraftMetaPotion extends CraftItemMeta implements PotionMeta {
     }
 
     private static PotionType toBukkitPotion(Holder<Potion> holder) {
-        ResourceLocation id = holder.unwrapKey().map(ResourceKey::location)
-                .orElseGet(() -> server().registryAccess().registryOrThrow(Registries.POTION).getKey(holder.value()));
+        Identifier id = holder.unwrapKey().map(ResourceKey::identifier)
+                .orElseGet(() -> server().registryAccess().lookupOrThrow(Registries.POTION).getKey(holder.value()));
         if (id == null) throw new IllegalStateException("Unregistered potion " + holder.value());
         PotionType type = Registry.POTION.get(new NamespacedKey(id.getNamespace(), id.getPath()));
         if (type == null) throw new IllegalStateException("No Bukkit PotionType for " + id);
@@ -149,13 +152,13 @@ public final class CraftMetaPotion extends CraftItemMeta implements PotionMeta {
     private static Holder<Potion> toMinecraftPotion(PotionType type) {
         NamespacedKey key = type.getKey();
         ResourceKey<Potion> resourceKey = ResourceKey.create(Registries.POTION,
-                ResourceLocation.fromNamespaceAndPath(key.getNamespace(), key.getKey()));
-        return server().registryAccess().registryOrThrow(Registries.POTION).getHolder(resourceKey)
+                Identifier.fromNamespaceAndPath(key.getNamespace(), key.getKey()));
+        return server().registryAccess().lookupOrThrow(Registries.POTION).get(resourceKey)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown potion " + key));
     }
 
     private static @Nullable PotionEffect toBukkitEffect(MobEffectInstance effect) {
-        ResourceLocation id = effect.getEffect().unwrapKey().map(ResourceKey::location)
+        Identifier id = effect.getEffect().unwrapKey().map(ResourceKey::identifier)
                 .orElseGet(() -> net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value()));
         if (id == null) return null;
         PotionEffectType type = PotionEffectType.getByKey(new NamespacedKey(id.getNamespace(), id.getPath()));
@@ -166,8 +169,8 @@ public final class CraftMetaPotion extends CraftItemMeta implements PotionMeta {
     private static MobEffectInstance toMinecraftEffect(PotionEffect effect) {
         NamespacedKey key = effect.getType().getKey();
         ResourceKey<MobEffect> resourceKey = ResourceKey.create(Registries.MOB_EFFECT,
-                ResourceLocation.fromNamespaceAndPath(key.getNamespace(), key.getKey()));
-        Holder<MobEffect> holder = server().registryAccess().registryOrThrow(Registries.MOB_EFFECT).getHolder(resourceKey)
+                Identifier.fromNamespaceAndPath(key.getNamespace(), key.getKey()));
+        Holder<MobEffect> holder = server().registryAccess().lookupOrThrow(Registries.MOB_EFFECT).get(resourceKey)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown potion effect " + key));
         return new MobEffectInstance(holder, effect.getDuration(), effect.getAmplifier(), effect.isAmbient(), effect.hasParticles(), effect.hasIcon());
     }
@@ -176,5 +179,37 @@ public final class CraftMetaPotion extends CraftItemMeta implements PotionMeta {
         net.minecraft.server.MinecraftServer server = io.lunararcdevs.lunararc.common.mod.server.LunarArcServer.minecraftServer();
         if (server == null) throw new IllegalStateException("MinecraftServer is not attached");
         return server;
+    }
+
+    @Override
+    public @NotNull List<PotionEffect> getAllEffects() {
+        List<PotionEffect> all = new ArrayList<>();
+        if (this.baseType != null) all.addAll(this.baseType.getPotionEffects());
+        all.addAll(this.customEffects);
+        return List.copyOf(all);
+    }
+
+    @Override
+    public @NotNull Color computeEffectiveColor() {
+        if (this.hasColor()) return this.getColor();
+        List<MobEffectInstance> effects = new ArrayList<>();
+        for (PotionEffect effect : getAllEffects()) effects.add(toMinecraftEffect(effect));
+        return Color.fromRGB(PotionContents.getColorOptional(effects).orElse(PotionContents.BASE_POTION_COLOR) & 0x00FFFFFF);
+    }
+
+    @Override
+    public boolean hasCustomPotionName() {
+        return this.customName != null;
+    }
+
+    @Override
+    public String getCustomPotionName() {
+        return this.customName;
+    }
+
+    @Override
+    public void setCustomPotionName(@Nullable String customName) {
+        com.google.common.base.Preconditions.checkArgument(customName == null || customName.length() <= 32767, "Custom name is longer than 32767 characters");
+        this.customName = customName;
     }
 }

@@ -4,7 +4,7 @@ import io.lunararcdevs.lunararc.api.EnumHelper;
 import io.lunararcdevs.lunararc.api.Unsafe;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import org.bukkit.Keyed;
 import org.bukkit.Material;
@@ -33,10 +33,10 @@ import java.util.Set;
 public final class LunarArcDynamicBukkitEnums {
     private static final Map<Material, NamespacedKey> MATERIAL_KEYS =
             Collections.synchronizedMap(new IdentityHashMap<>());
-    private static final Map<ResourceLocation, Material> MATERIALS_BY_ID = new java.util.concurrent.ConcurrentHashMap<>();
-    private static final Map<ResourceLocation, Material> MATERIALS_VIEW = Collections.unmodifiableMap(MATERIALS_BY_ID);
-    private static final Map<ResourceLocation, EntityType> ENTITY_TYPES = new java.util.concurrent.ConcurrentHashMap<>();
-    private static final Map<ResourceLocation, World.Environment> ENVIRONMENTS = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final Map<Identifier, Material> MATERIALS_BY_ID = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final Map<Identifier, Material> MATERIALS_VIEW = Collections.unmodifiableMap(MATERIALS_BY_ID);
+    private static final Map<Identifier, EntityType> ENTITY_TYPES = new java.util.concurrent.ConcurrentHashMap<>();
+    private static final Map<Identifier, World.Environment> ENVIRONMENTS = new java.util.concurrent.ConcurrentHashMap<>();
     private static final Map<World.Environment, net.minecraft.resources.ResourceKey<net.minecraft.world.level.dimension.LevelStem>> LEVEL_STEMS =
             Collections.synchronizedMap(new IdentityHashMap<>());
     private static boolean registered;
@@ -48,10 +48,8 @@ public final class LunarArcDynamicBukkitEnums {
         try {
             registerMaterials();
             registerEntities();
-            registerKeyedNoArg(Biome.class, server.registryAccess().registryOrThrow(Registries.BIOME).keySet(), "key");
-            registerKeyedNoArg(org.bukkit.Fluid.class, BuiltInRegistries.FLUID.keySet(), "key");
+            // Biome, Fluid and Sound are registry-backed interfaces in Paper 1.21.11; they read the NMS registries directly.
             registerParticles();
-            registerSounds();
             registerPotionTypes();
             registerEnvironments(server);
             reloadBukkitRegistries();
@@ -70,7 +68,7 @@ public final class LunarArcDynamicBukkitEnums {
      * Material.matchMaterial(), this also finds materials registered dynamically here for
      * modded blocks/items that have no vanilla Bukkit Material entry.
      */
-    public static Material material(ResourceLocation id) {
+    public static Material material(Identifier id) {
         if (id == null) return null;
         Material dynamic = MATERIALS_BY_ID.get(id);
         if (dynamic != null) return dynamic;
@@ -83,11 +81,11 @@ public final class LunarArcDynamicBukkitEnums {
      * Read-only: this map is {@link #registerMaterials() built once} and callers have no business
      * mutating LunarArc's own view of it.
      */
-    public static Map<ResourceLocation, Material> materialsById() {
+    public static Map<Identifier, Material> materialsById() {
         return MATERIALS_VIEW;
     }
 
-    public static EntityType entityType(ResourceLocation id) {
+    public static EntityType entityType(Identifier id) {
         EntityType dynamic = ENTITY_TYPES.get(id);
         if (dynamic != null) return dynamic;
         try {
@@ -98,13 +96,13 @@ public final class LunarArcDynamicBukkitEnums {
     }
 
     /** Returns the exact Bukkit environment associated with a loader-owned dimension key. */
-    public static World.Environment environment(ResourceLocation dimension) {
+    public static World.Environment environment(Identifier dimension) {
         if (dimension == null) return World.Environment.NORMAL;
         World.Environment environment = ENVIRONMENTS.get(dimension);
         if (environment != null) return environment;
-        if (net.minecraft.world.level.Level.NETHER.location().equals(dimension)) return World.Environment.NETHER;
-        if (net.minecraft.world.level.Level.END.location().equals(dimension)) return World.Environment.THE_END;
-        if (net.minecraft.world.level.Level.OVERWORLD.location().equals(dimension)) return World.Environment.NORMAL;
+        if (net.minecraft.world.level.Level.NETHER.identifier().equals(dimension)) return World.Environment.NETHER;
+        if (net.minecraft.world.level.Level.END.identifier().equals(dimension)) return World.Environment.THE_END;
+        if (net.minecraft.world.level.Level.OVERWORLD.identifier().equals(dimension)) return World.Environment.NORMAL;
         return World.Environment.CUSTOM;
     }
 
@@ -120,12 +118,12 @@ public final class LunarArcDynamicBukkitEnums {
     }
 
     private static void registerMaterials() throws Throwable {
-        Set<ResourceLocation> ids = new LinkedHashSet<>();
+        Set<Identifier> ids = new LinkedHashSet<>();
         ids.addAll(BuiltInRegistries.BLOCK.keySet());
         ids.addAll(BuiltInRegistries.ITEM.keySet());
         List<Material> additions = new ArrayList<>();
         int ordinal = Material.values().length;
-        for (ResourceLocation id : ids) {
+        for (Identifier id : ids) {
             NamespacedKey key = key(id);
             Material existing = materialByKey(key);
             if (existing != null) {
@@ -151,7 +149,7 @@ public final class LunarArcDynamicBukkitEnums {
     private static void registerEntities() throws Throwable {
         List<EntityType> additions = new ArrayList<>();
         int ordinal = EntityType.values().length;
-        for (ResourceLocation id : BuiltInRegistries.ENTITY_TYPE.keySet()) {
+        for (Identifier id : BuiltInRegistries.ENTITY_TYPE.keySet()) {
             EntityType existing = registryValue(org.bukkit.Registry.ENTITY_TYPE, id);
             if (existing != null && existing != EntityType.UNKNOWN) {
                 ENTITY_TYPES.put(id, existing);
@@ -171,10 +169,10 @@ public final class LunarArcDynamicBukkitEnums {
     }
 
     private static <E extends Enum<E> & Keyed> void registerKeyedNoArg(
-            Class<E> enumType, Iterable<ResourceLocation> ids, String keyField) throws Throwable {
+            Class<E> enumType, Iterable<Identifier> ids, String keyField) throws Throwable {
         List<E> additions = new ArrayList<>();
         int ordinal = enumType.getEnumConstants().length;
-        for (ResourceLocation id : ids) {
+        for (Identifier id : ids) {
             if (findByKey(enumType, id) != null) continue;
             String enumName = uniqueName(enumType, id, additions.stream().map(Enum::name).collect(java.util.stream.Collectors.toSet()));
             E value = construct(enumType, enumName, ordinal++, new Class<?>[0], new Object[0]);
@@ -187,37 +185,23 @@ public final class LunarArcDynamicBukkitEnums {
     private static void registerParticles() throws Throwable {
         List<Particle> additions = new ArrayList<>();
         int ordinal = Particle.values().length;
-        for (ResourceLocation id : BuiltInRegistries.PARTICLE_TYPE.keySet()) {
+        for (Identifier id : BuiltInRegistries.PARTICLE_TYPE.keySet()) {
             if (findByKey(Particle.class, id) != null) continue;
             String enumName = uniqueName(Particle.class, id, additions.stream().map(Enum::name).collect(java.util.stream.Collectors.toSet()));
             Particle particle = construct(
                     Particle.class, enumName, ordinal++,
-                    new Class<?>[]{String.class, Class.class, boolean.class},
-                    new Object[]{id.getPath(), Void.class, true});
+                    new Class<?>[]{String.class, Class.class},
+                    new Object[]{id.getPath(), Void.class});
             setObject(particle, "key", key(id));
             additions.add(particle);
         }
         append(Particle.class, additions);
     }
 
-    private static void registerSounds() throws Throwable {
-        List<Sound> additions = new ArrayList<>();
-        int ordinal = Sound.values().length;
-        for (ResourceLocation id : BuiltInRegistries.SOUND_EVENT.keySet()) {
-            if (findByKey(Sound.class, id) != null) continue;
-            String enumName = uniqueName(Sound.class, id, additions.stream().map(Enum::name).collect(java.util.stream.Collectors.toSet()));
-            Sound sound = construct(
-                    Sound.class, enumName, ordinal++, new Class<?>[]{String.class}, new Object[]{id.getPath()});
-            setObject(sound, "key", key(id));
-            additions.add(sound);
-        }
-        append(Sound.class, additions);
-    }
-
     private static void registerPotionTypes() throws Throwable {
         List<org.bukkit.potion.PotionType> additions = new ArrayList<>();
         int ordinal = org.bukkit.potion.PotionType.values().length;
-        for (ResourceLocation id : BuiltInRegistries.POTION.keySet()) {
+        for (Identifier id : BuiltInRegistries.POTION.keySet()) {
             if (findByKey(org.bukkit.potion.PotionType.class, id) != null) continue;
             String enumName = uniqueName(org.bukkit.potion.PotionType.class, id,
                     additions.stream().map(Enum::name).collect(java.util.stream.Collectors.toSet()));
@@ -231,31 +215,29 @@ public final class LunarArcDynamicBukkitEnums {
     }
 
     private static void registerEnvironments(MinecraftServer server) throws Throwable {
-        ENVIRONMENTS.put(net.minecraft.world.level.Level.OVERWORLD.location(), World.Environment.NORMAL);
-        ENVIRONMENTS.put(net.minecraft.world.level.Level.NETHER.location(), World.Environment.NETHER);
-        ENVIRONMENTS.put(net.minecraft.world.level.Level.END.location(), World.Environment.THE_END);
+        ENVIRONMENTS.put(net.minecraft.world.level.Level.OVERWORLD.identifier(), World.Environment.NORMAL);
+        ENVIRONMENTS.put(net.minecraft.world.level.Level.NETHER.identifier(), World.Environment.NETHER);
+        ENVIRONMENTS.put(net.minecraft.world.level.Level.END.identifier(), World.Environment.THE_END);
         LEVEL_STEMS.put(World.Environment.NORMAL, net.minecraft.world.level.dimension.LevelStem.OVERWORLD);
         LEVEL_STEMS.put(World.Environment.NETHER, net.minecraft.world.level.dimension.LevelStem.NETHER);
         LEVEL_STEMS.put(World.Environment.THE_END, net.minecraft.world.level.dimension.LevelStem.END);
 
         net.minecraft.core.Registry<net.minecraft.world.level.dimension.LevelStem> stems =
-                server.registryAccess().registryOrThrow(Registries.LEVEL_STEM);
-        List<World.Environment> additions = new ArrayList<>();
-        int ordinal = World.Environment.values().length;
-        int legacyId = ordinal - 1;
-        for (ResourceLocation id : stems.keySet()) {
+                server.registryAccess().lookupOrThrow(Registries.LEVEL_STEM);
+        // Modded dimensions are exposed as NORMAL, NETHER or THE_END according to the dimension type
+        // they are built on, the way Arclight does it. Adding an Environment constant per dimension
+        // (or reporting CUSTOM) makes plugins that switch over or parse the enum, Multiverse
+        // included, refuse the world.
+        for (java.util.Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.level.dimension.LevelStem>,
+                net.minecraft.world.level.dimension.LevelStem> entry : stems.entrySet()) {
+            Identifier id = entry.getKey().identifier();
             if (ENVIRONMENTS.containsKey(id)) continue;
-            String enumName = uniqueName(World.Environment.class, id,
-                    additions.stream().map(Enum::name).collect(java.util.stream.Collectors.toSet()));
-            World.Environment environment = construct(
-                    World.Environment.class, enumName, ordinal++,
-                    new Class<?>[]{int.class}, new Object[]{legacyId++});
-            additions.add(environment);
+            var type = entry.getValue().type();
+            World.Environment environment = World.Environment.NORMAL;
+            if (type.is(net.minecraft.world.level.dimension.BuiltinDimensionTypes.NETHER)) environment = World.Environment.NETHER;
+            else if (type.is(net.minecraft.world.level.dimension.BuiltinDimensionTypes.END)) environment = World.Environment.THE_END;
             ENVIRONMENTS.put(id, environment);
-            LEVEL_STEMS.put(environment, net.minecraft.resources.ResourceKey.create(Registries.LEVEL_STEM, id));
-            putStaticMap(World.Environment.class, "lookup", environment.getId(), environment);
         }
-        append(World.Environment.class, additions);
     }
 
     private static Material materialByKey(NamespacedKey key) {
@@ -267,7 +249,7 @@ public final class LunarArcDynamicBukkitEnums {
         return null;
     }
 
-    private static <E extends Enum<E> & Keyed> E findByKey(Class<E> type, ResourceLocation id) {
+    private static <E extends Enum<E> & Keyed> E findByKey(Class<E> type, Identifier id) {
         NamespacedKey key = key(id);
         for (E value : type.getEnumConstants()) {
             try {
@@ -277,7 +259,7 @@ public final class LunarArcDynamicBukkitEnums {
         return null;
     }
 
-    private static <T extends Keyed> T registryValue(org.bukkit.Registry<T> registry, ResourceLocation id) {
+    private static <T extends Keyed> T registryValue(org.bukkit.Registry<T> registry, Identifier id) {
         try {
             return registry.get(key(id));
         } catch (Throwable ignored) {
@@ -303,11 +285,11 @@ public final class LunarArcDynamicBukkitEnums {
         }
     }
 
-    private static NamespacedKey key(ResourceLocation id) {
+    private static NamespacedKey key(Identifier id) {
         return new NamespacedKey(id.getNamespace(), id.getPath());
     }
 
-    private static String uniqueName(Class<? extends Enum<?>> type, ResourceLocation id, Set<String> pendingNames) {
+    private static String uniqueName(Class<? extends Enum<?>> type, Identifier id, Set<String> pendingNames) {
         String base = ("minecraft".equals(id.getNamespace()) ? id.getPath() : id.getNamespace() + "_" + id.getPath())
                 .toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9_]", "_");
         if (base.isEmpty() || Character.isDigit(base.charAt(0))) base = "MOD_" + base;

@@ -63,4 +63,32 @@ public final class CraftMusicInstrument extends MusicInstrument implements org.b
 
         return org.bukkit.Registry.INSTRUMENT.get(NamespacedKey.fromString(string));
     }
+
+    @Override
+    public @NotNull String translationKey() {
+        if (!(this.getHandle().description().getContents() instanceof final net.minecraft.network.chat.contents.TranslatableContents translatableContents)) {
+            throw new UnsupportedOperationException("Description isn't translatable!");
+        }
+        return translatableContents.getKey();
+    }
+
+    @Override
+    public org.bukkit.@NotNull Sound getSound() {
+        return org.bukkit.craftbukkit.CraftSound.minecraftHolderToBukkit(this.getHandle().soundEvent());
+    }
+
+    @Override
+    public net.kyori.adventure.text.@NotNull Component description() {
+        return io.papermc.paper.adventure.PaperAdventure.asAdventure(this.getHandle().description());
+    }
+
+    @Override
+    public float getDuration() {
+        return this.getHandle().useDuration();
+    }
+
+    @Override
+    public float getRange() {
+        return this.getHandle().range();
+    }
 }

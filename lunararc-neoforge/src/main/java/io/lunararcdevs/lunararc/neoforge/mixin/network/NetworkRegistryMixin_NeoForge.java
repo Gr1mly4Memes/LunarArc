@@ -7,7 +7,7 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import net.minecraft.network.Connection;
 import net.minecraft.network.ConnectionProtocol;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerCommonPacketListenerImpl;
 import net.neoforged.neoforge.common.extensions.ICommonPacketListener;
@@ -26,13 +26,13 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class NetworkRegistryMixin_NeoForge {
 
     @Inject(method = "onMinecraftRegister", at = @At("TAIL"))
-    private static void lunararc$onMinecraftRegister(Connection connection, Set<ResourceLocation> channels, CallbackInfo ci) {
+    private static void lunararc$onMinecraftRegister(Connection connection, Set<Identifier> channels, CallbackInfo ci) {
         lunararc$withServerListener(connection, (bridge, player) ->
                 channels.forEach(channel -> bridge.lunararc$addLoaderPluginChannel(player, channel.toString())));
     }
 
     @Inject(method = "onMinecraftUnregister", at = @At("TAIL"))
-    private static void lunararc$onMinecraftUnregister(Connection connection, Set<ResourceLocation> channels, CallbackInfo ci) {
+    private static void lunararc$onMinecraftUnregister(Connection connection, Set<Identifier> channels, CallbackInfo ci) {
         lunararc$withServerListener(connection, (bridge, player) ->
                 channels.forEach(channel -> bridge.lunararc$removeLoaderPluginChannel(player, channel.toString())));
     }

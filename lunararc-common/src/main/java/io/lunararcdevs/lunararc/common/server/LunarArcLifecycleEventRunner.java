@@ -63,6 +63,9 @@ public final class LunarArcLifecycleEventRunner {
         concrete.forEachHandler(event, registered -> {
             LifecycleEventOwner previous = CURRENT_OWNER.get();
             LifecycleEventOwner owner = (LifecycleEventOwner) registered.owner();
+            // A plugin that failed to enable (or was disabled since) still has handlers registered; running them would
+            // touch a closed classloader, so they are skipped.
+            if (owner instanceof org.bukkit.plugin.Plugin ownerPlugin && !ownerPlugin.isEnabled()) return;
             CURRENT_OWNER.set(owner);
             Thread thread = Thread.currentThread();
             ClassLoader previousLoader = thread.getContextClassLoader();
@@ -74,7 +77,8 @@ public final class LunarArcLifecycleEventRunner {
                 String ownerName;
                 try { ownerName = owner.getPluginMeta().getDisplayName(); }
                 catch (Throwable ignored) { ownerName = String.valueOf(owner); }
-                throw new RuntimeException("Could not run '" + concrete.name()
+                // As in Paper, one plugin's broken handler is reported and the rest still run; it must not take the server down.
+                org.slf4j.LoggerFactory.getLogger("LunarArc").error("Could not run '" + concrete.name()
                         + "' lifecycle event handler from " + ownerName, throwable);
             } finally {
                 thread.setContextClassLoader(previousLoader);

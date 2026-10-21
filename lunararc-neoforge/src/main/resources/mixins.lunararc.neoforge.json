@@ -15,12 +15,14 @@
     "network.NetworkRegistryAccessor_NeoForge",
     "bukkit.StandardMessengerMixin_NeoForge",
     "bukkit.CraftPlayerMixin_NeoForge",
+    "core.entity.LivingEntityInvulnerabilityMixin_NeoForge",
     "core.entity.SlimeAttackGoalMixin_NeoForge",
     "core.entity.SlimeFloatGoalMixin_NeoForge",
     "core.entity.SlimeRandomDirectionGoalMixin_NeoForge",
     "core.entity.SlimeKeepOnJumpingGoalMixin_NeoForge",
     "core.effect.HungerMobEffectMixin_NeoForge",
-    "core.item.ShearsItemMixin_NeoForge"
+    "core.item.ShearsItemMixin_NeoForge",
+    "core.inventory.AnvilMenuMixin_NeoForge"
   ],
   "injectors": {
     "defaultRequire": 1

@@ -1,6 +1,6 @@
 package io.lunararcdevs.lunararc.common.network;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -11,15 +11,15 @@ import java.util.concurrent.ConcurrentHashMap;
  * second Bukkit dispatch; it never replaces, wraps, or proxies loader networking.
  */
 public final class LunarArcPluginMessageOwnership {
-    private static final Set<ResourceLocation> NATIVE_INBOUND = ConcurrentHashMap.newKeySet();
+    private static final Set<Identifier> NATIVE_INBOUND = ConcurrentHashMap.newKeySet();
 
     private LunarArcPluginMessageOwnership() {}
 
-    public static void markNativeInbound(ResourceLocation id) {
+    public static void markNativeInbound(Identifier id) {
         if (id != null) NATIVE_INBOUND.add(id);
     }
 
-    public static boolean isNativeInbound(ResourceLocation id) {
+    public static boolean isNativeInbound(Identifier id) {
         return id != null && NATIVE_INBOUND.contains(id);
     }
 

@@ -5,14 +5,13 @@ import io.lunararcdevs.lunararc.common.bridge.access.AbstractHorseAccessBridge;
 import java.util.UUID;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import org.bukkit.craftbukkit.CraftServer;
-import org.bukkit.craftbukkit.inventory.CraftInventoryAbstractHorse;
 import org.bukkit.entity.AnimalTamer;
 import org.bukkit.entity.Horse;
 import org.bukkit.inventory.AbstractHorseInventory;
 
 public abstract class CraftAbstractHorse extends CraftAnimals implements org.bukkit.entity.AbstractHorse {
-    protected CraftAbstractHorse(CraftServer server, net.minecraft.world.entity.animal.horse.AbstractHorse entity) { super(server, entity); }
-    @Override public net.minecraft.world.entity.animal.horse.AbstractHorse getHandle() { return (net.minecraft.world.entity.animal.horse.AbstractHorse) entity; }
+    protected CraftAbstractHorse(CraftServer server, net.minecraft.world.entity.animal.equine.AbstractHorse entity) { super(server, entity); }
+    @Override public net.minecraft.world.entity.animal.equine.AbstractHorse getHandle() { return (net.minecraft.world.entity.animal.equine.AbstractHorse) entity; }
     private AbstractHorseBridge horseBridge() { return (AbstractHorseBridge) (Object) getHandle(); }
     private AbstractHorseAccessBridge horseAccessor() { return (AbstractHorseAccessBridge) (Object) getHandle(); }
 
@@ -34,8 +33,8 @@ public abstract class CraftAbstractHorse extends CraftAnimals implements org.buk
         getHandle().getAttribute(Attributes.JUMP_STRENGTH).setBaseValue(strength);
     }
     @Override public boolean isTamed() { return getHandle().isTamed(); }
-    @Override public void setTamed(boolean tamed) { getHandle().setTamed(tamed); if (!tamed) getHandle().setOwnerUUID(null); }
-    @Override public UUID getOwnerUniqueId() { return getHandle().getOwnerUUID(); }
+    @Override public void setTamed(boolean tamed) { getHandle().setTamed(tamed); if (!tamed) setOwnerUUID(null); }
+    @Override public UUID getOwnerUniqueId() { return getOwnerUUID(); }
     @Override public AnimalTamer getOwner() {
         UUID id = getOwnerUniqueId();
         if (id == null) return null;
@@ -44,27 +43,30 @@ public abstract class CraftAbstractHorse extends CraftAnimals implements org.buk
     }
     @Override public void setOwner(AnimalTamer owner) {
         if (owner == null) { setTamed(false); return; }
-        getHandle().setOwnerUUID(owner.getUniqueId());
+        setOwnerUUID(owner.getUniqueId());
         getHandle().setTamed(true);
     }
     @Override public boolean isEatingHaystack() { return getHandle().isEating(); }
     @Override public void setEatingHaystack(boolean eating) { getHandle().setEating(eating); }
     @Override public AbstractHorseInventory getInventory() {
-        return new CraftInventoryAbstractHorse(horseAccessor().lunararc$getInventory(), horseAccessor().lunararc$getBodyArmorAccess(), this);
+        return new org.bukkit.craftbukkit.inventory.CraftInventorySaddledHorse(
+                this.getHandle().inventory,
+                this.getHandle().createEquipmentSlotContainer(net.minecraft.world.entity.EquipmentSlot.BODY),
+                this.getHandle().createEquipmentSlotContainer(net.minecraft.world.entity.EquipmentSlot.SADDLE));
     }
     @Override public boolean isEatingGrass() { return getHandle().isEating(); }
     @Override public void setEatingGrass(boolean eating) { getHandle().setEating(eating); }
     @Override public boolean isRearing() { return getHandle().isStanding(); }
-    @Override public void setRearing(boolean rearing) { getHandle().setStanding(rearing); }
+    @Override public void setRearing(boolean rearing) { if (rearing) getHandle().setStanding(Integer.MAX_VALUE); else getHandle().clearStanding(); }
     @Override public boolean isEating() { return horseBridge().lunararc$isMouthOpen(); }
     @Override public void setEating(boolean eating) { horseBridge().lunararc$setMouthOpen(eating); }
 
     // CraftBukkit's UUID-level owner accessors, beside the AnimalTamer ones the Bukkit API has.
     public java.util.UUID getOwnerUUID() {
-        return this.getHandle().getOwnerUUID();
+        return net.minecraft.Optionull.map(this.getHandle().getOwnerReference(), net.minecraft.world.entity.EntityReference::getUUID);
     }
 
     public void setOwnerUUID(java.util.UUID uuid) {
-        this.getHandle().setOwnerUUID(uuid);
+        this.getHandle().owner = uuid == null ? null : net.minecraft.world.entity.EntityReference.of(uuid);
     }
 }

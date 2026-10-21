@@ -1,6 +1,6 @@
 package io.lunararcdevs.lunararc.common.server;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import org.bukkit.Material;
 import org.bukkit.craftbukkit.CraftServer;
 import org.bukkit.plugin.Plugin;
@@ -214,11 +214,11 @@ public final class LunarArcEssentialsItemBridge {
     }
 
     static final class AliasIndex<T> {
-        private final java.util.function.Supplier<Map<ResourceLocation, T>> source;
+        private final java.util.function.Supplier<Map<Identifier, T>> source;
         private final java.util.function.Predicate<T> isItem;
         private volatile Snapshot<T> snapshot = new Snapshot<>(-1, Map.of(), new String[0]);
 
-        AliasIndex(java.util.function.Supplier<Map<ResourceLocation, T>> source, java.util.function.Predicate<T> isItem) {
+        AliasIndex(java.util.function.Supplier<Map<Identifier, T>> source, java.util.function.Predicate<T> isItem) {
             this.source = source;
             this.isItem = isItem;
         }
@@ -240,7 +240,7 @@ public final class LunarArcEssentialsItemBridge {
         }
 
         void refresh() {
-            Map<ResourceLocation, T> materials = source.get();
+            Map<Identifier, T> materials = source.get();
             if (snapshot.materialCount() == materials.size()) return;
             synchronized (this) {
                 int count = materials.size();
@@ -271,8 +271,8 @@ public final class LunarArcEssentialsItemBridge {
 
     private static List<String> withoutGeneratedEntries(List<String> lines) {
         Map<String, String> generated = new java.util.HashMap<>();
-        for (Map.Entry<ResourceLocation, Material> entry : LunarArcDynamicBukkitEnums.materialsById().entrySet()) {
-            ResourceLocation id = entry.getKey();
+        for (Map.Entry<Identifier, Material> entry : LunarArcDynamicBukkitEnums.materialsById().entrySet()) {
+            Identifier id = entry.getKey();
             Material material = entry.getValue();
             if (!"minecraft".equals(id.getNamespace()) && material != null && material.isItem()) {
                 generated.put((id.getNamespace() + "_" + id.getPath()).toLowerCase(Locale.ROOT), material.name());

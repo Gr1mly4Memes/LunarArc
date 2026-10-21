@@ -14,8 +14,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(BasePressurePlateBlock.class)
 public abstract class EntityInteractBlocksMixin {
 
-    @Inject(method = "entityInside", at = @At("HEAD"), cancellable = true, require = 0)
-    private void lunararc$interact(BlockState state, Level level, BlockPos pos, Entity entity, CallbackInfo ci) {
+    @Inject(method = "entityInside", at = @At("HEAD"), cancellable = true, require = 1)
+    private void lunararc$interact(BlockState state, Level level, BlockPos pos, Entity entity, net.minecraft.world.entity.InsideBlockEffectApplier applier, boolean intersects, CallbackInfo ci) {
         if (LunarArcPaperEvents.entityInteract(entity, level, pos)) ci.cancel();
     }
 }

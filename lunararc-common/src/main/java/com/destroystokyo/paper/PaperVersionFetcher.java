@@ -48,6 +48,11 @@ public final class PaperVersionFetcher implements VersionFetcher {
     }
 
     @Override
+    public Component getVersionMessage() {
+        return getVersionMessage(org.bukkit.Bukkit.getVersion());
+    }
+
+    @Override
     public Component getVersionMessage(String serverVersion) {
         try {
             String currentVersion = LunarArcVersionInfo.lunarArcVersion();
@@ -94,6 +99,7 @@ public final class PaperVersionFetcher implements VersionFetcher {
                  InputStreamReader reader = new InputStreamReader(input, StandardCharsets.UTF_8)) {
                 JsonArray releases = JsonParser.parseReader(reader).getAsJsonArray();
                 String current = LunarArcVersionInfo.lunarArcVersion();
+                String branch = LunarArcVersionInfo.gitBranch();
                 Release latest = null;
                 int index = 0;
                 for (JsonElement element : releases) {
@@ -103,6 +109,7 @@ public final class PaperVersionFetcher implements VersionFetcher {
                     String tagName = stringValue(release, "tag_name");
                     String htmlUrl = stringValue(release, "html_url");
                     if (tagName.isBlank() || htmlUrl.isBlank()) continue;
+                    if (branchKnown(branch) && !normalize(stringValue(release, "target_commitish")).equals(normalize(branch))) continue;
                     if (latest == null) latest = new Release(tagName, htmlUrl, stringValue(release, "name"), -1);
                     if (isSameVersion(current, tagName)) {
                         return Optional.of(new Release(latest.version(), latest.downloadUrl(), latest.name(), index));
@@ -117,6 +124,12 @@ public final class PaperVersionFetcher implements VersionFetcher {
         } finally {
             if (connection != null) connection.disconnect();
         }
+    }
+
+    private static boolean branchKnown(String branch) {
+        if (branch == null) return false;
+        String value = branch.trim();
+        return !value.isEmpty() && !value.equalsIgnoreCase("unknown") && !value.equals("HEAD") && !value.contains("${");
     }
 
     private static String stringValue(JsonObject object, String key) {

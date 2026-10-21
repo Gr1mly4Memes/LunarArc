@@ -25,7 +25,7 @@ public abstract class FlowingFluidMixin {
             method = "spread",
             at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/material/FlowingFluid;spreadTo(Lnet/minecraft/world/level/LevelAccessor;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/Direction;Lnet/minecraft/world/level/material/FluidState;)V"),
             cancellable = true)
-    private void lunararc$blockFromToDown(Level level, BlockPos pos, FluidState fluidState, CallbackInfo ci) {
+    private void lunararc$blockFromToDown(ServerLevel level, BlockPos pos, BlockState state, FluidState fluidState, CallbackInfo ci) {
         boolean cancelled = lunararc$flowCancelled(level, pos, Direction.DOWN);
         if (cancelled) {
             ci.cancel();
@@ -34,22 +34,19 @@ public abstract class FlowingFluidMixin {
 
     @WrapOperation(
             method = "spreadToSides",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/material/FlowingFluid;canSpreadTo(Lnet/minecraft/world/level/BlockGetter;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/Direction;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/material/FluidState;Lnet/minecraft/world/level/material/Fluid;)Z"),
-            require = 0)
-    private boolean lunararc$blockFromToSides(
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/material/FlowingFluid;spreadTo(Lnet/minecraft/world/level/LevelAccessor;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/core/Direction;Lnet/minecraft/world/level/material/FluidState;)V"),
+            require = 1)
+    private void lunararc$blockFromToSides(
             FlowingFluid self,
-            net.minecraft.world.level.BlockGetter reader,
-            BlockPos fromPos,
-            BlockState fromState,
-            Direction direction,
+            net.minecraft.world.level.LevelAccessor level,
             BlockPos toPos,
             BlockState toState,
+            Direction direction,
             FluidState toFluid,
-            net.minecraft.world.level.material.Fluid fluid,
-            Operation<Boolean> original) {
-        boolean vanilla = original.call(self, reader, fromPos, fromState, direction, toPos, toState, toFluid, fluid);
-        boolean cancelled = vanilla && reader instanceof Level level && lunararc$flowCancelled(level, fromPos, direction);
-        return vanilla && !cancelled;
+            Operation<Void> original,
+            @com.llamalad7.mixinextras.sugar.Local(argsOnly = true) BlockPos fromPos) {
+        if (level instanceof Level realLevel && lunararc$flowCancelled(realLevel, fromPos, direction)) return;
+        original.call(self, level, toPos, toState, direction, toFluid);
     }
 
     @Unique

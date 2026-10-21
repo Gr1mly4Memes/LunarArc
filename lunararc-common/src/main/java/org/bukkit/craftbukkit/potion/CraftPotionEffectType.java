@@ -138,7 +138,7 @@ public final class CraftPotionEffectType extends PotionEffectType implements org
         for (var entry : this.handle.attributeModifiers.entrySet()) {
             var attributeKey = entry.getKey().unwrapKey().orElse(null);
             if (attributeKey == null) continue;
-            var location = attributeKey.location();
+            var location = attributeKey.identifier();
             Attribute bukkit = Registry.ATTRIBUTE.get(new NamespacedKey(location.getNamespace(), location.getPath()));
             if (bukkit == null) continue;
             result.put(bukkit, toBukkit(entry.getValue().create(0)));
@@ -152,7 +152,7 @@ public final class CraftPotionEffectType extends PotionEffectType implements org
         for (var entry : this.handle.attributeModifiers.entrySet()) {
             var attributeKey = entry.getKey().unwrapKey().orElse(null);
             if (attributeKey == null) continue;
-            NamespacedKey key = new NamespacedKey(attributeKey.location().getNamespace(), attributeKey.location().getPath());
+            NamespacedKey key = new NamespacedKey(attributeKey.identifier().getNamespace(), attributeKey.identifier().getPath());
             if (key.equals(attribute.getKey())) return entry.getValue().create(effectAmplifier).amount();
         }
         throw new IllegalArgumentException(attribute + " is not present on " + this.getKey());

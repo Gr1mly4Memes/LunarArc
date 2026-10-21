@@ -7,7 +7,7 @@ import net.minecraft.core.Registry;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BannerPattern;
 import net.minecraft.world.level.block.entity.BannerPatternLayers;
@@ -48,15 +48,15 @@ public final class CraftMetaBanner extends CraftItemMeta implements BannerMeta {
     }
 
     private static PatternType toBukkit(Holder<BannerPattern> holder) {
-        ResourceLocation id = holder.unwrapKey().orElse(null) == null ? null : holder.unwrapKey().orElseThrow().location();
+        Identifier id = holder.unwrapKey().orElse(null) == null ? null : holder.unwrapKey().orElseThrow().identifier();
         if (id == null) return null;
         return org.bukkit.Registry.BANNER_PATTERN.get(new NamespacedKey(id.getNamespace(), id.getPath()));
     }
     private static Holder<BannerPattern> toNms(PatternType type) {
         NamespacedKey key = type.getKey();
-        Registry<BannerPattern> registry = ((org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer()).getServer().registryAccess().registryOrThrow(Registries.BANNER_PATTERN);
-        ResourceKey<BannerPattern> resourceKey = ResourceKey.create(Registries.BANNER_PATTERN, ResourceLocation.fromNamespaceAndPath(key.getNamespace(), key.getKey()));
-        return registry.getHolder(resourceKey).orElseThrow(() -> new IllegalArgumentException("Unknown banner pattern " + key));
+        Registry<BannerPattern> registry = ((org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer()).getServer().registryAccess().lookupOrThrow(Registries.BANNER_PATTERN);
+        ResourceKey<BannerPattern> resourceKey = ResourceKey.create(Registries.BANNER_PATTERN, Identifier.fromNamespaceAndPath(key.getNamespace(), key.getKey()));
+        return registry.get(resourceKey).orElseThrow(() -> new IllegalArgumentException("Unknown banner pattern " + key));
     }
 
     @Override public List<Pattern> getPatterns() { return new ArrayList<>(this.patterns); }

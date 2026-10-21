@@ -29,19 +29,17 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(AbstractFurnaceBlockEntity.class)
 public abstract class AbstractFurnaceBlockEntityMixin implements io.lunararcdevs.lunararc.common.bridge.world.CookSpeedBridge {
-    @Shadow @Final private it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap<net.minecraft.resources.ResourceLocation> recipesUsed;
 
-    @Shadow int cookingProgress;
+    @Shadow public int cookingTimer;
     @Shadow int cookingTotalTime;
 
     @Shadow protected abstract boolean isLit();
 
-    @Shadow private static int getTotalCookTime(Level level, AbstractFurnaceBlockEntity furnace) { throw new AssertionError(); }
 
-    @Unique private static int shadowTotalCookTime(Level level, AbstractFurnaceBlockEntity furnace) { return getTotalCookTime(level, furnace); }
+    @Unique private static int shadowTotalCookTime(ServerLevel level, AbstractFurnaceBlockEntity furnace) { return AbstractFurnaceBlockEntity.getTotalCookTime(level, furnace); }
 
     @Override public boolean lunararc$isLit() { return this.isLit(); }
-    @Override public int lunararc$cookingProgress() { return this.cookingProgress; }
+    @Override public int lunararc$cookingProgress() { return this.cookingTimer; }
     @Override public int lunararc$cookingTotalTime() { return this.cookingTotalTime; }
     @Override public void lunararc$setCookingTotalTime(int ticks) { this.cookingTotalTime = ticks; }
 
@@ -58,9 +56,6 @@ public abstract class AbstractFurnaceBlockEntityMixin implements io.lunararcdevs
         return this.cookSpeedMultiplier;
     }
 
-    public it.unimi.dsi.fastutil.objects.Object2IntOpenHashMap<net.minecraft.resources.ResourceLocation> getRecipesUsed() {
-        return this.recipesUsed;
-    }
 
     @Inject(method = "<init>", at = @At("TAIL"))
     private void lunararc$captureRecipeType(net.minecraft.world.level.block.entity.BlockEntityType<?> type, BlockPos pos,
@@ -70,7 +65,7 @@ public abstract class AbstractFurnaceBlockEntityMixin implements io.lunararcdevs
     }
 
     @ModifyReturnValue(method = "getTotalCookTime", at = @At("RETURN"))
-    private static int lunararc$applyCookSpeed(int original, Level level, AbstractFurnaceBlockEntity furnace) {
+    private static int lunararc$applyCookSpeed(int original, ServerLevel level, AbstractFurnaceBlockEntity furnace) {
         double multiplier = ((io.lunararcdevs.lunararc.common.bridge.world.CookSpeedBridge) furnace).lunararc$cookSpeed();
         return multiplier == 1.0D ? original : (int) Math.ceil(original / multiplier);
     }
@@ -80,16 +75,16 @@ public abstract class AbstractFurnaceBlockEntityMixin implements io.lunararcdevs
     @Unique private static FurnaceBurnEvent lunararc$burnEvent;
 
     @Inject(method = "serverTick", at = @At("HEAD"))
-    private static void lunararc$captureFurnace(Level level, BlockPos pos, BlockState state, AbstractFurnaceBlockEntity furnace, CallbackInfo ci) {
-        lunararc$tickLevel = level instanceof ServerLevel serverLevel && org.bukkit.Bukkit.isPrimaryThread() ? serverLevel : null;
+    private static void lunararc$captureFurnace(ServerLevel level, BlockPos pos, BlockState state, AbstractFurnaceBlockEntity furnace, CallbackInfo ci) {
+        lunararc$tickLevel = org.bukkit.Bukkit.isPrimaryThread() ? level : null;
         lunararc$tickPos = pos;
         lunararc$burnEvent = null;
     }
 
     @WrapOperation(method = "serverTick", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity;getBurnDuration(Lnet/minecraft/world/item/ItemStack;)I"))
-    private static int lunararc$furnaceBurn(AbstractFurnaceBlockEntity furnace, ItemStack fuel, Operation<Integer> original) {
-        int duration = original.call(furnace, fuel);
+            target = "Lnet/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity;getBurnDuration(Lnet/minecraft/world/level/block/entity/FuelValues;Lnet/minecraft/world/item/ItemStack;)I"))
+    private static int lunararc$furnaceBurn(AbstractFurnaceBlockEntity furnace, net.minecraft.world.level.block.entity.FuelValues fuelValues, ItemStack fuel, Operation<Integer> original) {
+        int duration = original.call(furnace, fuelValues, fuel);
         if (lunararc$tickLevel == null) return duration;
         FurnaceBurnEvent event = new FurnaceBurnEvent(CraftBlock.at(lunararc$tickLevel, lunararc$tickPos), CraftItemStack.asCraftMirror(fuel), duration);
         org.bukkit.Bukkit.getPluginManager().callEvent(event);
@@ -132,9 +127,9 @@ public abstract class AbstractFurnaceBlockEntityMixin implements io.lunararcdevs
     }
 
     @com.llamalad7.mixinextras.injector.ModifyExpressionValue(method = "serverTick", require = 0, at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity;canBurn(Lnet/minecraft/core/RegistryAccess;Lnet/minecraft/world/item/crafting/RecipeHolder;Lnet/minecraft/core/NonNullList;I)Z"))
+            target = "Lnet/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity;canBurn(Lnet/minecraft/core/RegistryAccess;Lnet/minecraft/world/item/crafting/RecipeHolder;Lnet/minecraft/world/item/crafting/SingleRecipeInput;Lnet/minecraft/core/NonNullList;I)Z"))
     private static boolean lunararc$startSmelt(boolean can, @Local(argsOnly = true) AbstractFurnaceBlockEntity furnace,
-            @Local(argsOnly = true) Level level, @Local(argsOnly = true) BlockPos pos) {
+            @Local(argsOnly = true) ServerLevel level, @Local(argsOnly = true) BlockPos pos) {
         io.lunararcdevs.lunararc.common.bridge.world.CookSpeedBridge bridge = (io.lunararcdevs.lunararc.common.bridge.world.CookSpeedBridge) furnace;
         if (can && bridge.lunararc$isLit() && bridge.lunararc$cookingProgress() == 0) {
             bridge.lunararc$setCookingTotalTime(io.lunararcdevs.lunararc.common.event.LunarArcPaperEvents.furnaceStart(

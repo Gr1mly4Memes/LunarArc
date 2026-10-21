@@ -3,7 +3,7 @@ package io.lunararcdevs.lunararc.neoforge.mixin.core.server;
 import io.lunararcdevs.lunararc.common.bridge.MinecraftServerBridge;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.level.ForcedChunksSavedData;
+import net.minecraft.world.level.TicketStorage;
 import net.neoforged.neoforge.common.world.chunk.ForcedChunkManager;
 import org.spongepowered.asm.mixin.Shadow;
 import net.neoforged.neoforge.common.NeoForge;
@@ -31,8 +31,11 @@ public abstract class MinecraftServerMixin_NeoForge implements MinecraftServerBr
     }
 
     @Override
-    public void lunararc$loaderReinstatePersistentChunks(ServerLevel level, ForcedChunksSavedData savedData) {
-        ForcedChunkManager.reinstatePersistentChunks(level, savedData);
+    public void lunararc$loaderReinstatePersistentChunks(ServerLevel level) {
+        TicketStorage tickets = level.getDataStorage().get(TicketStorage.TYPE);
+        if (tickets == null) return;
+        ForcedChunkManager.activateAllDeactivatedTickets(level, tickets);
+        tickets.activateAllDeactivatedTickets();
     }
 
     @Override

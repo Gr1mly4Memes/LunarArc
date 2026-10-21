@@ -22,7 +22,6 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class FoodDataMixin implements FoodDataBridge {
     @Shadow public int foodLevel;
     @Shadow public float saturationLevel;
-    @Shadow private int lastFoodLevel;
 
     @Unique private int lunararc$saturatedRegenRate;
     @Unique private int lunararc$unsaturatedRegenRate;
@@ -45,7 +44,7 @@ public abstract class FoodDataMixin implements FoodDataBridge {
     @Override public void lunararc$setOwner(Player player) { this.lunararc$owner = player; }
 
     @Inject(method = "tick", at = @At("HEAD"), require = 0)
-    private void lunararc$captureOwner(Player player, CallbackInfo ci) {
+    private void lunararc$captureOwner(net.minecraft.server.level.ServerPlayer player, CallbackInfo ci) {
         this.lunararc$owner = player;
     }
 
@@ -62,7 +61,7 @@ public abstract class FoodDataMixin implements FoodDataBridge {
             return;
         }
         int target = net.minecraft.util.Mth.clamp(this.foodLevel + food.nutrition(), 0, 20);
-        org.bukkit.event.entity.FoodLevelChangeEvent event = new org.bukkit.event.entity.FoodLevelChangeEvent(human, target);
+        org.bukkit.event.entity.FoodLevelChangeEvent event = new org.bukkit.event.entity.FoodLevelChangeEvent(human, target, null);
         org.bukkit.Bukkit.getPluginManager().callEvent(event);
         if (!event.isCancelled()) {
             int delta = net.minecraft.util.Mth.clamp(event.getFoodLevel(), 0, 20) - this.foodLevel;
@@ -75,19 +74,19 @@ public abstract class FoodDataMixin implements FoodDataBridge {
     }
 
     @ModifyExpressionValue(method = "tick",
-            at = @At(value = "INVOKE", target = "Ljava/lang/Math;max(II)I"), require = 0)
+            at = @At(value = "INVOKE", target = "Ljava/lang/Math;max(II)I"), require = 1)
     private int lunararc$foodExhaustionLevelChange(int vanillaLevel) {
         Player owner = this.lunararc$owner;
-        if (owner == null || owner.level().isClientSide || vanillaLevel >= this.lastFoodLevel) return vanillaLevel;
+        if (owner == null || owner.level().isClientSide || vanillaLevel >= this.foodLevel) return vanillaLevel;
         Object bukkit = ((EntityBridge) owner).lunararc$getBukkitEntity();
         if (!(bukkit instanceof org.bukkit.entity.HumanEntity human)) return vanillaLevel;
-        var event = new org.bukkit.event.entity.FoodLevelChangeEvent(human, vanillaLevel);
+        var event = new org.bukkit.event.entity.FoodLevelChangeEvent(human, vanillaLevel, null);
         org.bukkit.Bukkit.getPluginManager().callEvent(event);
-        return event.isCancelled() ? this.lastFoodLevel : net.minecraft.util.Mth.clamp(event.getFoodLevel(), 0, 20);
+        return event.isCancelled() ? this.foodLevel : net.minecraft.util.Mth.clamp(event.getFoodLevel(), 0, 20);
     }
 
-    @Inject(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/player/Player;heal(F)V"), require = 0)
-    private void lunararc$satiatedHeal(Player player, CallbackInfo ci) {
+    @Inject(method = "tick", at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerPlayer;heal(F)V"), require = 0)
+    private void lunararc$satiatedHeal(net.minecraft.server.level.ServerPlayer player, CallbackInfo ci) {
         ((LivingEntityBridge) player).lunararc$pushHealReason(
                 org.bukkit.event.entity.EntityRegainHealthEvent.RegainReason.SATIATED,
                 this.saturationLevel > 0.0F);

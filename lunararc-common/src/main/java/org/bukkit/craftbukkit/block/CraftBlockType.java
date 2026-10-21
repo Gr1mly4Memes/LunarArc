@@ -3,7 +3,7 @@ package org.bukkit.craftbukkit.block;
 import com.google.common.base.Preconditions;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Fallable;
@@ -22,7 +22,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.Objects;
 import java.util.function.Consumer;
 
-public final class CraftBlockType<B extends BlockData> implements BlockType.Typed<B> {
+public final class CraftBlockType<B extends BlockData> implements BlockType.Typed<B>, org.bukkit.craftbukkit.util.Handleable<Block> {
     private final NamespacedKey key;
     private final Block handle;
 
@@ -31,10 +31,10 @@ public final class CraftBlockType<B extends BlockData> implements BlockType.Type
         this.handle = Objects.requireNonNull(handle, "handle");
     }
 
-    public Block getHandle() { return this.handle; }
+    @Override public Block getHandle() { return this.handle; }
 
     public static BlockType minecraftToBukkitNew(Block block) {
-        ResourceLocation id = BuiltInRegistries.BLOCK.getKey(block);
+        Identifier id = BuiltInRegistries.BLOCK.getKey(block);
         return id == null ? null : Registry.BLOCK.get(new NamespacedKey(id.getNamespace(), id.getPath()));
     }
 
@@ -113,5 +113,16 @@ public final class CraftBlockType<B extends BlockData> implements BlockType.Type
 
     public static net.minecraft.world.level.block.Block bukkitToMinecraftNew(org.bukkit.block.BlockType bukkit) {
         return org.bukkit.craftbukkit.CraftRegistry.bukkitToMinecraft(bukkit);
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public java.util.@NotNull Collection<B> createBlockDataStates() {
+        com.google.common.collect.ImmutableList<net.minecraft.world.level.block.state.BlockState> possibleStates = this.handle.getStateDefinition().getPossibleStates();
+        com.google.common.collect.ImmutableList.Builder<B> builder = com.google.common.collect.ImmutableList.builderWithExpectedSize(possibleStates.size());
+        for (net.minecraft.world.level.block.state.BlockState possibleState : possibleStates) {
+            builder.add((B) CraftBlockData.fromData(possibleState));
+        }
+        return builder.build();
     }
 }

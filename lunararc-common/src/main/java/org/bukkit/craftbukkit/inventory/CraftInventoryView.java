@@ -41,6 +41,12 @@ public class CraftInventoryView implements InventoryView {
         this.legacyTitle = this.originalTitle;
     }
 
+    /** Paper-shaped constructor used by the donated Craft*View classes. */
+    public CraftInventoryView(HumanEntity player, Inventory viewing, AbstractContainerMenu container) {
+        this((org.bukkit.craftbukkit.entity.CraftPlayer) player, container, viewing, null,
+                viewing != null ? viewing.getType() : InventoryType.CHEST, net.kyori.adventure.text.Component.empty());
+    }
+
     public AbstractContainerMenu getHandle() { return handle; }
 
     /**
@@ -290,5 +296,16 @@ public class CraftInventoryView implements InventoryView {
     /** Whether a raw slot index falls in the top inventory, as CraftBukkit asks it. */
     public boolean isInTop(int rawSlot) {
         return rawSlot < this.top.getSize();
+    }
+
+    @Override
+    public org.bukkit.inventory.MenuType getMenuType() {
+        net.minecraft.world.inventory.MenuType<?> menuType = handle.menuType;
+        return menuType != null ? CraftMenuType.minecraftToBukkit(menuType) : null;
+    }
+
+    @Override
+    public void open() {
+        getPlayer().openInventory(this);
     }
 }

@@ -14,13 +14,13 @@ import org.spongepowered.asm.mixin.injection.At;
 
 @Mixin(SweetBerryBushBlock.class)
 public abstract class SweetBerryBushDamageMixin {
-    @WrapOperation(method = "entityInside", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Entity;hurt(Lnet/minecraft/world/damagesource/DamageSource;F)Z"))
-    private boolean lunararc$blockDamage(Entity entity, DamageSource source, float amount, Operation<Boolean> original,
+    @WrapOperation(method = "entityInside", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Entity;hurtServer(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/damagesource/DamageSource;F)Z"))
+    private boolean lunararc$blockDamage(Entity entity, net.minecraft.server.level.ServerLevel level, DamageSource source, float amount, Operation<Boolean> original,
             @Local(argsOnly = true) BlockPos pos, @Local(argsOnly = true) BlockState state) {
         CraftEventFactory.damagingBlockPos = pos;
         CraftEventFactory.damagingBlockState = state;
         try {
-            return original.call(entity, source, amount);
+            return original.call(entity, level, source, amount);
         } finally {
             CraftEventFactory.damagingBlockPos = null;
             CraftEventFactory.damagingBlockState = null;

@@ -16,7 +16,7 @@ import net.minecraft.core.Holder;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.protocol.game.ClientboundEntityEventPacket;
 import net.minecraft.network.protocol.game.ClientboundHurtAnimationPacket;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.InteractionHand;
@@ -274,10 +274,10 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
         getHandle().hurt(source, (float) amount);
     }
 
-    @Override public int getMaximumNoDamageTicks() { return livingAccessor().lunararc$getInvulnerableDuration(); }
+    @Override public int getMaximumNoDamageTicks() { return livingBridge().lunararc$getInvulnerableDuration(); }
     @Override public void setMaximumNoDamageTicks(int ticks) {
         if (ticks < 0) throw new IllegalArgumentException("ticks must be >= 0");
-        livingAccessor().lunararc$setInvulnerableDuration(ticks);
+        livingBridge().lunararc$setInvulnerableDuration(ticks);
     }
     @Override public double getLastDamage() { return livingAccessor().lunararc$getLastHurt(); }
     @Override public void setLastDamage(double damage) { livingAccessor().lunararc$setLastHurt((float) damage); }
@@ -290,7 +290,7 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
     }
 
     @Override public @Nullable Player getKiller() {
-        net.minecraft.world.entity.player.Player player = livingAccessor().lunararc$getLastHurtByPlayer();
+        net.minecraft.world.entity.player.Player player = net.minecraft.world.entity.EntityReference.getPlayer(livingAccessor().lunararc$getLastHurtByPlayer(), getHandle().level());
         if (player == null) return null;
         Entity bukkit = CraftEntity.getEntity(server, player);
         return bukkit instanceof Player result ? result : null;
@@ -298,8 +298,8 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
     @Override public void setKiller(@Nullable Player killer) {
         if (killer != null && !(killer instanceof CraftPlayer)) throw new IllegalArgumentException("Player is not backed by LunarArc");
         net.minecraft.server.level.ServerPlayer player = killer == null ? null : ((CraftPlayer) killer).getHandle();
-        livingAccessor().lunararc$setLastHurtByPlayer(player);
-        livingAccessor().lunararc$setLastHurtByMob(player);
+        livingAccessor().lunararc$setLastHurtByPlayer(net.minecraft.world.entity.EntityReference.of(player));
+        livingAccessor().lunararc$setLastHurtByMob(net.minecraft.world.entity.EntityReference.of(player));
         livingAccessor().lunararc$setLastHurtByPlayerTime(player == null ? 0 : 100);
     }
 
@@ -349,10 +349,10 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
 
     private static @Nullable Holder<net.minecraft.world.effect.MobEffect> effectHolder(PotionEffectType type) {
         Objects.requireNonNull(type, "type");
-        return BuiltInRegistries.MOB_EFFECT.getHolder(ResourceLocation.parse(type.getKey().toString())).orElse(null);
+        return BuiltInRegistries.MOB_EFFECT.get(Identifier.parse(type.getKey().toString())).orElse(null);
     }
     private static PotionEffect toBukkitEffect(MobEffectInstance effect) {
-        ResourceLocation id = BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
+        Identifier id = BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
         if (id == null) throw new IllegalStateException("Unregistered MobEffect " + effect.getEffect());
         PotionEffectType type = PotionEffectType.getByKey(new NamespacedKey(id.getNamespace(), id.getPath()));
         if (type == null) throw new IllegalStateException("No Bukkit PotionEffectType for " + id);
@@ -426,7 +426,7 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
     }
     private static @Nullable Holder<net.minecraft.world.entity.ai.attributes.Attribute> attributeHolder(Attribute attribute) {
         Objects.requireNonNull(attribute, "attribute");
-        return BuiltInRegistries.ATTRIBUTE.getHolder(ResourceLocation.parse(attribute.getKey().toString())).orElse(null);
+        return BuiltInRegistries.ATTRIBUTE.get(Identifier.parse(attribute.getKey().toString())).orElse(null);
     }
 
     @Override public void setAI(boolean ai) { if (getHandle() instanceof net.minecraft.world.entity.Mob mob) mob.setNoAi(!ai); }
@@ -435,13 +435,13 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
         Objects.requireNonNull(target, "target");
         if (!(target instanceof CraftEntity craft)) throw new IllegalArgumentException("Entity is not backed by LunarArc");
         if (getHandle() instanceof net.minecraft.world.entity.player.Player player) player.attack(craft.getHandle());
-        else getHandle().doHurtTarget(craft.getHandle());
+        else if (craft.getHandle().level() instanceof ServerLevel targetLevel) getHandle().doHurtTarget(targetLevel, craft.getHandle());
     }
     @Override public void swingMainHand() { getHandle().swing(InteractionHand.MAIN_HAND, true); }
     @Override public void swingOffHand() { getHandle().swing(InteractionHand.OFF_HAND, true); }
     @Override public void playHurtAnimation(float yaw) {
         if (getHandle().level() instanceof ServerLevel level) {
-            level.getChunkSource().broadcastAndSend(getHandle(), new ClientboundHurtAnimationPacket(getEntityId(), yaw + 90.0F));
+            level.getChunkSource().sendToTrackingPlayersAndSelf(getHandle(), new ClientboundHurtAnimationPacket(getEntityId(), yaw + 90.0F));
         }
     }
 
@@ -464,11 +464,24 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
     @Override public @NotNull Sound getFallDamageSound(int fallHeight) { return requireSound(livingAccessor().lunararc$invokeGetFallDamageSound(fallHeight)); }
     @Override public @NotNull Sound getFallDamageSoundSmall() { return requireSound(getHandle().getFallSounds().small()); }
     @Override public @NotNull Sound getFallDamageSoundBig() { return requireSound(getHandle().getFallSounds().big()); }
-    @Override public @NotNull Sound getDrinkingSound(@NotNull ItemStack itemStack) { return requireSound(livingAccessor().lunararc$invokeGetDrinkingSound(CraftItemStack.asNMSCopy(itemStack))); }
-    @Override public @NotNull Sound getEatingSound(@NotNull ItemStack itemStack) { return requireSound(livingAccessor().lunararc$invokeGetEatingSound(CraftItemStack.asNMSCopy(itemStack))); }
+    @Override public @NotNull Sound getDrinkingSound(@NotNull ItemStack itemStack) { return getEatingSound(itemStack); }
+    @Override public @NotNull Sound getEatingSound(@NotNull ItemStack itemStack) {
+        java.util.Objects.requireNonNull(itemStack, "itemStack");
+        net.minecraft.world.item.ItemStack nms = CraftItemStack.asNMSCopy(itemStack);
+        net.minecraft.world.item.component.Consumable consumable = nms.get(net.minecraft.core.component.DataComponents.CONSUMABLE);
+        net.minecraft.sounds.SoundEvent sound = net.minecraft.sounds.SoundEvents.GENERIC_DRINK.value();
+        if (consumable != null) {
+            if (getHandle() instanceof net.minecraft.world.item.component.Consumable.OverrideConsumeSound override) {
+                sound = override.getConsumeSound(nms);
+            } else {
+                sound = consumable.sound().value();
+            }
+        }
+        return requireSound(sound);
+    }
     private static @Nullable Sound bukkitSound(@Nullable SoundEvent event) {
         if (event == null) return null;
-        ResourceLocation id = BuiltInRegistries.SOUND_EVENT.getKey(event);
+        Identifier id = BuiltInRegistries.SOUND_EVENT.getKey(event);
         return id == null ? null : org.bukkit.Registry.SOUNDS.get(new NamespacedKey(id.getNamespace(), id.getPath()));
     }
     private static @NotNull Sound requireSound(SoundEvent event) {
@@ -575,31 +588,30 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
 
         net.minecraft.world.entity.Entity launch;
         if (org.bukkit.entity.Snowball.class.isAssignableFrom(projectile)) {
-            net.minecraft.world.entity.projectile.Snowball thrown =
-                    new net.minecraft.world.entity.projectile.Snowball(world, getHandle());
+            net.minecraft.world.entity.projectile.throwableitemprojectile.Snowball thrown =
+                    new net.minecraft.world.entity.projectile.throwableitemprojectile.Snowball(world, getHandle(), new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SNOWBALL));
             thrown.shootFromRotation(getHandle(), getHandle().getXRot(), getHandle().getYRot(), 0.0F, 1.5F, 1.0F);
             launch = thrown;
         } else if (org.bukkit.entity.Egg.class.isAssignableFrom(projectile)) {
-            net.minecraft.world.entity.projectile.ThrownEgg thrown =
-                    new net.minecraft.world.entity.projectile.ThrownEgg(world, getHandle());
+            net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEgg thrown =
+                    new net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEgg(world, getHandle(), new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.EGG));
             thrown.shootFromRotation(getHandle(), getHandle().getXRot(), getHandle().getYRot(), 0.0F, 1.5F, 1.0F);
             launch = thrown;
         } else if (org.bukkit.entity.EnderPearl.class.isAssignableFrom(projectile)) {
-            net.minecraft.world.entity.projectile.ThrownEnderpearl thrown =
-                    new net.minecraft.world.entity.projectile.ThrownEnderpearl(world, getHandle());
+            net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl thrown =
+                    new net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl(world, getHandle(), new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.ENDER_PEARL));
             thrown.shootFromRotation(getHandle(), getHandle().getXRot(), getHandle().getYRot(), 0.0F, 1.5F, 1.0F);
             launch = thrown;
         } else if (org.bukkit.entity.ThrownPotion.class.isAssignableFrom(projectile)) {
-            net.minecraft.world.entity.projectile.ThrownPotion thrown =
-                    new net.minecraft.world.entity.projectile.ThrownPotion(world, getHandle());
-            org.bukkit.Material potionMaterial = org.bukkit.entity.LingeringPotion.class.isAssignableFrom(projectile)
-                    ? org.bukkit.Material.LINGERING_POTION : org.bukkit.Material.SPLASH_POTION;
-            thrown.setItem(CraftItemStack.asNMSCopy(new org.bukkit.inventory.ItemStack(potionMaterial, 1)));
+            net.minecraft.world.entity.projectile.throwableitemprojectile.AbstractThrownPotion thrown =
+                    org.bukkit.entity.LingeringPotion.class.isAssignableFrom(projectile)
+                            ? new net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownLingeringPotion(world, getHandle(), new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.LINGERING_POTION))
+                            : new net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownSplashPotion(world, getHandle(), new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SPLASH_POTION));
             thrown.shootFromRotation(getHandle(), getHandle().getXRot(), getHandle().getYRot(), -20.0F, 0.5F, 1.0F);
             launch = thrown;
         } else if (org.bukkit.entity.ThrownExpBottle.class.isAssignableFrom(projectile)) {
-            net.minecraft.world.entity.projectile.ThrownExperienceBottle thrown =
-                    new net.minecraft.world.entity.projectile.ThrownExperienceBottle(world, getHandle());
+            net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownExperienceBottle thrown =
+                    new net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownExperienceBottle(world, getHandle(), new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.EXPERIENCE_BOTTLE));
             thrown.shootFromRotation(getHandle(), getHandle().getXRot(), getHandle().getYRot(), -20.0F, 0.7F, 1.0F);
             launch = thrown;
         } else if (org.bukkit.entity.FishHook.class.isAssignableFrom(projectile) && getHandle() instanceof net.minecraft.world.entity.player.Player player) {
@@ -607,22 +619,22 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
         } else if (org.bukkit.entity.ShulkerBullet.class.isAssignableFrom(projectile)) {
             org.bukkit.Location eye = this.getEyeLocation();
             launch = new net.minecraft.world.entity.projectile.ShulkerBullet(world, getHandle(), null, null);
-            launch.moveTo(eye.getX(), eye.getY(), eye.getZ(), eye.getYaw(), eye.getPitch());
+            launch.snapTo(eye.getX(), eye.getY(), eye.getZ(), eye.getYaw(), eye.getPitch());
         } else if (org.bukkit.entity.LlamaSpit.class.isAssignableFrom(projectile)) {
             org.bukkit.Location eye = this.getEyeLocation();
             org.bukkit.util.Vector direction = eye.getDirection();
-            net.minecraft.world.entity.projectile.LlamaSpit spit = net.minecraft.world.entity.EntityType.LLAMA_SPIT.create(world);
+            net.minecraft.world.entity.projectile.LlamaSpit spit = net.minecraft.world.entity.EntityType.LLAMA_SPIT.create(world, net.minecraft.world.entity.EntitySpawnReason.COMMAND);
             if (spit == null) throw new IllegalStateException("Minecraft failed to create LLAMA_SPIT");
             spit.setOwner(getHandle());
             spit.shoot(direction.getX(), direction.getY(), direction.getZ(), 1.5F, 10.0F);
-            spit.moveTo(eye.getX(), eye.getY(), eye.getZ(), eye.getYaw(), eye.getPitch());
+            spit.snapTo(eye.getX(), eye.getY(), eye.getZ(), eye.getYaw(), eye.getPitch());
             launch = spit;
         } else if (org.bukkit.entity.AbstractWindCharge.class.isAssignableFrom(projectile)) {
-            net.minecraft.world.entity.projectile.windcharge.AbstractWindCharge charge;
+            net.minecraft.world.entity.projectile.hurtingprojectile.windcharge.AbstractWindCharge charge;
             if (org.bukkit.entity.BreezeWindCharge.class.isAssignableFrom(projectile)) {
-                charge = net.minecraft.world.entity.EntityType.BREEZE_WIND_CHARGE.create(world);
+                charge = net.minecraft.world.entity.EntityType.BREEZE_WIND_CHARGE.create(world, net.minecraft.world.entity.EntitySpawnReason.COMMAND);
             } else {
-                charge = net.minecraft.world.entity.EntityType.WIND_CHARGE.create(world);
+                charge = net.minecraft.world.entity.EntityType.WIND_CHARGE.create(world, net.minecraft.world.entity.EntitySpawnReason.COMMAND);
             }
             if (charge == null) throw new IllegalStateException("Minecraft failed to create wind charge");
             charge.setOwner(getHandle());
@@ -633,31 +645,31 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
             org.bukkit.util.Vector direction = eye.getDirection().multiply(10.0D);
             net.minecraft.world.phys.Vec3 power = new net.minecraft.world.phys.Vec3(direction.getX(), direction.getY(), direction.getZ());
             if (org.bukkit.entity.SmallFireball.class.isAssignableFrom(projectile)) {
-                launch = new net.minecraft.world.entity.projectile.SmallFireball(world, getHandle(), power);
+                launch = new net.minecraft.world.entity.projectile.hurtingprojectile.SmallFireball(world, getHandle(), power);
             } else if (org.bukkit.entity.WitherSkull.class.isAssignableFrom(projectile)) {
-                launch = new net.minecraft.world.entity.projectile.WitherSkull(world, getHandle(), power);
+                launch = new net.minecraft.world.entity.projectile.hurtingprojectile.WitherSkull(world, getHandle(), power);
             } else if (org.bukkit.entity.DragonFireball.class.isAssignableFrom(projectile)) {
-                launch = new net.minecraft.world.entity.projectile.DragonFireball(world, getHandle(), power);
+                launch = new net.minecraft.world.entity.projectile.hurtingprojectile.DragonFireball(world, getHandle(), power);
             } else {
-                launch = new net.minecraft.world.entity.projectile.LargeFireball(world, getHandle(), power, 1);
+                launch = new net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball(world, getHandle(), power, 1);
             }
-            launch.moveTo(eye.getX(), eye.getY(), eye.getZ(), eye.getYaw(), eye.getPitch());
+            launch.snapTo(eye.getX(), eye.getY(), eye.getZ(), eye.getYaw(), eye.getPitch());
         } else if (org.bukkit.entity.Trident.class.isAssignableFrom(projectile)) {
-            net.minecraft.world.entity.projectile.ThrownTrident arrow =
-                    new net.minecraft.world.entity.projectile.ThrownTrident(
+            net.minecraft.world.entity.projectile.arrow.ThrownTrident arrow =
+                    new net.minecraft.world.entity.projectile.arrow.ThrownTrident(
                             world, getHandle(), new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.TRIDENT));
             arrow.shootFromRotation(getHandle(), getHandle().getXRot(), getHandle().getYRot(), 0.0F,
-                    net.minecraft.world.item.TridentItem.SHOOT_POWER, 1.0F);
+                    net.minecraft.world.item.TridentItem.PROJECTILE_SHOOT_POWER, 1.0F);
             launch = arrow;
         } else if (org.bukkit.entity.SpectralArrow.class.isAssignableFrom(projectile)) {
-            net.minecraft.world.entity.projectile.SpectralArrow arrow =
-                    new net.minecraft.world.entity.projectile.SpectralArrow(
+            net.minecraft.world.entity.projectile.arrow.SpectralArrow arrow =
+                    new net.minecraft.world.entity.projectile.arrow.SpectralArrow(
                             world, getHandle(), new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SPECTRAL_ARROW), null);
             arrow.shootFromRotation(getHandle(), getHandle().getXRot(), getHandle().getYRot(), 0.0F, 3.0F, 1.0F);
             launch = arrow;
         } else if (org.bukkit.entity.AbstractArrow.class.isAssignableFrom(projectile)) {
-            net.minecraft.world.entity.projectile.Arrow arrow =
-                    new net.minecraft.world.entity.projectile.Arrow(
+            net.minecraft.world.entity.projectile.arrow.Arrow arrow =
+                    new net.minecraft.world.entity.projectile.arrow.Arrow(
                             world, getHandle(), new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.ARROW), null);
             arrow.shootFromRotation(getHandle(), getHandle().getXRot(), getHandle().getYRot(), 0.0F, 3.0F, 1.0F);
             launch = arrow;
@@ -672,5 +684,46 @@ public class CraftLivingEntity extends CraftEntity implements LivingEntity {
         if (function != null) function.accept(bukkit);
         world.addFreshEntity(launch);
         return bukkit;
+    }
+
+    @Override
+    public org.bukkit.@org.jetbrains.annotations.Nullable Color getWaypointColor() {
+        return getHandle().waypointIcon().color.map(org.bukkit.Color::fromARGB).orElse(null);
+    }
+
+    @Override
+    public net.kyori.adventure.key.@org.jetbrains.annotations.NotNull Key getWaypointStyle() {
+        net.minecraft.resources.Identifier id = getHandle().waypointIcon().style.identifier();
+        return net.kyori.adventure.key.Key.key(id.getNamespace(), id.getPath());
+    }
+
+    @Override
+    public void setWaypointColor(final org.bukkit.@org.jetbrains.annotations.Nullable Color color) {
+        final java.util.Optional<Integer> newColor = java.util.Optional.ofNullable(color).map(org.bukkit.Color::asARGB);
+        if (java.util.Objects.equals(getHandle().waypointIcon().color, newColor)) return;
+        getHandle().waypointIcon().color = newColor;
+        updateWaypoint();
+    }
+
+    @Override
+    public void setWaypointStyle(final net.kyori.adventure.key.@org.jetbrains.annotations.Nullable Key key) {
+        final net.minecraft.resources.ResourceKey<net.minecraft.world.waypoints.WaypointStyleAsset> newKey = key == null
+                ? net.minecraft.world.waypoints.WaypointStyleAssets.DEFAULT
+                : net.minecraft.resources.ResourceKey.create(net.minecraft.world.waypoints.WaypointStyleAssets.ROOT_ID, net.minecraft.resources.Identifier.fromNamespaceAndPath(key.namespace(), key.value()));
+        if (java.util.Objects.equals(getHandle().waypointIcon().style, newKey)) return;
+        getHandle().waypointIcon().style = newKey;
+        updateWaypoint();
+    }
+
+    private void updateWaypoint() {
+        if (!(getHandle().level() instanceof ServerLevel level)) return;
+        net.minecraft.server.waypoints.ServerWaypointManager manager = level.getWaypointManager();
+        manager.untrackWaypoint(getHandle());
+        manager.trackWaypoint(getHandle());
+    }
+
+    @Override
+    public io.papermc.paper.world.damagesource.CombatTracker getCombatTracker() {
+        return ((io.lunararcdevs.lunararc.common.bridge.CombatTrackerBridge) getHandle().getCombatTracker()).lunararc$getPaperCombatTracker();
     }
 }

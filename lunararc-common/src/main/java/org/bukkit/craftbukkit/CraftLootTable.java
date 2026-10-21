@@ -8,12 +8,12 @@ import java.util.Objects;
 import java.util.Random;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.storage.loot.LootParams;
-import net.minecraft.world.level.storage.loot.parameters.LootContextParam;
+import net.minecraft.util.context.ContextKey;
 import net.minecraft.world.level.storage.loot.parameters.LootContextParams;
 import net.minecraft.world.phys.Vec3;
 import org.bukkit.Location;
@@ -42,27 +42,19 @@ public final class CraftLootTable implements org.bukkit.loot.LootTable {
     public static ResourceKey<net.minecraft.world.level.storage.loot.LootTable> bukkitKeyToMinecraft(NamespacedKey key) {
         Objects.requireNonNull(key, "key");
         return ResourceKey.create(Registries.LOOT_TABLE,
-                ResourceLocation.fromNamespaceAndPath(key.getNamespace(), key.getKey()));
+                Identifier.fromNamespaceAndPath(key.getNamespace(), key.getKey()));
     }
 
-    // The three methods below aren't in any Paper patch — real Paper's CraftLootTable is
-    // CraftBukkit-base source, which (unlike Paper's own patches) isn't legitimately obtainable
-    // here (see the parity tracker's note on VanillaCommandWrapper/ApiVersion for the same
-    // sourcing wall). minecraftToBukkit's exact real logic is confirmed from
-    // patches/server/0920-Fixup-NamespacedKey-handling.patch, which shows a later fix to it —
-    // that fragment is what's ported verbatim below. bukkitToMinecraft and minecraftToBukkitKey
-    // are the mechanical inverse of bukkitKeyToMinecraft directly above (same real, existing
-    // conversion this class already does elsewhere), not independently-sourced logic.
 
     public static NamespacedKey minecraftToBukkitKey(ResourceKey<net.minecraft.world.level.storage.loot.LootTable> minecraft) {
         Objects.requireNonNull(minecraft, "minecraft");
-        return new NamespacedKey(minecraft.location().getNamespace(), minecraft.location().getPath());
+        return new NamespacedKey(minecraft.identifier().getNamespace(), minecraft.identifier().getPath());
     }
 
     @org.jetbrains.annotations.Nullable
     public static org.bukkit.loot.LootTable minecraftToBukkit(
             @org.jetbrains.annotations.Nullable ResourceKey<net.minecraft.world.level.storage.loot.LootTable> minecraft) {
-        return (minecraft == null || minecraft.location().getPath().isEmpty())
+        return (minecraft == null || minecraft.identifier().getPath().isEmpty())
                 ? null
                 : org.bukkit.Bukkit.getLootTable(minecraftToBukkitKey(minecraft));
     }
@@ -187,9 +179,9 @@ public final class CraftLootTable implements org.bukkit.loot.LootTable {
         return builder.create(this.handle.getParamSet());
     }
 
-    private <T> void setMaybe(LootParams.Builder builder, LootContextParam<T> parameter, T value) {
-        if (this.handle.getParamSet().getRequired().contains(parameter)
-                || this.handle.getParamSet().getAllowed().contains(parameter)) {
+    private <T> void setMaybe(LootParams.Builder builder, ContextKey<T> parameter, T value) {
+        if (this.handle.getParamSet().required().contains(parameter)
+                || this.handle.getParamSet().allowed().contains(parameter)) {
             builder.withParameter(parameter, value);
         }
     }
@@ -209,8 +201,7 @@ public final class CraftLootTable implements org.bukkit.loot.LootTable {
         return this.key.toString();
     }
 
-    /** CraftBukkit's ResourceLocation overload; null in, null out, as CraftBukkit has it. */
-    public static org.bukkit.loot.LootTable minecraftToBukkit(net.minecraft.resources.ResourceLocation minecraft) {
+    public static org.bukkit.loot.LootTable minecraftToBukkit(net.minecraft.resources.Identifier minecraft) {
         return minecraft == null ? null : org.bukkit.Bukkit.getLootTable(
                 org.bukkit.craftbukkit.util.CraftNamespacedKey.fromMinecraft(minecraft));
     }

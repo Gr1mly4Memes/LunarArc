@@ -1,6 +1,6 @@
 package io.lunararcdevs.lunararc.common.mixin.core.entity;
 
-import net.minecraft.world.entity.monster.ZombieVillager;
+import net.minecraft.world.entity.monster.zombie.ZombieVillager;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
 

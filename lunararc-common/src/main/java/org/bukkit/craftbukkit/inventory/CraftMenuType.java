@@ -11,11 +11,12 @@ import org.bukkit.entity.HumanEntity;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.InventoryView;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.Set;
 
 
-public final class CraftMenuType<V extends InventoryView> implements org.bukkit.inventory.MenuType.Typed<V> {
+public final class CraftMenuType<V extends InventoryView, B extends org.bukkit.inventory.view.builder.InventoryViewBuilder<V>> implements org.bukkit.inventory.MenuType.Typed<V, B> {
     private final NamespacedKey key;
     private final MenuType<?> handle;
     private final Class<? extends InventoryView> viewClass;
@@ -37,24 +38,42 @@ public final class CraftMenuType<V extends InventoryView> implements org.bukkit.
 
     @Override public @NotNull Class<? extends InventoryView> getInventoryViewClass() { return viewClass; }
 
-    @Override public org.bukkit.inventory.MenuType.@NotNull Typed<InventoryView> typed() { return typed(InventoryView.class); }
+    @Override
+    public org.bukkit.inventory.MenuType.@NotNull Typed<InventoryView, org.bukkit.inventory.view.builder.InventoryViewBuilder<InventoryView>> typed() {
+        return typed(InventoryView.class);
+    }
 
     @Override
-    public <T extends InventoryView> org.bukkit.inventory.MenuType.@NotNull Typed<T> typed(@NotNull Class<T> viewType) {
+    public <T extends InventoryView, TB extends org.bukkit.inventory.view.builder.InventoryViewBuilder<T>> org.bukkit.inventory.MenuType.@NotNull Typed<T, TB> typed(@NotNull Class<T> viewType) {
         if (viewType.isAssignableFrom(viewClass)) {
             @SuppressWarnings("unchecked")
-            org.bukkit.inventory.MenuType.Typed<T> typed = (org.bukkit.inventory.MenuType.Typed<T>) this;
+            org.bukkit.inventory.MenuType.Typed<T, TB> typed = (org.bukkit.inventory.MenuType.Typed<T, TB>) this;
             return typed;
         }
         throw new IllegalArgumentException("The MenuType '" + key + "' cannot be typed as " + viewType.getSimpleName());
     }
 
-    @Override public @NotNull V create(@NotNull HumanEntity player, @NotNull String title) {
-        return create(player, LegacyComponentSerializer.legacySection().deserialize(title));
+    @Override
+    @SuppressWarnings("unchecked")
+    public @NotNull B builder() {
+        return (B) new ViewBuilder<V>(this, null);
+    }
+
+    @Override public @NotNull V create(@NotNull HumanEntity player, @Nullable String title) {
+        return create(player, title == null ? null : LegacyComponentSerializer.legacySection().deserialize(title));
+    }
+
+    /** Minimal Paper-style view builder: carries the optional title, then opens the menu through {@link #create}. */
+    private record ViewBuilder<V extends InventoryView>(CraftMenuType<V, ?> type, @Nullable Component title)
+            implements org.bukkit.inventory.view.builder.InventoryViewBuilder<V> {
+        @Override public org.bukkit.inventory.view.builder.InventoryViewBuilder<V> copy() { return new ViewBuilder<>(type, title); }
+        @Override public org.bukkit.inventory.view.builder.InventoryViewBuilder<V> title(@Nullable Component title) { return new ViewBuilder<>(type, title); }
+        @Override public V build(HumanEntity player) { return type.create(player, title); }
     }
 
     @Override
-    public @NotNull V create(@NotNull HumanEntity player, @NotNull Component title) {
+    public @NotNull V create(@NotNull HumanEntity player, @Nullable Component title) {
+        if (title == null) title = Component.empty();
         if (!(player instanceof org.bukkit.craftbukkit.entity.CraftPlayer craftPlayer)) {
             throw new IllegalArgumentException("The given player must be a CraftPlayer");
         }

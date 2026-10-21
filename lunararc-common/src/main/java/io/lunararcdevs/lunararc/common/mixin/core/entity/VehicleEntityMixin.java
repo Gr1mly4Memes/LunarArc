@@ -13,15 +13,15 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(VehicleEntity.class)
 public abstract class VehicleEntityMixin {
 
-    @WrapMethod(method = "hurt")
-    private boolean lunararc$vehicleDamage(DamageSource source, float amount, Operation<Boolean> original) {
+    @WrapMethod(method = "hurtServer")
+    private boolean lunararc$vehicleDamage(net.minecraft.server.level.ServerLevel level, DamageSource source, float amount, Operation<Boolean> original) {
         VehicleEntity vehicle = (VehicleEntity) (Object) this;
-        if (vehicle.level().isClientSide || vehicle.isRemoved() || vehicle.isInvulnerableTo(source)) {
-            return original.call(source, amount);
+        if (vehicle.isRemoved() || vehicle.isInvulnerableToBase(source)) {
+            return original.call(level, source, amount);
         }
         Object bukkit = ((EntityBridge) vehicle).lunararc$getBukkitEntity();
         if (!(bukkit instanceof org.bukkit.entity.Vehicle bukkitVehicle)) {
-            return original.call(source, amount);
+            return original.call(level, source, amount);
         }
         org.bukkit.entity.Entity attacker = source.getEntity() == null
                 ? null
@@ -32,19 +32,19 @@ public abstract class VehicleEntityMixin {
         if (event.isCancelled()) {
             return false;
         }
-        return original.call(source, (float) event.getDamage());
+        return original.call(level, source, (float) event.getDamage());
     }
 
-    @Inject(method = "hurt", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/vehicle/VehicleEntity;discard()V"), cancellable = true, require = 0)
-    private void lunararc$creativeVehicleDestroy(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+    @Inject(method = "hurtServer", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/vehicle/VehicleEntity;discard()V"), cancellable = true, require = 1)
+    private void lunararc$creativeVehicleDestroy(net.minecraft.server.level.ServerLevel level, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
         if (!this.lunararc$allowVehicleDestroy(source)) {
             ((VehicleEntity) (Object) this).setDamage(40.0F);
             cir.setReturnValue(true);
         }
     }
 
-    @Inject(method = "hurt", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/vehicle/VehicleEntity;destroy(Lnet/minecraft/world/damagesource/DamageSource;)V"), cancellable = true, require = 0)
-    private void lunararc$normalVehicleDestroy(DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
+    @Inject(method = "hurtServer", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/vehicle/VehicleEntity;destroy(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/damagesource/DamageSource;)V"), cancellable = true, require = 1)
+    private void lunararc$normalVehicleDestroy(net.minecraft.server.level.ServerLevel level, DamageSource source, float amount, CallbackInfoReturnable<Boolean> cir) {
         if (!this.lunararc$allowVehicleDestroy(source)) {
             ((VehicleEntity) (Object) this).setDamage(40.0F);
             cir.setReturnValue(true);

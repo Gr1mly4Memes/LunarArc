@@ -15,6 +15,9 @@ public final class LunarArcNativeEntityEvents {
     private LunarArcNativeEntityEvents() {}
 
     public static boolean fireFreshEntityJoin(Entity entity) {
+        // Chunk generation adds entities (nests, structure mobs) from worker threads. Spawn events are
+        // synchronous-only, and Paper does not fire them for worldgen placement either, so skip them there.
+        if (!org.bukkit.Bukkit.isPrimaryThread()) return false;
         Cancellable bukkit = LunarArcEntityJoinCapture.matching(entity);
         if (bukkit == null) {
             if (entity instanceof LivingEntity living) {

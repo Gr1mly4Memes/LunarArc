@@ -358,7 +358,9 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
 
     @Override
     public void loadData() {
-        getHandle().server.getPlayerList().load(getHandle()).ifPresent(getHandle()::load);
+        getHandle().level().getServer().getPlayerList().loadPlayerData(new net.minecraft.server.players.NameAndId(getHandle().getGameProfile()))
+                .map(tag -> net.minecraft.world.level.storage.TagValueInput.create(net.minecraft.util.ProblemReporter.DISCARDING, getHandle().level().getServer().registryAccess(), tag))
+                .ifPresent(getHandle()::load);
     }
 
     @Override
@@ -533,7 +535,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
     }
 
     private void unregisterEntity(net.minecraft.world.entity.Entity other) {
-        net.minecraft.server.level.ChunkMap chunkMap = getHandle().serverLevel().getChunkSource().chunkMap;
+        net.minecraft.server.level.ChunkMap chunkMap = getHandle().level().getChunkSource().chunkMap;
         net.minecraft.server.level.ChunkMap.TrackedEntity tracked =
                 ((io.lunararcdevs.lunararc.common.bridge.access.ChunkMapAccessBridge) (Object) chunkMap)
                         .lunararc$getEntityMap().get(other.getId());
@@ -553,7 +555,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
                     net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.createPlayerInitializing(
                             java.util.List.of(otherPlayer)));
         }
-        net.minecraft.server.level.ChunkMap chunkMap = getHandle().serverLevel().getChunkSource().chunkMap;
+        net.minecraft.server.level.ChunkMap chunkMap = getHandle().level().getChunkSource().chunkMap;
         net.minecraft.server.level.ChunkMap.TrackedEntity tracked =
                 ((io.lunararcdevs.lunararc.common.bridge.access.ChunkMapAccessBridge) (Object) chunkMap)
                         .lunararc$getEntityMap().get(other.getId());
@@ -732,22 +734,24 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
         this.compassTarget = loc.clone();
         if (getHandle().connection != null && loc.getWorld() == getWorld()) {
             getHandle().connection.send(new net.minecraft.network.protocol.game.ClientboundSetDefaultSpawnPositionPacket(
-                    new net.minecraft.core.BlockPos(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ()), loc.getYaw()));
+                    net.minecraft.world.level.storage.LevelData.RespawnData.of(((org.bukkit.craftbukkit.CraftWorld) loc.getWorld()).getHandle().dimension(),
+                            new net.minecraft.core.BlockPos(loc.getBlockX(), loc.getBlockY(), loc.getBlockZ()), loc.getYaw(), loc.getPitch())));
         }
     }
     @Override public Firework fireworkBoost(ItemStack stack) {
         java.util.Objects.requireNonNull(stack, "stack");
         net.minecraft.world.entity.projectile.FireworkRocketEntity firework = new net.minecraft.world.entity.projectile.FireworkRocketEntity(
                 getHandle().level(), CraftItemStack.asNMSCopy(stack), getHandle());
-        boolean added = ((io.lunararcdevs.lunararc.common.bridge.ServerLevelBridge) getHandle().serverLevel())
+        boolean added = ((io.lunararcdevs.lunararc.common.bridge.ServerLevelBridge) getHandle().level())
                 .lunararc$addFreshEntity(firework, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.CUSTOM);
         if (!added) return null;
         return (Firework) ((io.lunararcdevs.lunararc.common.bridge.EntityBridge) firework).lunararc$getBukkitEntity();
     }
     @Override public Location getCompassTarget() {
         if (compassTarget != null) return compassTarget.clone();
-        net.minecraft.core.BlockPos pos = getHandle().serverLevel().getSharedSpawnPos();
-        return new Location(getWorld(), pos.getX(), pos.getY(), pos.getZ());
+        net.minecraft.world.level.storage.LevelData.RespawnData respawn = getHandle().level().getRespawnData();
+        net.minecraft.core.BlockPos pos = respawn.pos();
+        return new Location(getWorld(), pos.getX(), pos.getY(), pos.getZ(), respawn.yaw(), respawn.pitch());
     }
     @Override public Iterable<? extends BossBar> activeBossBars() { return org.bukkit.craftbukkit.boss.CraftBossBar.activeAdventureFor(this); }
     @Override public void sendExperienceChange(float progress) {
@@ -764,10 +768,10 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
         for (org.bukkit.map.MapCursor cursor : rendered.cursors) {
             if (!cursor.isVisible()) continue;
             org.bukkit.NamespacedKey key = cursor.getType().getKey();
-            net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+            net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.fromNamespaceAndPath(
                     key.getNamespace(), key.getKey());
             net.minecraft.core.Holder<net.minecraft.world.level.saveddata.maps.MapDecorationType> type =
-                    net.minecraft.core.registries.BuiltInRegistries.MAP_DECORATION_TYPE.getHolder(id)
+                    net.minecraft.core.registries.BuiltInRegistries.MAP_DECORATION_TYPE.get(id)
                             .orElseThrow(() -> new IllegalArgumentException("Unknown map cursor type " + key));
             java.util.Optional<net.minecraft.network.chat.Component> caption = java.util.Optional.ofNullable(cursor.caption())
                     .map(io.lunararcdevs.lunararc.common.messaging.LunarArcComponentPipeline::fromAdventure);
@@ -844,6 +848,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
                 case CHEST -> net.minecraft.world.entity.EquipmentSlot.CHEST;
                 case HEAD -> net.minecraft.world.entity.EquipmentSlot.HEAD;
                 case BODY -> net.minecraft.world.entity.EquipmentSlot.BODY;
+                case SADDLE -> net.minecraft.world.entity.EquipmentSlot.SADDLE;
             };
             slots.add(com.mojang.datafixers.util.Pair.of(nmsSlot, CraftItemStack.asNMSCopy(entry.getValue())));
         }
@@ -874,7 +879,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
                 (io.lunararcdevs.lunararc.common.bridge.ServerCommonPacketListenerBridge) getHandle().connection;
         if (!bridge.lunararc$getPluginChannels().contains(corrected)) return;
 
-        net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation.parse(corrected);
+        net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.parse(corrected);
         getHandle().connection.send(new net.minecraft.network.protocol.common.ClientboundCustomPayloadPacket(
                 new io.lunararcdevs.lunararc.common.network.LunarArcRawPayload(id, message)));
     }
@@ -902,8 +907,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
     }
 
     private static net.minecraft.core.Holder<net.minecraft.world.effect.MobEffect> resolveMobEffect(PotionEffectType type) {
-        net.minecraft.resources.ResourceLocation key = net.minecraft.resources.ResourceLocation.parse(type.getKey().toString());
-        return net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getHolder(key)
+        net.minecraft.resources.Identifier key = net.minecraft.resources.Identifier.parse(type.getKey().toString());
+        return net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.get(key)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown potion effect type: " + type.getKey()));
     }
     @Override public void sendBlockUpdate(Location loc, org.bukkit.block.TileState state) {
@@ -1084,11 +1089,11 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
     }
     @Override public void resetIdleDuration() { getHandle().resetLastActionTime(); }
     @Override public Duration getIdleDuration() {
-        long idleMillis = Math.max(0L, net.minecraft.Util.getMillis() - getHandle().getLastActionTime());
+        long idleMillis = Math.max(0L, net.minecraft.util.Util.getMillis() - getHandle().getLastActionTime());
         return Duration.ofMillis(idleMillis);
     }
     @Override public void setRotation(float yaw, float pitch) {
-        getHandle().moveTo(getHandle().getX(), getHandle().getY(), getHandle().getZ(), yaw, pitch);
+        getHandle().snapTo(getHandle().getX(), getHandle().getY(), getHandle().getZ(), yaw, pitch);
         getHandle().connection.teleport(getHandle().getX(), getHandle().getY(), getHandle().getZ(), yaw, pitch);
     }
     @Override public void lookAt(double x, double y, double z, io.papermc.paper.entity.LookAnchor anchor) {
@@ -1175,9 +1180,9 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
         com.mojang.authlib.GameProfile handle =
                 getHandle().gameProfile;
         com.destroystokyo.paper.profile.CraftPlayerProfile profile =
-                new com.destroystokyo.paper.profile.CraftPlayerProfile(handle.getId(), handle.getName());
+                new com.destroystokyo.paper.profile.CraftPlayerProfile(handle.id(), handle.name());
         java.util.List<com.destroystokyo.paper.profile.ProfileProperty> properties = new java.util.ArrayList<>();
-        for (com.mojang.authlib.properties.Property property : handle.getProperties().values()) {
+        for (com.mojang.authlib.properties.Property property : handle.properties().values()) {
             properties.add(new com.destroystokyo.paper.profile.ProfileProperty(
                     property.name(), property.value(), property.signature()));
         }
@@ -1197,10 +1202,10 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
         com.mojang.authlib.GameProfile current =
                 getHandle().gameProfile;
         com.mojang.authlib.GameProfile replacement = new com.mojang.authlib.GameProfile(
-                profileId != null ? profileId : current.getId(),
-                profileName != null && !profileName.isBlank() ? profileName : current.getName());
+                profileId != null ? profileId : current.id(),
+                profileName != null && !profileName.isBlank() ? profileName : current.name());
         for (com.destroystokyo.paper.profile.ProfileProperty property : profile.getProperties()) {
-            replacement.getProperties().put(property.getName(),
+            replacement.properties().put(property.getName(),
                     new com.mojang.authlib.properties.Property(
                             property.getName(), property.getValue(), property.getSignature()));
         }
@@ -1229,7 +1234,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
     private void refreshPlayerAfterProfileChange() {
         ServerPlayer handle = getHandle();
         if (handle.connection == null) return;
-        net.minecraft.server.level.ServerLevel level = handle.serverLevel();
+        net.minecraft.server.level.ServerLevel level = handle.level();
         handle.connection.send(new net.minecraft.network.protocol.game.ClientboundRespawnPacket(
                 handle.createCommonSpawnInfo(level),
                 net.minecraft.network.protocol.game.ClientboundRespawnPacket.KEEP_ALL_DATA));
@@ -1421,8 +1426,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
     }
 
     private static net.minecraft.core.Holder<net.minecraft.sounds.SoundEvent> resolveSound(String sound) {
-        net.minecraft.resources.ResourceLocation key = net.minecraft.resources.ResourceLocation.parse(sound);
-        return net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.getHolder(key)
+        net.minecraft.resources.Identifier key = net.minecraft.resources.Identifier.parse(sound);
+        return net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.get(key)
                 .<net.minecraft.core.Holder<net.minecraft.sounds.SoundEvent>>map(holder -> holder)
                 .orElseGet(() -> net.minecraft.core.Holder.direct(net.minecraft.sounds.SoundEvent.createVariableRangeEvent(key)));
     }
@@ -1452,7 +1457,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
     public void stopSound(@NotNull String sound, @Nullable SoundCategory category) {
         if (sound == null || getHandle().connection == null) return;
         getHandle().connection.send(new net.minecraft.network.protocol.game.ClientboundStopSoundPacket(
-                net.minecraft.resources.ResourceLocation.parse(sound),
+                net.minecraft.resources.Identifier.parse(sound),
                 category == null ? null : toSoundSource(category)));
     }
 
@@ -1530,6 +1535,9 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
         boolean first = true;
         for (net.kyori.adventure.resource.ResourcePackInfo info : request.packs()) {
             byte[] hash = info.hash().isEmpty() ? null : java.util.HexFormat.of().parseHex(info.hash());
+            if (request.callback() != net.kyori.adventure.resource.ResourcePackCallback.noOp() && getHandle().connection != null) {
+                ((io.lunararcdevs.lunararc.common.bridge.ServerCommonPacketListenerBridge) (Object) getHandle().connection).lunararc$getPackCallbacks().put(info.id(), request.callback());
+            }
             pushResourcePack(info.id(), info.uri().toString(), hash,
                     request.prompt() == null ? null : io.lunararcdevs.lunararc.common.messaging.LunarArcComponentPipeline.fromAdventure(request.prompt()),
                     request.required(), first && request.replace());
@@ -1671,8 +1679,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
         }
         net.minecraft.server.level.ServerPlayer nmsKiller = killer == null ? null : ((CraftPlayer) killer).getHandle();
         LivingEntityAccessBridge accessor = (LivingEntityAccessBridge) getHandle();
-        accessor.lunararc$setLastHurtByPlayer(nmsKiller);
-        accessor.lunararc$setLastHurtByMob(nmsKiller);
+        accessor.lunararc$setLastHurtByPlayer(net.minecraft.world.entity.EntityReference.of(nmsKiller));
+        accessor.lunararc$setLastHurtByMob(net.minecraft.world.entity.EntityReference.of(nmsKiller));
         accessor.lunararc$setLastHurtByPlayerTime(nmsKiller == null ? 0 : 100);
     }
     // Deprecated-for-removal Paper API that LivingEntity still declares - see the note on
@@ -1738,8 +1746,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
     @Override
     public boolean hasPotionEffect(PotionEffectType type) {
         if (type == null) return false;
-        net.minecraft.resources.ResourceLocation rl = net.minecraft.resources.ResourceLocation.parse(type.getKey().toString());
-        var effectOpt = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getHolder(rl);
+        net.minecraft.resources.Identifier rl = net.minecraft.resources.Identifier.parse(type.getKey().toString());
+        var effectOpt = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.get(rl);
         return effectOpt.isPresent() && getHandle().hasEffect(effectOpt.get());
     }
     @Override public void knockback(double strength, double x, double z) {
@@ -1841,8 +1849,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
         for (NamespacedKey key : recipes) {
             if (key == null) continue;
             try {
-                var id = net.minecraft.resources.ResourceLocation.parse(key.toString());
-                manager.byKey(id).ifPresent(resolved::add);
+                var id = net.minecraft.resources.Identifier.parse(key.toString());
+                manager.byKey(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.RECIPE, id)).ifPresent(resolved::add);
             } catch (Throwable ignored) {}
         }
         return resolved;
@@ -1872,17 +1880,17 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
         ((io.lunararcdevs.lunararc.common.bridge.FoodDataBridge) getHandle().getFoodData()).lunararc$setSaturatedRegenRate(rate);
     }
     @Override public float getExhaustion() {
-        return getHandle().getFoodData().getExhaustionLevel();
+        return getHandle().getFoodData().exhaustionLevel;
     }
     private net.minecraft.world.item.Item resolveItem(Material material) {
         if (material == null) throw new IllegalArgumentException("material cannot be null");
         if (!material.isItem()) throw new IllegalArgumentException(material + " is not an item");
-        return net.minecraft.core.registries.BuiltInRegistries.ITEM.get(net.minecraft.resources.ResourceLocation.parse(material.getKey().toString()));
+        return net.minecraft.core.registries.BuiltInRegistries.ITEM.getValue(net.minecraft.resources.Identifier.parse(material.getKey().toString()));
     }
-    @Override public boolean hasCooldown(Material material) { return getHandle().getCooldowns().isOnCooldown(resolveItem(material)); }
+    @Override public boolean hasCooldown(Material material) { return getHandle().getCooldowns().isOnCooldown(new net.minecraft.world.item.ItemStack(resolveItem(material))); }
     @Override public void setCooldown(Material material, int ticks) {
         if (ticks < 0) throw new IllegalArgumentException("ticks must be >= 0");
-        getHandle().getCooldowns().addCooldown(resolveItem(material), ticks);
+        getHandle().getCooldowns().addCooldown(new net.minecraft.world.item.ItemStack(resolveItem(material)), ticks);
     }
     @Override public GameMode getGameMode() { return fromNMS(getHandle().gameMode.getGameModeForPlayer()); }
     @Override public void setGameMode(GameMode mode) {
@@ -1901,21 +1909,26 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
         net.minecraft.nbt.CompoundTag tag = left ? getHandle().getShoulderEntityLeft() : getHandle().getShoulderEntityRight();
         if (tag == null || tag.isEmpty()) return null;
         try {
-            var created = net.minecraft.world.entity.EntityType.create(tag, getHandle().serverLevel());
+            var created = lunararc$createFromTag(tag);
             if (created.isEmpty()) return null;
             net.minecraft.world.entity.Entity nms = created.get();
             nms.setPos(getHandle().getX(), getHandle().getY() + 0.7D, getHandle().getZ());
             if (left) getHandle().setShoulderEntityLeft(new net.minecraft.nbt.CompoundTag());
             else getHandle().setShoulderEntityRight(new net.minecraft.nbt.CompoundTag());
-            ((io.lunararcdevs.lunararc.common.bridge.ServerLevelBridge) getHandle().serverLevel())
+            ((io.lunararcdevs.lunararc.common.bridge.ServerLevelBridge) getHandle().level())
                     .lunararc$addFreshEntity(nms, org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.CUSTOM);
             return ((EntityBridge) nms).lunararc$getBukkitEntity();
         } catch (Throwable ignored) { return null; }
     }
+    private java.util.Optional<net.minecraft.world.entity.Entity> lunararc$createFromTag(net.minecraft.nbt.CompoundTag tag) {
+        return net.minecraft.world.entity.EntityType.create(
+                net.minecraft.world.level.storage.TagValueInput.create(net.minecraft.util.ProblemReporter.DISCARDING, getHandle().registryAccess(), tag),
+                getHandle().level(), net.minecraft.world.entity.EntitySpawnReason.LOAD);
+    }
     private Entity shoulderEntity(net.minecraft.nbt.CompoundTag tag) {
         if (tag == null || tag.isEmpty()) return null;
         try {
-            var created = net.minecraft.world.entity.EntityType.create(tag, getHandle().level());
+            var created = lunararc$createFromTag(tag);
             if (created.isEmpty()) return null;
             return ((EntityBridge) created.get()).lunararc$getBukkitEntity();
         } catch (Throwable ignored) { return null; }
@@ -1925,8 +1938,10 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
     private net.minecraft.nbt.CompoundTag saveShoulder(Entity entity) {
         if (entity == null) return new net.minecraft.nbt.CompoundTag();
         if (!(entity instanceof CraftEntity craft)) throw new IllegalArgumentException("Entity is not a LunarArc/Craft entity");
-        net.minecraft.nbt.CompoundTag tag = new net.minecraft.nbt.CompoundTag();
-        craft.getHandle().save(tag);
+        net.minecraft.world.level.storage.TagValueOutput output = net.minecraft.world.level.storage.TagValueOutput.createWithContext(
+                net.minecraft.util.ProblemReporter.DISCARDING, getHandle().registryAccess());
+        craft.getHandle().save(output);
+        net.minecraft.nbt.CompoundTag tag = output.buildResult();
         entity.remove();
         return tag;
     }
@@ -1998,7 +2013,9 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
         ((io.lunararcdevs.lunararc.common.bridge.FoodDataBridge) getHandle().getFoodData()).lunararc$setUnsaturatedRegenRate(rate);
     }
     @Override public boolean dropItem(boolean dropAll) {
-        boolean success = getHandle().drop(dropAll);
+        net.minecraft.world.item.ItemStack before = getHandle().getMainHandItem().copy();
+        getHandle().drop(dropAll);
+        boolean success = !net.minecraft.world.item.ItemStack.matches(before, getHandle().getMainHandItem());
         if (success) getHandle().containerMenu.broadcastChanges();
         return success;
     }
@@ -2008,15 +2025,16 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
         getHandle().inventoryMenu.broadcastChanges();
     }
     @Override public float getSaturation() { return getHandle().getFoodData().getSaturationLevel(); }
-    @Override public void setExhaustion(float value) { getHandle().getFoodData().setExhaustion(value); }
+    @Override public void setExhaustion(float value) { getHandle().getFoodData().exhaustionLevel = value; }
     @Override public float getAttackCooldown() { return getHandle().getAttackStrengthScale(0.5F); }
     @Override public int getExpToLevel() { return getHandle().getXpNeededForNextLevel(); }
     @Override public Location getPotentialBedLocation() {
-        var pos = getHandle().getRespawnPosition();
-        if (pos == null) return null;
-        var level = getHandle().server.getLevel(getHandle().getRespawnDimension());
+        var config = getHandle().getRespawnConfig();
+        if (config == null) return null;
+        var pos = config.respawnData().pos();
+        var level = getHandle().level().getServer().getLevel(config.respawnData().dimension());
         if (level == null) return null;
-        org.bukkit.World bw = server.getWorld(level.dimension().location().toString());
+        org.bukkit.World bw = server.getWorld(level.dimension().identifier().toString());
         if (bw == null) bw = getWorld();
         return new Location(bw, pos.getX(), pos.getY(), pos.getZ());
     }
@@ -2104,18 +2122,18 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
                     net.kyori.adventure.text.Component.translatable("container.grindstone_title"));
         }
         if (menu instanceof net.minecraft.world.inventory.CraftingMenu craftingMenu) {
-            var recipe = getHandle().serverLevel().getRecipeManager().getRecipeFor(
+            var recipe = getHandle().level().recipeAccess().getRecipeFor(
                     net.minecraft.world.item.crafting.RecipeType.CRAFTING,
-                    craftingMenu.craftSlots.asCraftInput(), getHandle().serverLevel()).orElse(null);
+                    craftingMenu.craftSlots.asCraftInput(), getHandle().level()).orElse(null);
             var top = new org.bukkit.craftbukkit.inventory.CraftInventoryCrafting(
                     craftingMenu.craftSlots, craftingMenu.resultSlots, this, recipe);
             return makeView(menu, top, org.bukkit.event.inventory.InventoryType.WORKBENCH,
                     net.kyori.adventure.text.Component.translatable("container.crafting"));
         }
         if (menu instanceof net.minecraft.world.inventory.InventoryMenu inventoryMenu) {
-            var recipe = getHandle().serverLevel().getRecipeManager().getRecipeFor(
+            var recipe = getHandle().level().recipeAccess().getRecipeFor(
                     net.minecraft.world.item.crafting.RecipeType.CRAFTING,
-                    ((io.lunararcdevs.lunararc.common.bridge.access.InventoryMenuAccessBridge) (Object) inventoryMenu).lunararc$getCraftSlots().asCraftInput(), getHandle().serverLevel()).orElse(null);
+                    ((io.lunararcdevs.lunararc.common.bridge.access.InventoryMenuAccessBridge) (Object) inventoryMenu).lunararc$getCraftSlots().asCraftInput(), getHandle().level()).orElse(null);
             var top = new org.bukkit.craftbukkit.inventory.CraftInventoryCrafting(
                     ((io.lunararcdevs.lunararc.common.bridge.access.InventoryMenuAccessBridge) (Object) inventoryMenu).lunararc$getCraftSlots(), ((io.lunararcdevs.lunararc.common.bridge.access.InventoryMenuAccessBridge) (Object) inventoryMenu).lunararc$getResultSlots(), this, recipe);
             return makeView(menu, top, org.bukkit.event.inventory.InventoryType.CRAFTING,
@@ -2237,9 +2255,9 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
         if (merchant == null) throw new IllegalArgumentException("merchant cannot be null");
         if (!force && merchant.isTrading()) return null;
         if (merchant.isTrading() && merchant.getTrader() != null) merchant.getTrader().closeInventory();
-        if (merchant instanceof CraftEntity craft && craft.getHandle() instanceof net.minecraft.world.entity.npc.AbstractVillager av) {
+        if (merchant instanceof CraftEntity craft && craft.getHandle() instanceof net.minecraft.world.entity.npc.villager.AbstractVillager av) {
             av.setTradingPlayer(getHandle());
-            av.openTradingScreen(getHandle(), av.getDisplayName(), av instanceof net.minecraft.world.entity.npc.Villager v ? v.getVillagerData().getLevel() : 1);
+            av.openTradingScreen(getHandle(), av.getDisplayName(), av instanceof net.minecraft.world.entity.npc.villager.Villager v ? v.getVillagerData().level() : 1);
             if (getHandle().containerMenu == getHandle().inventoryMenu) return null;
             return getOpenInventory();
         }
@@ -2565,8 +2583,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
     public void removePotionEffect(PotionEffectType type) {
         if (type == null) return;
         try {
-            net.minecraft.resources.ResourceLocation rl = net.minecraft.resources.ResourceLocation.parse(type.getKey().toString());
-            var holder = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getHolder(rl).orElse(null);
+            net.minecraft.resources.Identifier rl = net.minecraft.resources.Identifier.parse(type.getKey().toString());
+            var holder = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.get(rl).orElse(null);
             if (holder != null) getHandle().removeEffect(holder);
         } catch (Throwable ignored) {}
     }
@@ -2603,8 +2621,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
     public boolean addPotionEffect(PotionEffect effect, boolean force) {
         if (effect == null) return false;
         try {
-            net.minecraft.resources.ResourceLocation rl = net.minecraft.resources.ResourceLocation.parse(effect.getType().getKey().toString());
-            var holder = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getHolder(rl).orElse(null);
+            net.minecraft.resources.Identifier rl = net.minecraft.resources.Identifier.parse(effect.getType().getKey().toString());
+            var holder = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.get(rl).orElse(null);
             if (holder == null) return false;
             getHandle().addEffect(new net.minecraft.world.effect.MobEffectInstance(
                 holder, effect.getDuration(), effect.getAmplifier(), effect.isAmbient(), effect.hasParticles()),
@@ -2616,8 +2634,8 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
     public PotionEffect getPotionEffect(PotionEffectType type) {
         if (type == null) return null;
         try {
-            net.minecraft.resources.ResourceLocation rl = net.minecraft.resources.ResourceLocation.parse(type.getKey().toString());
-            var holder = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getHolder(rl).orElse(null);
+            net.minecraft.resources.Identifier rl = net.minecraft.resources.Identifier.parse(type.getKey().toString());
+            var holder = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.get(rl).orElse(null);
             if (holder == null) return null;
             net.minecraft.world.effect.MobEffectInstance fx = getHandle().getEffect(holder);
             if (fx == null) return null;
@@ -2733,7 +2751,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
             @NotNull org.bukkit.advancement.Advancement advancement) {
         java.util.Objects.requireNonNull(advancement, "advancement");
         org.bukkit.NamespacedKey key = advancement.getKey();
-        net.minecraft.resources.ResourceLocation id = net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(
+        net.minecraft.resources.Identifier id = net.minecraft.resources.Identifier.fromNamespaceAndPath(
                 key.getNamespace(), key.getKey());
         net.minecraft.advancements.AdvancementHolder holder = getHandle().server.getAdvancements().get(id);
         if (holder == null) {
@@ -2808,15 +2826,26 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
 
     @Override
     public @Nullable Location getRespawnLocation() {
-        net.minecraft.core.BlockPos pos = getHandle().getRespawnPosition();
-        if (pos == null) return null;
-        net.minecraft.server.level.ServerLevel level = getHandle().server.getLevel(getHandle().getRespawnDimension());
+        return getRespawnLocation(false);
+    }
+
+    public @Nullable Location getRespawnLocation(boolean loadLocationAndValidate) {
+        net.minecraft.server.level.ServerPlayer.RespawnConfig config = getHandle().getRespawnConfig();
+        if (config == null) return null;
+        net.minecraft.world.level.storage.LevelData.RespawnData data = config.respawnData();
+        net.minecraft.server.level.ServerLevel level = getHandle().level().getServer().getLevel(data.dimension());
         if (level == null) return null;
         org.bukkit.craftbukkit.CraftWorld world =
-                ((io.lunararcdevs.lunararc.common.bridge.MinecraftServerBridge) getHandle().server)
+                ((io.lunararcdevs.lunararc.common.bridge.MinecraftServerBridge) getHandle().level().getServer())
                         .lunararc$getCraftServer().getCraftWorld(level);
         if (world == null) return null;
-        return new Location(world, pos.getX(), pos.getY(), pos.getZ(), getHandle().getRespawnAngle(), 0.0F);
+        if (!loadLocationAndValidate) {
+            net.minecraft.core.BlockPos pos = data.pos();
+            return new Location(world, pos.getX(), pos.getY(), pos.getZ(), data.yaw(), data.pitch());
+        }
+        return net.minecraft.server.level.ServerPlayer.findRespawnAndUseSpawnBlock(level, config, false)
+                .map(resolved -> new Location(world, resolved.position().x, resolved.position().y, resolved.position().z, resolved.yaw(), resolved.pitch()))
+                .orElse(null);
     }
 
     @Override
@@ -2829,7 +2858,7 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
         if (location == null) {
             ((io.lunararcdevs.lunararc.common.bridge.ServerPlayerSpawnBridge) getHandle())
                     .lunararc$pushSpawnChangeCause(org.bukkit.event.player.PlayerSpawnChangeEvent.Cause.PLUGIN);
-            getHandle().setRespawnPosition(null, null, 0.0F, force, false);
+            getHandle().setRespawnPosition(null, false);
             return;
         }
         if (!(location.getWorld() instanceof org.bukkit.craftbukkit.CraftWorld world)) {
@@ -2837,10 +2866,12 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
         }
         ((io.lunararcdevs.lunararc.common.bridge.ServerPlayerSpawnBridge) getHandle())
                 .lunararc$pushSpawnChangeCause(org.bukkit.event.player.PlayerSpawnChangeEvent.Cause.PLUGIN);
-        getHandle().setRespawnPosition(
-                world.getHandle().dimension(),
-                new net.minecraft.core.BlockPos(location.getBlockX(), location.getBlockY(), location.getBlockZ()),
-                location.getYaw(), force, false);
+        getHandle().setRespawnPosition(new net.minecraft.server.level.ServerPlayer.RespawnConfig(
+                net.minecraft.world.level.storage.LevelData.RespawnData.of(
+                        world.getHandle().dimension(),
+                        new net.minecraft.core.BlockPos(location.getBlockX(), location.getBlockY(), location.getBlockZ()),
+                        location.getYaw(), location.getPitch()),
+                force), false);
     }
 
     @Override
@@ -3235,25 +3266,195 @@ public class CraftPlayer extends CraftHumanEntity implements Player {
         };
     }
 
-    public static net.minecraft.world.entity.RelativeMovement toNmsRelativeFlag(
+    public static net.minecraft.world.entity.Relative toNmsRelativeFlag(
             io.papermc.paper.entity.TeleportFlag.Relative apiFlag) {
         return switch (apiFlag) {
-            case X -> net.minecraft.world.entity.RelativeMovement.X;
-            case Y -> net.minecraft.world.entity.RelativeMovement.Y;
-            case Z -> net.minecraft.world.entity.RelativeMovement.Z;
-            case PITCH -> net.minecraft.world.entity.RelativeMovement.X_ROT;
-            case YAW -> net.minecraft.world.entity.RelativeMovement.Y_ROT;
+            case VELOCITY_X -> net.minecraft.world.entity.Relative.DELTA_X;
+            case VELOCITY_Y -> net.minecraft.world.entity.Relative.DELTA_Y;
+            case VELOCITY_Z -> net.minecraft.world.entity.Relative.DELTA_Z;
+            case VELOCITY_ROTATION -> net.minecraft.world.entity.Relative.ROTATE_DELTA;
         };
     }
 
     public static io.papermc.paper.entity.TeleportFlag.Relative toApiRelativeFlag(
-            net.minecraft.world.entity.RelativeMovement nmsFlag) {
+            net.minecraft.world.entity.Relative nmsFlag) {
         return switch (nmsFlag) {
-            case X -> io.papermc.paper.entity.TeleportFlag.Relative.X;
-            case Y -> io.papermc.paper.entity.TeleportFlag.Relative.Y;
-            case Z -> io.papermc.paper.entity.TeleportFlag.Relative.Z;
-            case X_ROT -> io.papermc.paper.entity.TeleportFlag.Relative.PITCH;
-            case Y_ROT -> io.papermc.paper.entity.TeleportFlag.Relative.YAW;
+            case DELTA_X -> io.papermc.paper.entity.TeleportFlag.Relative.VELOCITY_X;
+            case DELTA_Y -> io.papermc.paper.entity.TeleportFlag.Relative.VELOCITY_Y;
+            case DELTA_Z -> io.papermc.paper.entity.TeleportFlag.Relative.VELOCITY_Z;
+            case ROTATE_DELTA -> io.papermc.paper.entity.TeleportFlag.Relative.VELOCITY_ROTATION;
+            default -> throw new IllegalArgumentException("No API teleport flag for " + nmsFlag);
         };
+    }
+
+    private io.papermc.paper.connection.PaperPlayerGameConnection lunararc$gameConnection;
+    private net.minecraft.server.network.ServerGamePacketListenerImpl lunararc$gameConnectionOwner;
+
+    @Override
+    public io.papermc.paper.connection.PlayerGameConnection getConnection() {
+        net.minecraft.server.network.ServerGamePacketListenerImpl listener = getHandle().connection;
+        if (lunararc$gameConnection == null || lunararc$gameConnectionOwner != listener) {
+            lunararc$gameConnection = new io.papermc.paper.connection.PaperPlayerGameConnection(listener);
+            lunararc$gameConnectionOwner = listener;
+        }
+        return lunararc$gameConnection;
+    }
+
+    @Override
+    public void setDeathScreenScore(final int score) {
+        getHandle().setScore(score);
+    }
+
+    @Override
+    public int getDeathScreenScore() {
+        return getHandle().getScore();
+    }
+
+    @Override
+    public io.papermc.paper.entity.@org.jetbrains.annotations.NotNull PlayerGiveResult give(final java.util.@org.jetbrains.annotations.NotNull Collection<org.bukkit.inventory.@org.jetbrains.annotations.NotNull ItemStack> items, final boolean dropIfFull) {
+        com.google.common.base.Preconditions.checkArgument(items != null, "items cannot be null");
+        if (items.isEmpty()) return io.papermc.paper.entity.PaperPlayerGiveResult.EMPTY;
+
+        for (final org.bukkit.inventory.ItemStack item : items) {
+            com.google.common.base.Preconditions.checkArgument(item != null, "ItemStack cannot be null");
+            com.google.common.base.Preconditions.checkArgument(!item.isEmpty(), "ItemStack cannot be empty");
+            com.google.common.base.Preconditions.checkArgument(item.getAmount() <= item.getMaxStackSize(), "ItemStack amount cannot be greater than its max stack size");
+        }
+
+        final net.minecraft.server.level.ServerPlayer handle = this.getHandle();
+        final com.google.common.collect.ImmutableList.Builder<org.bukkit.entity.Item> drops = com.google.common.collect.ImmutableList.builder();
+        final com.google.common.collect.ImmutableList.Builder<org.bukkit.inventory.ItemStack> leftovers = com.google.common.collect.ImmutableList.builder();
+        for (final org.bukkit.inventory.ItemStack item : items) {
+            final net.minecraft.world.item.ItemStack nmsStack = org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(item);
+            final boolean added = handle.getInventory().add(nmsStack);
+            if (added && nmsStack.isEmpty()) continue;
+
+            leftovers.add(org.bukkit.craftbukkit.inventory.CraftItemStack.asBukkitCopy(nmsStack));
+            if (!dropIfFull) continue;
+
+            final net.minecraft.world.entity.item.ItemEntity entity = handle.drop(nmsStack, false, true);
+            if (entity != null) drops.add((org.bukkit.entity.Item) ((io.lunararcdevs.lunararc.common.bridge.EntityBridge) entity).lunararc$getBukkitEntity());
+        }
+
+        handle.containerMenu.broadcastChanges();
+        return new io.papermc.paper.entity.PaperPlayerGiveResult(leftovers.build(), drops.build());
+    }
+
+    @Override
+    public void openVirtualSign(io.papermc.paper.math.Position block, org.bukkit.block.sign.Side side) {
+        if (this.getHandle().connection == null) return;
+        this.getHandle().connection.send(new net.minecraft.network.protocol.game.ClientboundOpenSignEditorPacket(
+                new net.minecraft.core.BlockPos(block.blockX(), block.blockY(), block.blockZ()), side == org.bukkit.block.sign.Side.FRONT));
+    }
+
+    @Override
+    public org.bukkit.Input getCurrentInput() {
+        return new org.bukkit.craftbukkit.CraftInput(this.getHandle().getLastClientInput());
+    }
+
+    @Override
+    public java.util.Collection<org.bukkit.entity.EnderPearl> getEnderPearls() {
+        return getHandle().getEnderPearls().stream()
+                .map(pearl -> (org.bukkit.entity.EnderPearl) ((EntityBridge) pearl).lunararc$getBukkitEntity())
+                .collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
+    public int getPlayerListOrder() {
+        return ((io.lunararcdevs.lunararc.common.bridge.ServerPlayerListOrderBridge) getHandle()).lunararc$getListOrder();
+    }
+
+    @Override
+    public void setPlayerListOrder(int order) {
+        com.google.common.base.Preconditions.checkArgument(order >= 0, "order cannot be negative");
+        ((io.lunararcdevs.lunararc.common.bridge.ServerPlayerListOrderBridge) getHandle()).lunararc$setListOrder(order);
+        if (getHandle().connection == null) return; // updates are possible before the player has fully joined
+        for (net.minecraft.server.level.ServerPlayer other : getHandle().level().getServer().getPlayerList().getPlayers()) {
+            if (((org.bukkit.entity.Player) ((EntityBridge) other).lunararc$getBukkitEntity()).canSee(this)) {
+                other.connection.send(new net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket(
+                        net.minecraft.network.protocol.game.ClientboundPlayerInfoUpdatePacket.Action.UPDATE_LIST_ORDER, getHandle()));
+            }
+        }
+    }
+
+    @Override
+    public @Nullable Location getPotentialRespawnLocation() {
+        return getRespawnLocation(false);
+    }
+
+    @Override
+    public org.bukkit.entity.@Nullable Item dropItem(final int slot, final int amount, final boolean throwRandomly, final java.util.function.@Nullable Consumer<org.bukkit.entity.Item> entityOperation) {
+        com.google.common.base.Preconditions.checkArgument(slot >= 0 && slot < getInventory().getSize(), "Slot %s is not a valid inventory slot.", slot);
+        return lunararc$dropFromInventory(getInventory().getItem(slot), amount, throwRandomly, entityOperation);
+    }
+
+    @Override
+    public org.bukkit.entity.@Nullable Item dropItem(final org.bukkit.inventory.@NotNull EquipmentSlot slot, final int amount, final boolean throwRandomly, final java.util.function.@Nullable Consumer<org.bukkit.entity.Item> entityOperation) {
+        return lunararc$dropFromInventory(getInventory().getItem(slot), amount, throwRandomly, entityOperation);
+    }
+
+    @Override
+    public org.bukkit.entity.@Nullable Item dropItem(final ItemStack itemStack, final boolean throwRandomly, final java.util.function.@Nullable Consumer<org.bukkit.entity.Item> entityOperation) {
+        com.google.common.base.Preconditions.checkArgument(itemStack != null, "Cannot drop a null itemstack");
+        if (itemStack.isEmpty()) return null;
+        net.minecraft.world.entity.item.ItemEntity dropped = getHandle().drop(CraftItemStack.asNMSCopy(itemStack), throwRandomly, true);
+        return lunararc$finishDrop(dropped, entityOperation);
+    }
+
+    private org.bukkit.entity.@Nullable Item lunararc$dropFromInventory(final ItemStack original, final int amount, final boolean throwRandomly, final java.util.function.@Nullable Consumer<org.bukkit.entity.Item> entityOperation) {
+        if (original == null || original.isEmpty() || amount <= 0) return null;
+        net.minecraft.world.item.ItemStack nms = CraftItemStack.unwrap(original);
+        net.minecraft.world.item.ItemStack dropContent = nms.split(amount);
+        net.minecraft.world.entity.item.ItemEntity dropped = getHandle().drop(dropContent, throwRandomly, true);
+        if (dropped == null) {
+            // return the stack to the inventory slot if the drop was refused
+            nms.grow(dropContent.getCount());
+            return null;
+        }
+        return lunararc$finishDrop(dropped, entityOperation);
+    }
+
+    private org.bukkit.entity.@Nullable Item lunararc$finishDrop(@Nullable net.minecraft.world.entity.item.ItemEntity dropped, java.util.function.@Nullable Consumer<org.bukkit.entity.Item> entityOperation) {
+        if (dropped == null) return null;
+        org.bukkit.entity.Item item = (org.bukkit.entity.Item) ((EntityBridge) dropped).lunararc$getBukkitEntity();
+        if (entityOperation != null) entityOperation.accept(item);
+        return item;
+    }
+
+    @Override
+    public boolean hasCooldown(ItemStack item) {
+        com.google.common.base.Preconditions.checkArgument(item != null, "Item cannot be null");
+        return getHandle().getCooldowns().isOnCooldown(CraftItemStack.asNMSCopy(item));
+    }
+
+    @Override
+    public int getCooldown(ItemStack item) {
+        com.google.common.base.Preconditions.checkArgument(item != null, "Item cannot be null");
+        net.minecraft.resources.Identifier group = getHandle().getCooldowns().getCooldownGroup(CraftItemStack.asNMSCopy(item));
+        if (group == null) return 0;
+        net.minecraft.world.item.ItemCooldowns.CooldownInstance cooldown = getHandle().getCooldowns().cooldowns.get(group);
+        return cooldown == null ? 0 : Math.max(0, cooldown.endTime() - getHandle().getCooldowns().tickCount);
+    }
+
+    @Override
+    public void setCooldown(ItemStack item, int ticks) {
+        com.google.common.base.Preconditions.checkArgument(item != null, "Item cannot be null");
+        com.google.common.base.Preconditions.checkArgument(ticks >= 0, "Cannot have negative cooldown");
+        getHandle().getCooldowns().addCooldown(CraftItemStack.asNMSCopy(item), ticks);
+    }
+
+    @Override
+    public int getCooldown(net.kyori.adventure.key.Key key) {
+        com.google.common.base.Preconditions.checkArgument(key != null, "Key cannot be null");
+        net.minecraft.world.item.ItemCooldowns.CooldownInstance cooldown = getHandle().getCooldowns().cooldowns.get(
+                net.minecraft.resources.Identifier.fromNamespaceAndPath(key.namespace(), key.value()));
+        return cooldown == null ? 0 : Math.max(0, cooldown.endTime() - getHandle().getCooldowns().tickCount);
+    }
+
+    @Override
+    public void setCooldown(net.kyori.adventure.key.Key key, int ticks) {
+        com.google.common.base.Preconditions.checkArgument(key != null, "Key cannot be null");
+        com.google.common.base.Preconditions.checkArgument(ticks >= 0, "Cannot have negative cooldown");
+        getHandle().getCooldowns().addCooldown(net.minecraft.resources.Identifier.fromNamespaceAndPath(key.namespace(), key.value()), ticks);
     }
 }

@@ -20,7 +20,7 @@ public abstract class ExperienceOrbSettingsMixin {
         return original.call(center, size, size, size);
     }
 
-    @WrapOperation(method = "scanForEntities", require = 0,
+    @WrapOperation(method = "scanForMerges", require = 1,
             at = @At(value = "INVOKE", target = "Lnet/minecraft/world/phys/AABB;inflate(D)Lnet/minecraft/world/phys/AABB;"))
     private AABB lunararc$scanRadius(AABB box, double amount, Operation<AABB> original) {
         double radius = LunarArcServerSettings.number(((ExperienceOrb) (Object) this).level(), "merge-radius.exp", amount);

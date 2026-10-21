@@ -64,24 +64,24 @@ public final class PaperPerformanceRegressionTest {
         legacy.put("tag", custom);
         CompoundTag converted = ca.spottedleaf.dataconverter.minecraft.MCDataConverter.convertTag(
                 ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry.ITEM_STACK, legacy, 3700, 3955);
-        check(converted.getInt("count") == 3, "item count was not migrated to components format");
-        check(converted.getCompound("components").getCompound("minecraft:custom_data")
-                .getString("example:payload").equals("preserved"), "custom item data lost during conversion");
+        check(converted.getIntOr("count", 0) == 3, "item count was not migrated to components format");
+        check(converted.getCompoundOrEmpty("components").getCompoundOrEmpty("minecraft:custom_data")
+                .getStringOr("example:payload", "").equals("preserved"), "custom item data lost during conversion");
         CompoundTag oldItem = new CompoundTag();
         oldItem.putShort("id", (short) 1);
         oldItem.putByte("Count", (byte) 2);
         oldItem.putShort("Damage", (short) 0);
         var flattened = ca.spottedleaf.dataconverter.minecraft.MCDataConverter.convertTag(
                 ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry.ITEM_STACK, oldItem, 0, 3955);
-        check(flattened.getString("id").equals("minecraft:stone") && flattened.getInt("count") == 2,
+        check(flattened.getStringOr("id", "").equals("minecraft:stone") && flattened.getIntOr("count", 0) == 2,
                 "legacy numeric item id failed to migrate");
         CompoundTag entity = new CompoundTag();
         entity.putString("id", "example:custom_entity");
         entity.putString("example:data", "preserved");
         var upgradedEntity = ca.spottedleaf.dataconverter.minecraft.MCDataConverter.convertTag(
                 ca.spottedleaf.dataconverter.minecraft.datatypes.MCTypeRegistry.ENTITY, entity, 3700, 3955);
-        check(upgradedEntity.getString("id").equals("example:custom_entity")
-                && upgradedEntity.getString("example:data").equals("preserved"), "mod entity data was lost");
+        check(upgradedEntity.getStringOr("id", "").equals("example:custom_entity")
+                && upgradedEntity.getStringOr("example:data", "").equals("preserved"), "mod entity data was lost");
         var json = com.google.gson.JsonParser.parseString("{\"id\":\"minecraft:stone\",\"Count\":3,\"tag\":{\"example:payload\":\"preserved\"}}").getAsJsonObject();
         var convertedJson = net.minecraft.util.datafix.DataFixers.getDataFixer().update(
                 net.minecraft.util.datafix.fixes.References.ITEM_STACK,

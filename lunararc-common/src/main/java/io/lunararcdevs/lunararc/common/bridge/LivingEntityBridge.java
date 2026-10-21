@@ -11,6 +11,9 @@ public interface LivingEntityBridge {
     int lunararc$getShieldBlockingDelay();
     void lunararc$setShieldBlockingDelay(int delay);
 
+    int lunararc$getInvulnerableDuration();
+    void lunararc$setInvulnerableDuration(int ticks);
+
     int lunararc$getMaximumAirOverride();
     void lunararc$setMaximumAirOverride(int ticks);
 

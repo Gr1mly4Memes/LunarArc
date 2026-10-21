@@ -1,6 +1,6 @@
 package io.lunararcdevs.lunararc.common.bridge.entity;
 
-import net.minecraft.world.entity.npc.VillagerTrades;
+import net.minecraft.world.entity.npc.villager.VillagerTrades;
 import net.minecraft.world.item.trading.MerchantOffers;
 
 /** Narrow access to protected/private AbstractVillager trade state. */

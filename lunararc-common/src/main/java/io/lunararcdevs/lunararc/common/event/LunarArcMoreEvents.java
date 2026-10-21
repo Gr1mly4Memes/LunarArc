@@ -203,7 +203,7 @@ public final class LunarArcMoreEvents {
                 CraftItemStack.asCraftMirror(arrow))) ? ItemStack.EMPTY : arrow;
     }
 
-    public static boolean recipeBookClick(net.minecraft.server.level.ServerPlayer who, net.minecraft.resources.ResourceLocation recipe, boolean shift) {
+    public static boolean recipeBookClick(net.minecraft.server.level.ServerPlayer who, net.minecraft.resources.Identifier recipe, boolean shift) {
         org.bukkit.entity.Player player = player(who);
         if (player == null) return true;
         org.bukkit.NamespacedKey key = org.bukkit.craftbukkit.util.CraftNamespacedKey.fromMinecraft(recipe);
@@ -233,7 +233,7 @@ public final class LunarArcMoreEvents {
     public static void connectionClose(net.minecraft.server.level.ServerPlayer who, java.net.SocketAddress address) {
         if (who == null || !listened(com.destroystokyo.paper.event.player.PlayerConnectionCloseEvent.getHandlerList())
                 || !(address instanceof java.net.InetSocketAddress inet)) return;
-        fire(new com.destroystokyo.paper.event.player.PlayerConnectionCloseEvent(who.getUUID(), who.getGameProfile().getName(), inet.getAddress(), !org.bukkit.Bukkit.isPrimaryThread()));
+        fire(new com.destroystokyo.paper.event.player.PlayerConnectionCloseEvent(who.getUUID(), who.getGameProfile().name(), inet.getAddress(), !org.bukkit.Bukkit.isPrimaryThread()));
     }
 
     public static boolean setSpawn(org.bukkit.entity.Player player, org.bukkit.Location location, boolean forced, boolean notify, String cause) {
@@ -332,7 +332,7 @@ public final class LunarArcMoreEvents {
     public static boolean lingering(net.minecraft.world.entity.Entity potion, net.minecraft.world.entity.Entity cloud) {
         if (!listened(org.bukkit.event.entity.LingeringPotionSplashEvent.getHandlerList()) || !mobReady(potion)
                 || !(bukkit(potion) instanceof org.bukkit.entity.ThrownPotion thrown) || !(bukkit(cloud) instanceof org.bukkit.entity.AreaEffectCloud area)) return true;
-        return !fire(new org.bukkit.event.entity.LingeringPotionSplashEvent(thrown, area));
+        return !fire(new org.bukkit.event.entity.LingeringPotionSplashEvent(thrown, null, null, null, area));
     }
 
     public static boolean spawnerSpawn(net.minecraft.world.entity.Entity entity, Level level, BlockPos pos) {
@@ -363,7 +363,7 @@ public final class LunarArcMoreEvents {
                                     net.minecraft.world.phys.Vec3 position, net.minecraft.world.level.gameevent.GameEvent.Context context,
                                     ServerLevel level) {
         if (!listened(org.bukkit.event.world.GenericGameEvent.getHandlerList())) return true;
-        net.minecraft.resources.ResourceLocation key = net.minecraft.core.registries.BuiltInRegistries.GAME_EVENT.getKey(holder.value());
+        net.minecraft.resources.Identifier key = net.minecraft.core.registries.BuiltInRegistries.GAME_EVENT.getKey(holder.value());
         org.bukkit.GameEvent gameEvent = key == null ? null : org.bukkit.Registry.GAME_EVENT.get(org.bukkit.craftbukkit.util.CraftNamespacedKey.fromMinecraft(key));
         org.bukkit.World world = world(level);
         if (gameEvent == null || world == null) return true;
@@ -375,7 +375,7 @@ public final class LunarArcMoreEvents {
     public static boolean whitelistUpdate(com.mojang.authlib.GameProfile profile, boolean added) {
         if (!listened(io.papermc.paper.event.server.WhitelistStateUpdateEvent.getHandlerList())) return true;
         return !fire(new io.papermc.paper.event.server.WhitelistStateUpdateEvent(
-                new com.destroystokyo.paper.profile.CraftPlayerProfile(profile.getId(), profile.getName()),
+                new com.destroystokyo.paper.profile.CraftPlayerProfile(profile.id(), profile.name()),
                 added ? io.papermc.paper.event.server.WhitelistStateUpdateEvent.WhitelistStatus.ADDED
                         : io.papermc.paper.event.server.WhitelistStateUpdateEvent.WhitelistStatus.REMOVED));
     }
@@ -404,10 +404,16 @@ public final class LunarArcMoreEvents {
         fire(new com.destroystokyo.paper.event.brigadier.AsyncPlayerSendCommandsEvent(player, root, false));
     }
 
-    public static boolean pickItem(net.minecraft.server.level.ServerPlayer who, int sourceSlot) {
+    /** Returns the fired event, or {@code null} when nobody listens (vanilla behaviour applies unchanged). */
+    public static io.papermc.paper.event.player.PlayerPickItemEvent pickItem(net.minecraft.server.level.ServerPlayer who,
+            BlockPos block, net.minecraft.world.entity.Entity entity, boolean includeData, int targetSlot, int sourceSlot) {
         org.bukkit.entity.Player player = player(who);
-        if (player == null || !listened(io.papermc.paper.event.player.PlayerPickItemEvent.getHandlerList())) return true;
-        return !fire(new io.papermc.paper.event.player.PlayerPickItemEvent(player, who.getInventory().getSuitableHotbarSlot(), sourceSlot));
+        if (player == null || !listened(io.papermc.paper.event.player.PlayerPickItemEvent.getHandlerList())) return null;
+        io.papermc.paper.event.player.PlayerPickItemEvent event = entity != null
+                ? new io.papermc.paper.event.player.PlayerPickEntityEvent(player, bukkit(entity), includeData, targetSlot, sourceSlot)
+                : new io.papermc.paper.event.player.PlayerPickBlockEvent(player, CraftBlock.at(who.level(), block), includeData, targetSlot, sourceSlot);
+        fire(event);
+        return event;
     }
 
     public static boolean toggleSit(net.minecraft.world.entity.Entity entity, boolean sitting) {
@@ -452,10 +458,11 @@ public final class LunarArcMoreEvents {
         return !fire(new org.bukkit.event.entity.EnderDragonChangePhaseEvent(found, phases[from], phases[to]));
     }
 
-    public static int piglinAnger(net.minecraft.world.entity.monster.ZombifiedPiglin piglin, int anger) {
+    public static int piglinAnger(net.minecraft.world.entity.monster.zombie.ZombifiedPiglin piglin, int anger) {
         if (!listened(org.bukkit.event.entity.PigZombieAngerEvent.getHandlerList()) || !(piglin.level() instanceof ServerLevel level)
                 || !org.bukkit.Bukkit.isPrimaryThread() || !(bukkit(piglin) instanceof org.bukkit.entity.PigZombie found)) return anger;
-        java.util.UUID targetId = piglin.getPersistentAngerTarget();
+        net.minecraft.world.entity.EntityReference<net.minecraft.world.entity.LivingEntity> angerTarget = piglin.getPersistentAngerTarget();
+        java.util.UUID targetId = angerTarget == null ? null : angerTarget.getUUID();
         net.minecraft.world.entity.Entity target = targetId == null ? null : level.getEntity(targetId);
         org.bukkit.event.entity.PigZombieAngerEvent event = new org.bukkit.event.entity.PigZombieAngerEvent(found, bukkit(target), anger);
         if (!fire(event)) return event.getNewAnger();
@@ -534,14 +541,17 @@ public final class LunarArcMoreEvents {
             reason = io.papermc.paper.event.player.PlayerBedFailEnterEvent.FailReason.OTHER_PROBLEM;
         }
         boolean explode = reason == io.papermc.paper.event.player.PlayerBedFailEnterEvent.FailReason.NOT_POSSIBLE_HERE;
-        fire(new io.papermc.paper.event.player.PlayerBedFailEnterEvent(player, reason, CraftBlock.at(who.serverLevel(), pos), explode,
-                message == null ? null : io.papermc.paper.adventure.PaperAdventure.asAdventure(message)));
+        fire(new io.papermc.paper.event.player.PlayerBedFailEnterEvent(player, reason, CraftBlock.at(who.level(), pos), explode,
+                message == null ? null : io.papermc.paper.adventure.PaperAdventure.asAdventure(message),
+                new io.papermc.paper.block.bed.BedEnterActionImpl(io.papermc.paper.block.bed.BedRuleResult.ALLOWED, io.papermc.paper.block.bed.BedRuleResult.ALLOWED,
+                        io.papermc.paper.block.bed.BedEnterProblem.OTHER,
+                        message == null ? null : io.papermc.paper.adventure.PaperAdventure.asAdventure(message))));
     }
 
-    public static boolean recipeDiscover(net.minecraft.server.level.ServerPlayer who, net.minecraft.resources.ResourceLocation recipe) {
+    public static boolean recipeDiscover(net.minecraft.server.level.ServerPlayer who, net.minecraft.resources.Identifier recipe) {
         org.bukkit.entity.Player player = player(who);
         if (player == null || !listened(org.bukkit.event.player.PlayerRecipeDiscoverEvent.getHandlerList())) return true;
-        return !fire(new org.bukkit.event.player.PlayerRecipeDiscoverEvent(player, org.bukkit.craftbukkit.util.CraftNamespacedKey.fromMinecraft(recipe)));
+        return !fire(new org.bukkit.event.player.PlayerRecipeDiscoverEvent(player, org.bukkit.craftbukkit.util.CraftNamespacedKey.fromMinecraft(recipe), true));
     }
 
     public static boolean attackCooldownReset(net.minecraft.world.entity.player.Player who, net.minecraft.world.entity.Entity target) {
@@ -556,9 +566,9 @@ public final class LunarArcMoreEvents {
         org.bukkit.entity.Player player = player(who);
         if (player == null || !(level instanceof ServerLevel serverLevel)
                 || !listened(com.destroystokyo.paper.event.block.BeaconEffectEvent.getHandlerList())) return effect;
-        net.minecraft.resources.ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
+        net.minecraft.resources.Identifier id = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getKey(effect.getEffect().value());
         org.bukkit.potion.PotionEffectType type = id == null ? null
-                : org.bukkit.potion.PotionEffectType.getByKey(new org.bukkit.NamespacedKey(id.getNamespace(), id.getPath()));
+                : org.bukkit.Registry.MOB_EFFECT.get(new org.bukkit.NamespacedKey(id.getNamespace(), id.getPath()));
         if (type == null) return effect;
         org.bukkit.potion.PotionEffect bukkitEffect = new org.bukkit.potion.PotionEffect(type, effect.getDuration(), effect.getAmplifier(),
                 effect.isAmbient(), effect.isVisible(), effect.showIcon());
@@ -568,8 +578,8 @@ public final class LunarArcMoreEvents {
         org.bukkit.potion.PotionEffect changed = event.getEffect();
         if (changed.equals(bukkitEffect)) return effect;
         java.util.Optional<net.minecraft.core.Holder.Reference<net.minecraft.world.effect.MobEffect>> holder =
-                net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.getHolder(
-                        net.minecraft.resources.ResourceLocation.parse(changed.getType().getKey().toString()));
+                net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT.get(
+                        net.minecraft.resources.Identifier.parse(changed.getType().getKey().toString()));
         if (holder.isEmpty()) return effect;
         return new net.minecraft.world.effect.MobEffectInstance(holder.get(), changed.getDuration(), changed.getAmplifier(),
                 changed.isAmbient(), changed.hasParticles(), changed.hasIcon());

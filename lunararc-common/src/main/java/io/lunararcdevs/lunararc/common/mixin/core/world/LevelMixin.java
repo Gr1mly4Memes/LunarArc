@@ -95,36 +95,4 @@ public abstract class LevelMixin implements io.lunararcdevs.lunararc.common.brid
         return LunarArcServerAccess.getCraftServer(serverLevel.getServer());
     }
 
-    @Inject(
-            method = "neighborChanged(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/Block;Lnet/minecraft/core/BlockPos;)V",
-            at = @At("HEAD"),
-            require = 0)
-    private void lunararc$onNeighborChanged(
-            BlockPos pos,
-            net.minecraft.world.level.block.Block block,
-            BlockPos fromPos,
-            CallbackInfo ci) {
-        Level level = (Level) (Object) this;
-        if (!(level instanceof ServerLevel serverLevel)) return;
-
-        if (org.bukkit.event.block.BlockPhysicsEvent.getHandlerList().getRegisteredListeners().length == 0) {
-            return;
-        }
-
-        try {
-            CraftServer craftServer = LunarArcServerAccess.getCraftServer(serverLevel.getServer());
-            // The source block is what Paper's own call site passes (CraftBlock.at on sourcePos),
-            // and it is what a plugin reads as getSourceBlock(). The two-argument constructor
-            // reports the changed block as its own source, which is never true here.
-            org.bukkit.event.block.BlockPhysicsEvent event =
-                    new org.bukkit.event.block.BlockPhysicsEvent(
-                            org.bukkit.craftbukkit.block.CraftBlock.at(serverLevel, pos),
-                            org.bukkit.craftbukkit.block.data.CraftBlockData.fromData(
-                                    serverLevel.getBlockState(pos)),
-                            org.bukkit.craftbukkit.block.CraftBlock.at(serverLevel, fromPos));
-            craftServer.getPluginManager().callEvent(event);
-        } catch (Throwable t) {
-            LOGGER.warn("Failed to fire BlockPhysicsEvent for {} at {} — continuing without it", block, pos, t);
-        }
-    }
 }

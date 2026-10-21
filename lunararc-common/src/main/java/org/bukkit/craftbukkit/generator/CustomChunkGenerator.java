@@ -8,7 +8,7 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.WorldGenRegion;
 import net.minecraft.util.Mth;
-import net.minecraft.util.random.WeightedRandomList;
+import net.minecraft.util.random.WeightedList;
 import net.minecraft.world.entity.MobCategory;
 import net.minecraft.world.level.LevelHeightAccessor;
 import net.minecraft.world.level.NoiseColumn;
@@ -72,16 +72,16 @@ public final class CustomChunkGenerator extends ChunkGenerator {
 
     @Override
     public void createStructures(RegistryAccess access, ChunkGeneratorStructureState state, StructureManager structures,
-                                 ChunkAccess chunk, StructureTemplateManager templates) {
+                                 ChunkAccess chunk, StructureTemplateManager templates, net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension) {
         if (this.generator == null) {
-            this.delegate.createStructures(access, state, structures, chunk, templates);
+            this.delegate.createStructures(access, state, structures, chunk, templates, dimension);
             return;
         }
         WorldgenRandom random = seededRandom();
         int x = chunk.getPos().x, z = chunk.getPos().z;
         random.setSeed(Mth.getSeed(x, "should-structures".hashCode(), z) ^ this.worldInfo.getSeed());
         if (this.generator.shouldGenerateStructures(this.worldInfo, random(random), x, z)) {
-            this.delegate.createStructures(access, state, structures, chunk, templates);
+            this.delegate.createStructures(access, state, structures, chunk, templates, dimension);
         }
     }
 
@@ -132,13 +132,13 @@ public final class CustomChunkGenerator extends ChunkGenerator {
 
     @Override
     public void applyCarvers(WorldGenRegion region, long seed, RandomState randomState, BiomeManager biomes,
-                             StructureManager structures, ChunkAccess chunk, GenerationStep.Carving step) {
-        if (this.generator == null) { this.delegate.applyCarvers(region, seed, randomState, biomes, structures, chunk, step); return; }
+                             StructureManager structures, ChunkAccess chunk) {
+        if (this.generator == null) { this.delegate.applyCarvers(region, seed, randomState, biomes, structures, chunk); return; }
         int x = chunk.getPos().x, z = chunk.getPos().z;
         WorldgenRandom decision = seededRandom();
         decision.setSeed(Mth.getSeed(x, "should-caves".hashCode(), z) ^ region.getSeed());
         if (this.generator.shouldGenerateCaves(this.worldInfo, random(decision), x, z)) {
-            this.delegate.applyCarvers(region, seed, randomState, biomes, structures, chunk, step);
+            this.delegate.applyCarvers(region, seed, randomState, biomes, structures, chunk);
         }
         WorldgenRandom random = seededRandom();
         random.setDecorationSeed(seed, x, z);
@@ -195,7 +195,7 @@ public final class CustomChunkGenerator extends ChunkGenerator {
     @Override public NoiseColumn getBaseColumn(int x, int z, LevelHeightAccessor level, RandomState state) {
         return this.delegate.getBaseColumn(x, z, level, state);
     }
-    @Override public WeightedRandomList<MobSpawnSettings.SpawnerData> getMobsAt(Holder<net.minecraft.world.level.biome.Biome> biome,
+    @Override public WeightedList<MobSpawnSettings.SpawnerData> getMobsAt(Holder<net.minecraft.world.level.biome.Biome> biome,
             StructureManager structures, MobCategory category, BlockPos pos) {
         return this.delegate.getMobsAt(biome, structures, category, pos);
     }

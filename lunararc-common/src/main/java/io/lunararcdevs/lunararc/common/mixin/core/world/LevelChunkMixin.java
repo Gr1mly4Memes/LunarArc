@@ -18,7 +18,7 @@ public abstract class LevelChunkMixin implements io.lunararcdevs.lunararc.common
     @Shadow private boolean loaded;
 
     @Shadow
-    public abstract BlockState setBlockState(BlockPos pos, BlockState state, boolean isMoving);
+    public abstract BlockState setBlockState(BlockPos pos, BlockState state, int flags);
 
     @Unique
     private boolean lunararc$needsDecoration;
@@ -33,7 +33,8 @@ public abstract class LevelChunkMixin implements io.lunararcdevs.lunararc.common
     }
 
     public BlockState setBlockState(BlockPos pos, BlockState state, boolean isMoving, boolean doPlace) {
-        return this.setBlockState(pos, state, isMoving);
+        // UPDATE_MOVE_BY_PISTON = 64, UPDATE_SKIP_ON_PLACE = 1024
+        return this.setBlockState(pos, state, (isMoving ? 64 : 0) | (doPlace ? 0 : 1024));
     }
 
     @Inject(method = "<init>(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/level/chunk/ProtoChunk;Lnet/minecraft/world/level/chunk/LevelChunk$PostLoadProcessor;)V",
@@ -97,17 +98,28 @@ public abstract class LevelChunkMixin implements io.lunararcdevs.lunararc.common
 
         org.bukkit.craftbukkit.CraftWorld world = lunararc$craftWorld();
         if (world == null) return;
-        org.bukkit.Chunk chunk = new org.bukkit.craftbukkit.CraftChunk((LevelChunk) (Object) this, world);
-        if (wantsLoad) {
-            org.bukkit.Bukkit.getPluginManager().callEvent(
-                    new org.bukkit.event.world.ChunkLoadEvent(chunk, isNewChunk));
-        }
+        LevelChunk self = (LevelChunk) (Object) this;
 
-        if (!wantsPopulate) return;
-
-        // Bukkit BlockPopulators are already executed at the real generation-decoration
-        // boundary by LunarArcChunkPopulators. The first live LevelChunk load owns only
-        // the provenance-sensitive lifecycle events, otherwise populators would run twice.
-        org.bukkit.Bukkit.getPluginManager().callEvent(new org.bukkit.event.world.ChunkPopulateEvent(chunk));
+        // setLoaded runs inside ChunkStatusTasks.full, before the chunk is published as FULL. A
+        // listener that reads blocks here (CraftChunk.getTileEntities -> Block.getType ->
+        // Level.getBlockState) asks ServerChunkCache for this very chunk and blocks the server
+        // thread waiting on itself, each wait running more chunk tasks and nesting more events
+        // until the watchdog kills the server. Paper fires the event once the chunk is
+        // accessible, so queue it for the next drain on the main thread.
+        ((io.lunararcdevs.lunararc.common.bridge.MinecraftServerBridge)
+                ((net.minecraft.server.level.ServerLevel) this.level).getServer()).lunararc$queueTask(() -> {
+            if (!this.loaded) return;
+            org.bukkit.Chunk chunk = new org.bukkit.craftbukkit.CraftChunk(self, world);
+            if (wantsLoad) {
+                org.bukkit.Bukkit.getPluginManager().callEvent(
+                        new org.bukkit.event.world.ChunkLoadEvent(chunk, isNewChunk));
+            }
+            if (wantsPopulate) {
+                // Bukkit BlockPopulators are already executed at the real generation-decoration
+                // boundary by LunarArcChunkPopulators. The first live LevelChunk load owns only
+                // the provenance-sensitive lifecycle events, otherwise populators would run twice.
+                org.bukkit.Bukkit.getPluginManager().callEvent(new org.bukkit.event.world.ChunkPopulateEvent(chunk));
+            }
+        });
     }
 }

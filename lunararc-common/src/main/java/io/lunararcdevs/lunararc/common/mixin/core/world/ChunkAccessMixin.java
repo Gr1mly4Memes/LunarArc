@@ -12,16 +12,16 @@ import org.spongepowered.asm.mixin.Shadow;
 
 @Mixin(ChunkAccess.class)
 public abstract class ChunkAccessMixin {
-    @Shadow public abstract int getMinBuildHeight();
+    @Shadow public abstract int getMinY();
     @Shadow public abstract int getHeight();
     @Shadow public abstract LevelChunkSection[] getSections();
 
     @SuppressWarnings("unchecked")
     public void setBiome(int x, int y, int z, Holder<Biome> biome) {
-        int minQuart = QuartPos.fromBlock(this.getMinBuildHeight());
+        int minQuart = QuartPos.fromBlock(this.getMinY());
         int maxQuart = minQuart + QuartPos.fromBlock(this.getHeight()) - 1;
         int clamped = Mth.clamp(y, minQuart, maxQuart);
-        LevelChunkSection section = this.getSections()[net.minecraft.core.SectionPos.blockToSectionCoord(QuartPos.toBlock(clamped)) - net.minecraft.core.SectionPos.blockToSectionCoord(this.getMinBuildHeight())];
+        LevelChunkSection section = this.getSections()[net.minecraft.core.SectionPos.blockToSectionCoord(QuartPos.toBlock(clamped)) - net.minecraft.core.SectionPos.blockToSectionCoord(this.getMinY())];
         if (section.getBiomes() instanceof PalettedContainer<?> container) {
             ((PalettedContainer<Holder<Biome>>) container).set(x & 3, clamped & 3, z & 3, biome);
         }

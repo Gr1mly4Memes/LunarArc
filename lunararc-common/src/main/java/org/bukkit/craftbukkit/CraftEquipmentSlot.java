@@ -23,6 +23,7 @@ public final class CraftEquipmentSlot {
             case CHEST -> net.minecraft.world.entity.EquipmentSlot.CHEST;
             case HEAD -> net.minecraft.world.entity.EquipmentSlot.HEAD;
             case BODY -> net.minecraft.world.entity.EquipmentSlot.BODY;
+            case SADDLE -> net.minecraft.world.entity.EquipmentSlot.SADDLE;
         };
     }
 
@@ -36,6 +37,7 @@ public final class CraftEquipmentSlot {
             case CHEST -> EquipmentSlot.CHEST;
             case HEAD -> EquipmentSlot.HEAD;
             case BODY -> EquipmentSlot.BODY;
+            case SADDLE -> EquipmentSlot.SADDLE;
         };
     }
 

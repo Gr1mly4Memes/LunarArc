@@ -3,7 +3,7 @@ package org.bukkit.craftbukkit.entity;
 import io.lunararcdevs.lunararc.common.bridge.MobBridge;
 import java.util.Objects;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.level.storage.loot.LootTable;
@@ -58,6 +58,13 @@ public class CraftMob extends CraftLivingEntity implements Mob {
         return bukkit instanceof CraftLivingEntity living ? living : null;
     }
 
+    @Override public boolean shouldDespawnInPeaceful() { return ((MobBridge) getHandle()).lunararc$shouldDespawnInPeaceful(); }
+    @Override public void setDespawnInPeacefulOverride(net.kyori.adventure.util.@NotNull TriState state) {
+        ((MobBridge) getHandle()).lunararc$setDespawnInPeacefulOverride(Objects.requireNonNull(state, "TriState cannot be null"));
+    }
+    @Override public net.kyori.adventure.util.@NotNull TriState getDespawnInPeacefulOverride() {
+        return ((MobBridge) getHandle()).lunararc$getDespawnInPeacefulOverride();
+    }
     @Override public void setAware(boolean aware) { ((MobBridge) getHandle()).lunararc$setAware(aware); }
     @Override public boolean isAware() { return ((MobBridge) getHandle()).lunararc$isAware(); }
 
@@ -65,7 +72,7 @@ public class CraftMob extends CraftLivingEntity implements Mob {
     public @Nullable Sound getAmbientSound() {
         SoundEvent event = ((io.lunararcdevs.lunararc.common.bridge.access.MobAccessBridge) getHandle()).lunararc$invokeGetAmbientSound();
         if (event == null) return null;
-        ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.getKey(event);
+        Identifier id = net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.getKey(event);
         if (id == null) return null;
         return org.bukkit.Registry.SOUNDS.get(new NamespacedKey(id.getNamespace(), id.getPath()));
     }
@@ -97,14 +104,14 @@ public class CraftMob extends CraftLivingEntity implements Mob {
 
     @Override
     public void setLootTable(@Nullable org.bukkit.loot.LootTable table) {
-        getHandle().lootTable = table == null ? null : CraftLootTable.bukkitKeyToMinecraft(table.getKey());
+        getHandle().lootTable = java.util.Optional.ofNullable(table == null ? null : CraftLootTable.bukkitKeyToMinecraft(table.getKey()));
     }
 
     @Override
     public @Nullable org.bukkit.loot.LootTable getLootTable() {
-        ResourceKey<LootTable> key = getHandle().lootTable;
+        ResourceKey<LootTable> key = getHandle().getLootTable().orElse(null);
         if (key == null) return null;
-        ResourceLocation id = key.location();
+        Identifier id = key.identifier();
         return org.bukkit.Bukkit.getLootTable(new NamespacedKey(id.getNamespace(), id.getPath()));
     }
 
@@ -120,12 +127,12 @@ public class CraftMob extends CraftLivingEntity implements Mob {
     @Override public boolean setLeashHolder(@Nullable org.bukkit.entity.Entity holder) {
         if (holder == null) {
             if (!isLeashed()) return false;
-            getHandle().dropLeash(true, false);
+            getHandle().removeLeash();
             return true;
         }
         if (!(holder instanceof CraftEntity craft)) throw new IllegalArgumentException("Leash holder must be backed by LunarArc");
         if (holder.isDead() || holder.getWorld() != getWorld()) return false;
-        if (isLeashed()) getHandle().dropLeash(true, false);
+        if (isLeashed()) getHandle().removeLeash();
         getHandle().setLeashedTo(craft.getHandle(), true);
         return true;
     }

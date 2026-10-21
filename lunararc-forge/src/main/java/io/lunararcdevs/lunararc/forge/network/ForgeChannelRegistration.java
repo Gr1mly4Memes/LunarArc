@@ -7,14 +7,13 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.server.network.ServerCommonPacketListenerImpl;
 import net.minecraftforge.event.network.ChannelRegistrationChangeEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
 import org.bukkit.entity.Player;
 
 public final class ForgeChannelRegistration {
     private ForgeChannelRegistration() {}
 
-    public static void register(IEventBus bus) {
-        bus.addListener(ForgeChannelRegistration::onRegistrationChange);
+    public static void register() {
+        ChannelRegistrationChangeEvent.BUS.addListener(ForgeChannelRegistration::onRegistrationChange);
     }
 
     private static void onRegistrationChange(ChannelRegistrationChangeEvent event) {

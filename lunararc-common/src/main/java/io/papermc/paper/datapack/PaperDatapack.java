@@ -9,7 +9,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import net.kyori.adventure.text.Component;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.packs.repository.Pack;
 import net.minecraft.server.packs.repository.PackRepository;
@@ -27,6 +27,7 @@ public final class PaperDatapack implements Datapack {
         PACK_SOURCES.put(PackSource.FEATURE, DatapackSource.FEATURE);
         PACK_SOURCES.put(PackSource.WORLD, DatapackSource.WORLD);
         PACK_SOURCES.put(PackSource.SERVER, DatapackSource.SERVER);
+        PACK_SOURCES.put(io.lunararcdevs.lunararc.common.server.LunarArcDatapackDiscovery.PLUGIN_SOURCE, DatapackSource.PLUGIN);
     }
 
     private final MinecraftServer server;
@@ -81,14 +82,14 @@ public final class PaperDatapack implements Datapack {
 
     public static Set<FeatureFlag> toBukkitFeatures(net.minecraft.world.flag.FeatureFlagSet nativeFlags) {
         LinkedHashSet<FeatureFlag> result = new LinkedHashSet<>();
-        for (ResourceLocation key : FeatureFlags.REGISTRY.toNames(nativeFlags)) {
+        for (Identifier key : FeatureFlags.REGISTRY.toNames(nativeFlags)) {
             FeatureFlag flag = findFeatureFlag(key);
             if (flag != null) result.add(flag);
         }
         return Collections.unmodifiableSet(result);
     }
 
-    private static FeatureFlag findFeatureFlag(ResourceLocation key) {
+    private static FeatureFlag findFeatureFlag(Identifier key) {
         String expected = key.toString();
 
         FeatureFlag[] known = { FeatureFlag.VANILLA, FeatureFlag.BUNDLE, FeatureFlag.TRADE_REBALANCE };

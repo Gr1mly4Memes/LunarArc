@@ -8,7 +8,7 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.EndPortalBlock;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.portal.DimensionTransition;
+import net.minecraft.world.level.portal.TeleportTransition;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.PortalType;
@@ -31,7 +31,7 @@ public abstract class EndPortalBlockMixin {
             at = @At(value = "INVOKE",
                     target = "Lnet/minecraft/world/entity/Entity;setAsInsidePortal(Lnet/minecraft/world/level/block/Portal;Lnet/minecraft/core/BlockPos;)V"),
             cancellable = true, require = 0)
-    private void lunararc$portalEnter(BlockState state, Level level, BlockPos pos, Entity entity, CallbackInfo ci) {
+    private void lunararc$portalEnter(BlockState state, Level level, BlockPos pos, Entity entity, net.minecraft.world.entity.InsideBlockEffectApplier applier, boolean intersects, CallbackInfo ci) {
         if (!(level instanceof ServerLevel serverLevel) || !Bukkit.isPrimaryThread()) return;
         CraftWorld world = lunararc$craftWorld(serverLevel);
         if (world == null) return;
@@ -48,7 +48,7 @@ public abstract class EndPortalBlockMixin {
                     target = "Lnet/minecraft/world/level/levelgen/feature/EndPlatformFeature;createEndPlatform(Lnet/minecraft/world/level/ServerLevelAccessor;Lnet/minecraft/core/BlockPos;Z)V"),
             require = 0)
     private void lunararc$captureEndPlatformEntity(ServerLevel targetLevel, Entity entity, BlockPos portalPos,
-                                                     CallbackInfoReturnable<DimensionTransition> cir) {
+                                                     CallbackInfoReturnable<TeleportTransition> cir) {
         io.lunararcdevs.lunararc.common.util.LunarArcPortalCapture.pushEndPlatformEntity(entity);
     }
 
@@ -58,14 +58,14 @@ public abstract class EndPortalBlockMixin {
                     shift = At.Shift.AFTER),
             require = 0)
     private void lunararc$clearEndPlatformEntity(ServerLevel targetLevel, Entity entity, BlockPos portalPos,
-                                                   CallbackInfoReturnable<DimensionTransition> cir) {
+                                                   CallbackInfoReturnable<TeleportTransition> cir) {
         io.lunararcdevs.lunararc.common.util.LunarArcPortalCapture.clearEndPlatformEntity();
     }
 
     @Inject(method = "getPortalDestination", at = @At("RETURN"), cancellable = true, require = 0)
     private void lunararc$endPortalEvent(ServerLevel targetLevel, Entity entity, BlockPos portalPos,
-                                          CallbackInfoReturnable<DimensionTransition> cir) {
-        DimensionTransition transition = cir.getReturnValue();
+                                          CallbackInfoReturnable<TeleportTransition> cir) {
+        TeleportTransition transition = cir.getReturnValue();
         if (transition == null || !Bukkit.isPrimaryThread()) return;
 
         // A player leaving The End is a respawn flow in 1.21.1. PlayerRespawnEvent /
@@ -75,7 +75,7 @@ public abstract class EndPortalBlockMixin {
         CraftWorld destination = lunararc$craftWorld(transition.newLevel());
         if (destination == null) return;
         Location exit = new Location(destination,
-                transition.pos().x, transition.pos().y, transition.pos().z,
+                transition.position().x, transition.position().y, transition.position().z,
                 transition.yRot(), transition.xRot());
         CraftPortalEvent event = CraftEventFactory.callPortalEvent(
                 entity, exit, PlayerTeleportEvent.TeleportCause.END_PORTAL, 0, 0);
@@ -85,14 +85,16 @@ public abstract class EndPortalBlockMixin {
         }
 
         Location to = event.getTo();
-        cir.setReturnValue(new DimensionTransition(
+        cir.setReturnValue(new TeleportTransition(
                 finalWorld.getHandle(),
                 new net.minecraft.world.phys.Vec3(to.getX(), to.getY(), to.getZ()),
-                transition.speed(),
+                transition.deltaMovement(),
                 to.getYaw(),
                 to.getPitch(),
                 transition.missingRespawnBlock(),
-                transition.postDimensionTransition()));
+                transition.asPassenger(),
+                transition.relatives(),
+                transition.postTeleportTransition()));
     }
 
     private static CraftWorld lunararc$craftWorld(ServerLevel level) {

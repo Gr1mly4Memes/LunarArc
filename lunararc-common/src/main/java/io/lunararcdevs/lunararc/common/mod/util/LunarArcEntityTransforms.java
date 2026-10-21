@@ -32,7 +32,7 @@ public final class LunarArcEntityTransforms {
         Objects.requireNonNull(spawnReason, "spawnReason");
         if (source.isRemoved() || !(source.level() instanceof ServerLevel level)) return null;
 
-        T target = targetType.create(level);
+        T target = targetType.create(level, net.minecraft.world.entity.EntitySpawnReason.COMMAND);
         if (target == null) return null;
 
         target.copyPosition(source);
@@ -51,7 +51,9 @@ public final class LunarArcEntityTransforms {
                 ItemStack item = source.getItemBySlot(slot);
                 if (!item.isEmpty()) {
                     target.setItemSlot(slot, item.copy());
-                    target.setDropChance(slot, source.getEquipmentDropChance(slot));
+                    ((io.lunararcdevs.lunararc.common.bridge.access.MobAccessBridge) target).lunararc$setDropChances(
+                            ((io.lunararcdevs.lunararc.common.bridge.access.MobAccessBridge) target).lunararc$getDropChances().withEquipmentChance(slot,
+                                    ((io.lunararcdevs.lunararc.common.bridge.access.MobAccessBridge) source).lunararc$getDropChances().byEquipment(slot)));
                 }
             }
         }
@@ -81,7 +83,7 @@ public final class LunarArcEntityTransforms {
         if (source.isPassenger()) {
             Entity vehicle = source.getVehicle();
             source.stopRiding();
-            if (vehicle != null) target.startRiding(vehicle, true);
+            if (vehicle != null) target.startRiding(vehicle, true, true);
         }
 
         source.discard();

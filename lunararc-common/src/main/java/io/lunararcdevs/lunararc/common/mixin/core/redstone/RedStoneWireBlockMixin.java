@@ -14,11 +14,11 @@ import org.spongepowered.asm.mixin.injection.At;
 
 import net.minecraft.world.level.block.RedStoneWireBlock;
 
-@Mixin(RedStoneWireBlock.class)
+@Mixin(net.minecraft.world.level.redstone.DefaultRedstoneWireEvaluator.class)
 public abstract class RedStoneWireBlockMixin {
 
-    @ModifyExpressionValue(method = "updatePowerStrength", require = 0,
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/block/RedStoneWireBlock;calculateTargetStrength(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)I"))
+    @ModifyExpressionValue(method = "updatePowerStrength", require = 1,
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/redstone/DefaultRedstoneWireEvaluator;calculateTargetStrength(Lnet/minecraft/world/level/Level;Lnet/minecraft/core/BlockPos;)I"))
     private int lunararc$strength(int target, @Local(argsOnly = true) Level level, @Local(argsOnly = true) BlockPos pos,
             @Local(argsOnly = true) BlockState state) {
         int old = state.getValue(RedStoneWireBlock.POWER);

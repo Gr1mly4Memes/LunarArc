@@ -1,7 +1,7 @@
 package io.lunararcdevs.lunararc.common.mixin.core.entity;
 
 import net.minecraft.sounds.SoundEvent;
-import net.minecraft.world.entity.projectile.AbstractArrow;
+import net.minecraft.world.entity.projectile.arrow.AbstractArrow;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
@@ -9,7 +9,7 @@ import org.spongepowered.asm.mixin.gen.Invoker;
 
 @Mixin(AbstractArrow.class)
 public interface AbstractArrowAccessor extends io.lunararcdevs.lunararc.common.bridge.access.AbstractArrowAccessBridge {
-    @Accessor("inGround")
+    @Invoker("isInGround")
     boolean lunararc$isInGround();
 
     @Accessor("pickup")
@@ -39,6 +39,4 @@ public interface AbstractArrowAccessor extends io.lunararcdevs.lunararc.common.b
     @Accessor("soundEvent")
     SoundEvent lunararc$getSoundEvent();
 
-    @Invoker("shotFromCrossbow")
-    boolean lunararc$shotFromCrossbow();
 }

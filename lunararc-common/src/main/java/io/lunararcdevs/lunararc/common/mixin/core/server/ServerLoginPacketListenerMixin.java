@@ -7,7 +7,7 @@ import io.lunararcdevs.lunararc.common.bridge.ServerLoginPacketListenerBridge;
 import io.lunararcdevs.lunararc.common.config.LunarArcConfig;
 import io.lunararcdevs.lunararc.common.messaging.LunarArcComponentPipeline;
 import io.lunararcdevs.lunararc.common.mod.util.VelocitySupport;
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 import net.minecraft.network.Connection;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.chat.Component;
@@ -39,6 +39,10 @@ import java.util.concurrent.ThreadLocalRandom;
 
 @Mixin(value = ServerLoginPacketListenerImpl.class, priority = 500)
 public abstract class ServerLoginPacketListenerMixin implements ServerLoginPacketListenerBridge {
+    @org.spongepowered.asm.mixin.Shadow
+    @org.spongepowered.asm.mixin.Final
+    private boolean transferred;
+
 
     @Shadow @Final MinecraftServer server;
     @Shadow private GameProfile authenticatedProfile;
@@ -112,29 +116,29 @@ public abstract class ServerLoginPacketListenerMixin implements ServerLoginPacke
         Util.backgroundExecutor().execute(() -> {
             try {
                 this.lunararc$preLogin(this.authenticatedProfile);
-            } catch (Exception exception) {
+            } catch (Throwable exception) {
                 this.disconnect(Component.translatable("multiplayer.disconnect.unverified_username"));
-                lunararc$logger.error("Login processing failed for {}", this.authenticatedProfile.getName(), exception);
+                lunararc$logger.error("Login processing failed for {}", this.authenticatedProfile.name(), exception);
             }
         });
         ci.cancel();
     }
 
     public GameProfile callPlayerPreLoginEvents(GameProfile gameprofile) throws Exception {
-        String playerName = gameprofile.getName();
+        String playerName = gameprofile.name();
         SocketAddress remoteAddress = this.connection.getRemoteAddress();
         if (!(remoteAddress instanceof InetSocketAddress inetAddress)) {
             throw new IllegalStateException("Login connection does not expose an InetSocketAddress");
         }
 
         InetAddress address = inetAddress.getAddress();
-        AsyncPlayerPreLoginEvent asyncEvent =
-                new AsyncPlayerPreLoginEvent(playerName, address, gameprofile.getId());
+        AsyncPlayerPreLoginEvent asyncEvent = new AsyncPlayerPreLoginEvent(playerName, address, address, gameprofile.id(),
+                this.transferred, com.destroystokyo.paper.profile.CraftPlayerProfile.asBukkitCopy(gameprofile));
         org.bukkit.Bukkit.getPluginManager().callEvent(asyncEvent);
 
         if (PlayerPreLoginEvent.getHandlerList().getRegisteredListeners().length != 0) {
             PlayerPreLoginEvent syncEvent =
-                    new PlayerPreLoginEvent(playerName, address, gameprofile.getId());
+                    new PlayerPreLoginEvent(playerName, address, gameprofile.id());
 
             if (asyncEvent.getLoginResult() != AsyncPlayerPreLoginEvent.Result.ALLOWED) {
                 syncEvent.disallow(
@@ -175,7 +179,9 @@ public abstract class ServerLoginPacketListenerMixin implements ServerLoginPacke
 
     @Override
     public void lunararc$preLogin(GameProfile profile) throws Exception {
+        lunararc$logger.debug("Login pre-login events starting for {}", profile.name());
         GameProfile resolved = this.callPlayerPreLoginEvents(profile);
+        lunararc$logger.debug("Login pre-login events finished for {}", profile.name());
 
         // callPlayerPreLoginEvents disconnects on a denied result but still returns, the way
         // Paper's does. Paper guards the follow-up work with the same connection check rather
@@ -183,6 +189,7 @@ public abstract class ServerLoginPacketListenerMixin implements ServerLoginPacke
         ((MinecraftServerBridge) this.server).lunararc$queueTask(() -> {
             if (!this.connection.isConnected()) return;
             this.lunararc$preLoginCompleted = true;
+            lunararc$logger.debug("Login verification starting for {}", resolved.name());
             this.startClientVerification(resolved);
         });
     }
@@ -196,9 +203,9 @@ public abstract class ServerLoginPacketListenerMixin implements ServerLoginPacke
         Util.backgroundExecutor().execute(() -> {
             try {
                 this.lunararc$preLogin(profile);
-            } catch (Exception exception) {
+            } catch (Throwable exception) {
                 this.disconnect(Component.translatable("multiplayer.disconnect.unverified_username"));
-                lunararc$logger.error("Pre-login processing failed for {}", profile.getName(), exception);
+                lunararc$logger.error("Pre-login processing failed for {}", profile.name(), exception);
             }
         });
         ci.cancel();
@@ -208,8 +215,9 @@ public abstract class ServerLoginPacketListenerMixin implements ServerLoginPacke
             method = "verifyLoginAndFinishConnectionSetup",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/server/players/PlayerList;canPlayerLogin(Ljava/net/SocketAddress;Lcom/mojang/authlib/GameProfile;)Lnet/minecraft/network/chat/Component;"))
-    private Component lunararc$playerLoginEvent(PlayerList playerList, SocketAddress address, GameProfile profile) {
+                    target = "Lnet/minecraft/server/players/PlayerList;canPlayerLogin(Ljava/net/SocketAddress;Lnet/minecraft/server/players/NameAndId;)Lnet/minecraft/network/chat/Component;"))
+    private Component lunararc$playerLoginEvent(PlayerList playerList, SocketAddress address, net.minecraft.server.players.NameAndId nameAndId,
+            @com.llamalad7.mixinextras.sugar.Local(argsOnly = true) GameProfile profile) {
         if (this.lunararc$loginPlayer == null) {
             this.lunararc$loginPlayer = ((PlayerListBridge) playerList)
                     .lunararc$canPlayerLogin(address, profile, (ServerLoginPacketListenerImpl) (Object) this);
@@ -222,7 +230,7 @@ public abstract class ServerLoginPacketListenerMixin implements ServerLoginPacke
             cancellable = true,
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/server/players/PlayerList;canPlayerLogin(Ljava/net/SocketAddress;Lcom/mojang/authlib/GameProfile;)Lnet/minecraft/network/chat/Component;",
+                    target = "Lnet/minecraft/server/players/PlayerList;canPlayerLogin(Ljava/net/SocketAddress;Lnet/minecraft/server/players/NameAndId;)Lnet/minecraft/network/chat/Component;",
                     shift = At.Shift.AFTER))
     private void lunararc$stopDeniedLogin(GameProfile profile, CallbackInfo ci) {
         if (this.lunararc$loginPlayer == null) {

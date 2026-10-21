@@ -49,7 +49,7 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
         if (entity instanceof net.minecraft.server.level.ServerPlayer sp) {
             return new CraftPlayer(server, sp);
         }
-        if (entity instanceof net.minecraft.world.entity.boss.EnderDragonPart part) {
+        if (entity instanceof net.minecraft.world.entity.boss.enderdragon.EnderDragonPart part) {
             return new CraftEnderDragonPart(server, part);
         }
         org.bukkit.entity.Entity typed = fromPaperEntityTypes(server, entity);
@@ -62,19 +62,21 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
         if (entity instanceof net.minecraft.world.entity.LightningBolt lightning) {
             return new CraftLightningStrike(server, lightning);
         }
-        if (entity instanceof net.minecraft.world.entity.projectile.ThrownPotion potion) {
-            return new CraftThrownPotion(server, potion);
+        if (entity instanceof net.minecraft.world.entity.projectile.throwableitemprojectile.AbstractThrownPotion potion) {
+            return potion instanceof net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownLingeringPotion lingering
+                    ? new CraftThrownLingeringPotion(server, lingering)
+                    : new CraftThrownSplashPotion(server, (net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownSplashPotion) potion);
         }
-        if (entity instanceof net.minecraft.world.entity.projectile.ThrownExperienceBottle bottle) {
+        if (entity instanceof net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownExperienceBottle bottle) {
             return new CraftThrownExpBottle(server, bottle);
         }
-        if (entity instanceof net.minecraft.world.entity.projectile.Snowball snowball) {
+        if (entity instanceof net.minecraft.world.entity.projectile.throwableitemprojectile.Snowball snowball) {
             return new CraftSnowball(server, snowball);
         }
-        if (entity instanceof net.minecraft.world.entity.projectile.ThrownEgg egg) {
+        if (entity instanceof net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEgg egg) {
             return new CraftEgg(server, egg);
         }
-        if (entity instanceof net.minecraft.world.entity.projectile.ThrownEnderpearl pearl) {
+        if (entity instanceof net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl pearl) {
             return new CraftEnderPearl(server, pearl);
         }
         if (entity instanceof net.minecraft.world.entity.projectile.FireworkRocketEntity firework) {
@@ -89,40 +91,40 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
         if (entity instanceof net.minecraft.world.entity.projectile.LlamaSpit spit) {
             return new CraftLlamaSpit(server, spit);
         }
-        if (entity instanceof net.minecraft.world.entity.projectile.windcharge.BreezeWindCharge charge) {
+        if (entity instanceof net.minecraft.world.entity.projectile.hurtingprojectile.windcharge.BreezeWindCharge charge) {
             return new CraftBreezeWindCharge(server, charge);
         }
-        if (entity instanceof net.minecraft.world.entity.projectile.windcharge.WindCharge charge) {
+        if (entity instanceof net.minecraft.world.entity.projectile.hurtingprojectile.windcharge.WindCharge charge) {
             return new CraftWindCharge(server, charge);
         }
-        if (entity instanceof net.minecraft.world.entity.projectile.windcharge.AbstractWindCharge charge) {
+        if (entity instanceof net.minecraft.world.entity.projectile.hurtingprojectile.windcharge.AbstractWindCharge charge) {
             return new CraftAbstractWindCharge(server, charge);
         }
-        if (entity instanceof net.minecraft.world.entity.projectile.LargeFireball fireball) {
+        if (entity instanceof net.minecraft.world.entity.projectile.hurtingprojectile.LargeFireball fireball) {
             return new CraftLargeFireball(server, fireball);
         }
-        if (entity instanceof net.minecraft.world.entity.projectile.SmallFireball fireball) {
+        if (entity instanceof net.minecraft.world.entity.projectile.hurtingprojectile.SmallFireball fireball) {
             return new CraftSmallFireball(server, fireball);
         }
-        if (entity instanceof net.minecraft.world.entity.projectile.WitherSkull skull) {
+        if (entity instanceof net.minecraft.world.entity.projectile.hurtingprojectile.WitherSkull skull) {
             return new CraftWitherSkull(server, skull);
         }
-        if (entity instanceof net.minecraft.world.entity.projectile.DragonFireball fireball) {
+        if (entity instanceof net.minecraft.world.entity.projectile.hurtingprojectile.DragonFireball fireball) {
             return new CraftDragonFireball(server, fireball);
         }
-        if (entity instanceof net.minecraft.world.entity.projectile.AbstractHurtingProjectile fireball) {
+        if (entity instanceof net.minecraft.world.entity.projectile.hurtingprojectile.AbstractHurtingProjectile fireball) {
             return new CraftFireball(server, fireball);
         }
-        if (entity instanceof net.minecraft.world.entity.projectile.SpectralArrow spectralArrow) {
+        if (entity instanceof net.minecraft.world.entity.projectile.arrow.SpectralArrow spectralArrow) {
             return new CraftSpectralArrow(server, spectralArrow);
         }
-        if (entity instanceof net.minecraft.world.entity.projectile.ThrownTrident trident) {
+        if (entity instanceof net.minecraft.world.entity.projectile.arrow.ThrownTrident trident) {
             return new CraftTrident(server, trident);
         }
-        if (entity instanceof net.minecraft.world.entity.projectile.Arrow arrow) {
+        if (entity instanceof net.minecraft.world.entity.projectile.arrow.Arrow arrow) {
             return new CraftArrow(server, arrow);
         }
-        if (entity instanceof net.minecraft.world.entity.projectile.AbstractArrow arrow) {
+        if (entity instanceof net.minecraft.world.entity.projectile.arrow.AbstractArrow arrow) {
             return new CraftAbstractArrow(server, arrow);
         }
         if (entity instanceof net.minecraft.world.entity.item.FallingBlockEntity fallingBlock) {
@@ -137,52 +139,52 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
         if (entity instanceof net.minecraft.world.entity.monster.Creeper creeper) {
             return new CraftCreeper(server, creeper);
         }
-        if (entity instanceof net.minecraft.world.entity.monster.Zombie zombie) {
+        if (entity instanceof net.minecraft.world.entity.monster.zombie.Zombie zombie) {
             return new CraftZombie(server, zombie);
         }
         if (entity instanceof net.minecraft.world.entity.monster.EnderMan enderman) {
             return new CraftEnderman(server, enderman);
         }
-        if (entity instanceof net.minecraft.world.entity.monster.Skeleton skeleton) {
+        if (entity instanceof net.minecraft.world.entity.monster.skeleton.Skeleton skeleton) {
             return new CraftSkeleton(server, skeleton);
         }
-        if (entity instanceof net.minecraft.world.entity.monster.Stray stray) {
+        if (entity instanceof net.minecraft.world.entity.monster.skeleton.Stray stray) {
             return new CraftStray(server, stray);
         }
-        if (entity instanceof net.minecraft.world.entity.monster.WitherSkeleton witherSkeleton) {
+        if (entity instanceof net.minecraft.world.entity.monster.skeleton.WitherSkeleton witherSkeleton) {
             return new CraftWitherSkeleton(server, witherSkeleton);
         }
-        if (entity instanceof net.minecraft.world.entity.monster.Spider spider) {
+        if (entity instanceof net.minecraft.world.entity.monster.spider.Spider spider) {
             return new CraftSpider(server, spider);
         }
         if (entity instanceof net.minecraft.world.entity.monster.Monster monster) {
             return new CraftMonster(server, monster);
         }
-        if (entity instanceof net.minecraft.world.entity.npc.Villager villager) {
+        if (entity instanceof net.minecraft.world.entity.npc.villager.Villager villager) {
             return new CraftVillager(server, villager);
         }
-        if (entity instanceof net.minecraft.world.entity.npc.AbstractVillager villager) {
+        if (entity instanceof net.minecraft.world.entity.npc.villager.AbstractVillager villager) {
             return new CraftAbstractVillager(server, villager);
         }
-        if (entity instanceof net.minecraft.world.entity.animal.horse.Horse horse) {
+        if (entity instanceof net.minecraft.world.entity.animal.equine.Horse horse) {
             return new CraftHorse(server, horse);
         }
-        if (entity instanceof net.minecraft.world.entity.animal.horse.Donkey donkey) {
+        if (entity instanceof net.minecraft.world.entity.animal.equine.Donkey donkey) {
             return new CraftDonkey(server, donkey);
         }
-        if (entity instanceof net.minecraft.world.entity.animal.horse.Mule mule) {
+        if (entity instanceof net.minecraft.world.entity.animal.equine.Mule mule) {
             return new CraftMule(server, mule);
         }
-        if (entity instanceof net.minecraft.world.entity.animal.horse.SkeletonHorse skeletonHorse) {
+        if (entity instanceof net.minecraft.world.entity.animal.equine.SkeletonHorse skeletonHorse) {
             return new CraftSkeletonHorse(server, skeletonHorse);
         }
-        if (entity instanceof net.minecraft.world.entity.animal.horse.ZombieHorse zombieHorse) {
+        if (entity instanceof net.minecraft.world.entity.animal.equine.ZombieHorse zombieHorse) {
             return new CraftZombieHorse(server, zombieHorse);
         }
-        if (entity instanceof net.minecraft.world.entity.animal.AbstractGolem golem) {
+        if (entity instanceof net.minecraft.world.entity.animal.golem.AbstractGolem golem) {
             return new CraftGolem(server, golem);
         }
-        if (entity instanceof net.minecraft.world.entity.animal.WaterAnimal waterAnimal) {
+        if (entity instanceof net.minecraft.world.entity.animal.fish.WaterAnimal waterAnimal) {
             return new CraftWaterMob(server, waterAnimal);
         }
         if (entity instanceof net.minecraft.world.entity.animal.allay.Allay allay) {
@@ -194,25 +196,25 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
         if (entity instanceof net.minecraft.world.entity.animal.frog.Frog frog) {
             return new CraftFrog(server, frog);
         }
-        if (entity instanceof net.minecraft.world.entity.animal.Bee bee) {
+        if (entity instanceof net.minecraft.world.entity.animal.bee.Bee bee) {
             return new CraftBee(server, bee);
         }
-        if (entity instanceof net.minecraft.world.entity.animal.Cow cow) {
+        if (entity instanceof net.minecraft.world.entity.animal.cow.Cow cow) {
             return new CraftCow(server, cow);
         }
-        if (entity instanceof net.minecraft.world.entity.animal.Sheep sheep) {
+        if (entity instanceof net.minecraft.world.entity.animal.sheep.Sheep sheep) {
             return new CraftSheep(server, sheep);
         }
-        if (entity instanceof net.minecraft.world.entity.animal.Chicken chicken) {
+        if (entity instanceof net.minecraft.world.entity.animal.chicken.Chicken chicken) {
             return new CraftChicken(server, chicken);
         }
-        if (entity instanceof net.minecraft.world.entity.animal.Wolf wolf) {
+        if (entity instanceof net.minecraft.world.entity.animal.wolf.Wolf wolf) {
             return new CraftWolf(server, wolf);
         }
-        if (entity instanceof net.minecraft.world.entity.animal.Cat cat) {
+        if (entity instanceof net.minecraft.world.entity.animal.feline.Cat cat) {
             return new CraftCat(server, cat);
         }
-        if (entity instanceof net.minecraft.world.entity.animal.Pig pig) {
+        if (entity instanceof net.minecraft.world.entity.animal.pig.Pig pig) {
             return new CraftPig(server, pig);
         }
         if (entity instanceof net.minecraft.world.entity.TamableAnimal tameable) {
@@ -247,7 +249,7 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
         if (entity instanceof net.minecraft.world.entity.decoration.ItemFrame itemFrame) {
             return new CraftItemFrame(server, itemFrame);
         }
-        if (entity instanceof net.minecraft.world.entity.decoration.Painting painting) {
+        if (entity instanceof net.minecraft.world.entity.decoration.painting.Painting painting) {
             return new CraftPainting(server, painting);
         }
         if (entity instanceof net.minecraft.world.entity.decoration.LeashFenceKnotEntity leash) {
@@ -328,7 +330,7 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
     @Override
     public @NotNull org.bukkit.entity.EntityType getType() {
         try {
-            net.minecraft.resources.ResourceLocation id = entity.getType().builtInRegistryHolder().key().location();
+            net.minecraft.resources.Identifier id = entity.getType().builtInRegistryHolder().key().identifier();
             org.bukkit.entity.EntityType type = io.lunararcdevs.lunararc.common.server.LunarArcDynamicBukkitEnums.entityType(id);
             return type != null ? type : org.bukkit.entity.EntityType.UNKNOWN;
         } catch (Throwable t) {
@@ -389,7 +391,7 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
     @Override
     public void setVelocity(@NotNull Vector velocity) {
         entity.setDeltaMovement(velocity.getX(), velocity.getY(), velocity.getZ());
-        entity.hasImpulse = true;
+        entity.needsSync = true;
     }
 
     @Override
@@ -464,7 +466,7 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
         net.minecraft.server.level.ServerLevel level = craftWorld.getHandle();
         double x = destination.getX(), y = destination.getY(), z = destination.getZ();
         float yaw = destination.getYaw(), pitch = destination.getPitch();
-        entity.teleportTo(level, x, y, z, Collections.emptySet(), yaw, pitch);
+        entity.teleportTo(level, x, y, z, Collections.emptySet(), yaw, pitch, true);
         return true;
     }
 
@@ -675,7 +677,7 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
     @Override
     public boolean addPassenger(@NotNull org.bukkit.entity.Entity passenger) {
         if (!(passenger instanceof CraftEntity ce)) return false;
-        return ce.entity.startRiding(entity, true);
+        return ce.entity.startRiding(entity, true, true);
     }
 
     @Override
@@ -700,7 +702,7 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
 
     @Override
     public float getFallDistance() {
-        return entity.fallDistance;
+        return (float) entity.fallDistance;
     }
 
     @Override
@@ -726,7 +728,7 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
 
     @Override public boolean isInLava() { return entity.isInLava(); }
     @Override public boolean isInWater() { return entity.isInWater(); }
-    @Override public boolean isInWaterOrRain() { return entity.isInWaterRainOrBubble(); }
+    @Override public boolean isInWaterOrRain() { return entity.isInWaterOrRain(); }
     @Override public boolean isInBubbleColumn() {
         net.minecraft.world.level.Level level = entity.level();
         return level != null && level.getBlockState(entity.blockPosition()).is(net.minecraft.world.level.block.Blocks.BUBBLE_COLUMN);
@@ -736,8 +738,8 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
         net.minecraft.world.level.Level level = entity.level();
         return level != null && level.isRainingAt(entity.blockPosition());
     }
-    @Override public boolean isInWaterOrBubbleColumn() { return entity.isInWaterOrBubble(); }
-    @Override public boolean isInWaterOrRainOrBubbleColumn() { return entity.isInWaterRainOrBubble(); }
+    @Override public boolean isInWaterOrBubbleColumn() { return entity.isInWater(); }
+    @Override public boolean isInWaterOrRainOrBubbleColumn() { return entity.isInWaterOrRain(); }
 
     @Override
     public @NotNull Set<org.bukkit.entity.Player> getTrackedPlayers() {
@@ -794,6 +796,65 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
     }
     @Override public void setSneaking(boolean sneak) { entity.setShiftKeyDown(sneak); }
     @Override public boolean isSneaking() { return entity.isShiftKeyDown(); }
+
+    @Override
+    public boolean isTrackedBy(final org.bukkit.entity.@org.jetbrains.annotations.NotNull Player player) {
+        com.google.common.base.Preconditions.checkArgument(player != null, "Player cannot be null");
+        if (!(this.getWorld() instanceof org.bukkit.craftbukkit.CraftWorld craftWorld)) return false;
+        net.minecraft.server.level.ChunkMap.TrackedEntity tracker =
+                craftWorld.getHandle().getChunkSource().chunkMap.entityMap.get(this.getEntityId());
+        if (tracker == null) return false;
+        return tracker.seenBy.contains(((CraftPlayer) player).getHandle().connection);
+    }
+
+
+    @Override
+    public org.bukkit.inventory.@org.jetbrains.annotations.NotNull ItemStack getPickItemStack() {
+        net.minecraft.world.item.ItemStack stack = this.getHandle().getPickResult();
+        return stack == null || stack.isEmpty() ? org.bukkit.inventory.ItemStack.empty() : org.bukkit.craftbukkit.inventory.CraftItemStack.asBukkitCopy(stack);
+    }
+
+
+    @Override
+    public net.kyori.adventure.util.@NotNull TriState getVisualFire() {
+        return this.bridge().lunararc$getVisualFireState();
+    }
+
+    @Override
+    public void setVisualFire(final net.kyori.adventure.util.@NotNull TriState fire) {
+        this.bridge().lunararc$setVisualFireState(java.util.Objects.requireNonNull(fire, "fire"));
+        entity.setSharedFlagOnFire(this.bridge().lunararc$getRemainingFireTicks() > 0);
+    }
+
+
+    @Override
+    public void lookAt(double x, double y, double z, io.papermc.paper.entity.LookAnchor entityAnchor) {
+        this.getHandle().lookAt(toNmsAnchor(entityAnchor), new net.minecraft.world.phys.Vec3(x, y, z));
+    }
+
+    public static net.minecraft.commands.arguments.EntityAnchorArgument.Anchor toNmsAnchor(io.papermc.paper.entity.LookAnchor anchor) {
+        return switch (anchor) {
+            case EYES -> net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.EYES;
+            case FEET -> net.minecraft.commands.arguments.EntityAnchorArgument.Anchor.FEET;
+        };
+    }
+
+
+    @Override
+    public <T> @org.jetbrains.annotations.Nullable T getData(final io.papermc.paper.datacomponent.DataComponentType.@NotNull Valued<T> type) {
+        return this.entity.get(io.papermc.paper.datacomponent.PaperDataComponentType.bukkitToMinecraft(type));
+    }
+
+    @Override
+    public <T> @org.jetbrains.annotations.Nullable T getDataOrDefault(final io.papermc.paper.datacomponent.DataComponentType.@NotNull Valued<? extends T> type, final @org.jetbrains.annotations.Nullable T fallback) {
+        return this.entity.getOrDefault(io.papermc.paper.datacomponent.PaperDataComponentType.bukkitToMinecraft(type), fallback);
+    }
+
+    @Override
+    public boolean hasData(final io.papermc.paper.datacomponent.@NotNull DataComponentType type) {
+        return this.entity.get(io.papermc.paper.datacomponent.PaperDataComponentType.bukkitToMinecraft(type)) != null;
+    }
+
     @Override public @NotNull Set<org.bukkit.entity.Player> getTrackedBy() { return getTrackedPlayers(); }
     @Override public boolean isVisibleByDefault() { return visibleByDefault; }
     @Override public void setVisibleByDefault(boolean visible) { this.visibleByDefault = visible; }
@@ -832,8 +893,8 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
         for (String line : message) sendMessage(sender, line);
     }
     @Override public void sendMessage(@Nullable UUID sender, @NotNull String message) {
-        entity.sendSystemMessage(io.lunararcdevs.lunararc.common.messaging.LunarArcComponentPipeline.fromLegacy(
-                java.util.Objects.requireNonNull(message, "message")));
+        // Non-player entities have no chat channel, same as Paper's CraftEntity#sendMessage.
+        java.util.Objects.requireNonNull(message, "message");
     }
     @Override public void sendMessage(@NotNull String... message) { sendMessage((UUID) null, message); }
     @Override public void sendMessage(@NotNull String message) { sendMessage((UUID) null, message); }

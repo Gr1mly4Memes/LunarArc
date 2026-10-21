@@ -27,7 +27,7 @@ public final class CraftEntitySnapshot implements EntitySnapshot {
             throw new IllegalArgumentException("World must be backed by LunarArc CraftWorld");
         }
         net.minecraft.world.entity.Entity entity = net.minecraft.world.entity.EntityType.loadEntityRecursive(
-                this.data.copy(), craftWorld.getHandle(), created -> created);
+                this.data.copy(), craftWorld.getHandle(), net.minecraft.world.entity.EntitySpawnReason.LOAD, created -> created);
         if (entity == null) {
             throw new IllegalArgumentException("Error creating entity from snapshot");
         }
@@ -73,10 +73,20 @@ public final class CraftEntitySnapshot implements EntitySnapshot {
         if (tag == null) {
             return null;
         }
-        return net.minecraft.world.entity.EntityType.by(tag)
-                .map(org.bukkit.craftbukkit.entity.CraftEntityType::minecraftToBukkit)
-                .map(type -> create(tag, type))
-                .orElse(null);
+        try (net.minecraft.util.ProblemReporter.ScopedCollector problems = new net.minecraft.util.ProblemReporter.ScopedCollector(
+                () -> "CraftEntitySnapshot.create", org.slf4j.LoggerFactory.getLogger(CraftEntitySnapshot.class))) {
+            return net.minecraft.world.entity.EntityType.by(net.minecraft.world.level.storage.TagValueInput.create(problems, org.bukkit.craftbukkit.CraftRegistry.getMinecraftRegistry(), tag))
+                    .map(type -> {
+                        EntityType bukkit;
+                        try {
+                            bukkit = org.bukkit.craftbukkit.entity.CraftEntityType.minecraftToBukkit(type);
+                        } catch (RuntimeException unknownToBukkit) {
+                            bukkit = null;
+                        }
+                        return create(tag, bukkit != null ? bukkit : EntityType.UNKNOWN);
+                    })
+                    .orElse(null);
+        }
     }
 
     public static @Nullable CraftEntitySnapshot create(CompoundTag tag, EntityType type) {
@@ -95,10 +105,10 @@ public final class CraftEntitySnapshot implements EntitySnapshot {
         tag.remove("WorldUUIDMost");
         tag.remove("WorldUUIDLeast");
         tag.remove("Pos");
-        if (tag.contains("Passengers", 9)) {
-            ListTag passengers = tag.getList("Passengers", 10);
+        if (tag.contains("Passengers")) {
+            ListTag passengers = tag.getListOrEmpty("Passengers");
             for (int i = 0; i < passengers.size(); i++) {
-                stripIdentityAndPosition(passengers.getCompound(i));
+                stripIdentityAndPosition(passengers.getCompoundOrEmpty(i));
             }
         }
     }

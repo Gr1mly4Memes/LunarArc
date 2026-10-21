@@ -15,7 +15,7 @@ import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.tags.EnchantmentTags;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.item.Item;
@@ -48,8 +48,8 @@ public final class CraftItemFactory implements ItemFactory {
     }
 
     private static net.minecraft.world.item.ItemStack prototypeStack(Material material) {
-        Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.get(
-                ResourceLocation.parse(material.getKey().toString()));
+        Item item = net.minecraft.core.registries.BuiltInRegistries.ITEM.getValue(
+                Identifier.parse(material.getKey().toString()));
         return new net.minecraft.world.item.ItemStack(item);
     }
 
@@ -69,7 +69,18 @@ public final class CraftItemFactory implements ItemFactory {
         if (isLeather(material)) return new CraftMetaColorableArmor(prototype);
         if (isArmor(material)) return new CraftMetaArmor(prototype);
         if (material.name().endsWith("_BANNER")) return new CraftMetaBanner(prototype);
-        return new CraftMetaItem(prototype);
+        CraftItemMeta extra = extraMeta(material, prototype);
+        return extra != null ? extra : new CraftMetaItem(prototype);
+    }
+
+    /** Metas for materials whose API sub-interface LunarArc implements through a single data component. */
+    static @Nullable CraftItemMeta extraMeta(Material material, net.minecraft.world.item.ItemStack nms) {
+        if (material == Material.ENCHANTED_BOOK) return new CraftMetaEnchantedBook(nms);
+        if (material == Material.CROSSBOW) return new CraftMetaCrossbow(nms);
+        if (material == Material.COMPASS || material == Material.RECOVERY_COMPASS) return new CraftMetaCompass(nms);
+        if (material == Material.OMINOUS_BOTTLE) return new CraftMetaOminousBottle(nms);
+        if (material.name().endsWith("BUNDLE")) return new CraftMetaBundle(nms);
+        return null;
     }
 
     @Override
@@ -91,6 +102,11 @@ public final class CraftItemFactory implements ItemFactory {
         if (meta instanceof CraftMetaColorableArmor) return isLeather(material);
         if (meta instanceof CraftMetaArmor) return isArmor(material);
         if (meta instanceof CraftMetaBanner) return material.name().endsWith("_BANNER");
+        if (meta instanceof CraftMetaEnchantedBook) return material == Material.ENCHANTED_BOOK;
+        if (meta instanceof CraftMetaCrossbow) return material == Material.CROSSBOW;
+        if (meta instanceof CraftMetaCompass) return material == Material.COMPASS || material == Material.RECOVERY_COMPASS;
+        if (meta instanceof CraftMetaOminousBottle) return material == Material.OMINOUS_BOTTLE;
+        if (meta instanceof CraftMetaBundle) return material.name().endsWith("BUNDLE");
         return true;
     }
 
@@ -118,8 +134,8 @@ public final class CraftItemFactory implements ItemFactory {
         Preconditions.checkArgument(material.isItem(), "%s is not an item", material);
         CraftItemMeta base = CraftItemMeta.copyOf(meta);
         net.minecraft.world.item.ItemStack temp = new net.minecraft.world.item.ItemStack(
-                net.minecraft.core.registries.BuiltInRegistries.ITEM.get(
-                        net.minecraft.resources.ResourceLocation.parse(material.getKey().toString())));
+                net.minecraft.core.registries.BuiltInRegistries.ITEM.getValue(
+                        net.minecraft.resources.Identifier.parse(material.getKey().toString())));
         base.applyToNms(temp);
         if (material == Material.POTION || material == Material.SPLASH_POTION
                 || material == Material.LINGERING_POTION || material == Material.TIPPED_ARROW) return new CraftMetaPotion(temp);
@@ -131,7 +147,8 @@ public final class CraftItemFactory implements ItemFactory {
         if (isLeather(material)) return new CraftMetaColorableArmor(temp);
         if (isArmor(material)) return new CraftMetaArmor(temp);
         if (material.name().endsWith("_BANNER")) return new CraftMetaBanner(temp);
-        return new CraftItemMeta(temp);
+        CraftItemMeta extra = extraMeta(material, temp);
+        return extra != null ? extra : new CraftItemMeta(temp);
     }
 
     static boolean isLeather(Material material) {
@@ -169,12 +186,12 @@ public final class CraftItemFactory implements ItemFactory {
     public @Nullable Material getSpawnEgg(@NotNull EntityType type) {
         Objects.requireNonNull(type, "type");
         if (type == EntityType.UNKNOWN) return null;
-        net.minecraft.world.entity.EntityType<?> nmsType = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.get(
-                ResourceLocation.parse(type.getKey().toString()));
+        net.minecraft.world.entity.EntityType<?> nmsType = net.minecraft.core.registries.BuiltInRegistries.ENTITY_TYPE.getValue(
+                Identifier.parse(type.getKey().toString()));
         if (nmsType == null) return null;
         Item egg = SpawnEggItem.byId(nmsType);
         if (egg == null) return null;
-        ResourceLocation key = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(egg);
+        Identifier key = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(egg);
         return key == null ? null : Material.matchMaterial(key.toString());
     }
 
@@ -204,7 +221,7 @@ public final class CraftItemFactory implements ItemFactory {
         RegistryAccess registryAccess = ((org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer()).getServer().registryAccess();
         Optional<HolderSet.Named<Enchantment>> allowed = allowTreasures
                 ? Optional.empty()
-                : registryAccess.registryOrThrow(Registries.ENCHANTMENT).getTag(EnchantmentTags.IN_ENCHANTING_TABLE);
+                : registryAccess.lookupOrThrow(Registries.ENCHANTMENT).get(EnchantmentTags.IN_ENCHANTING_TABLE);
         net.minecraft.world.item.ItemStack enchanted = EnchantmentHelper.enchantItem(
                 random, CraftItemStack.asNMSCopy(item), level, registryAccess, allowed);
         return CraftItemStack.asCraftMirror(enchanted);
@@ -233,7 +250,7 @@ public final class CraftItemFactory implements ItemFactory {
     public @Nullable String getI18NDisplayName(@Nullable ItemStack item) {
         if (item == null) return null;
         net.minecraft.world.item.ItemStack nms = CraftItemStack.asNMSCopy(item);
-        return nms.isEmpty() ? null : net.minecraft.locale.Language.getInstance().getOrDefault(nms.getItem().getDescriptionId(nms));
+        return nms.isEmpty() ? null : net.minecraft.locale.Language.getInstance().getOrDefault(nms.getItem().getDescriptionId());
     }
 
     @Override
@@ -293,11 +310,11 @@ public final class CraftItemFactory implements ItemFactory {
         Preconditions.checkArgument(levels >= 1 && levels <= 30, "levels must be in range [1, 30]");
 
         RegistryAccess access = ((org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer()).getServer().registryAccess();
-        net.minecraft.core.Registry<Enchantment> registry = access.registryOrThrow(Registries.ENCHANTMENT);
+        net.minecraft.core.Registry<Enchantment> registry = access.lookupOrThrow(Registries.ENCHANTMENT);
         List<Holder<Enchantment>> holders = new ArrayList<>();
         for (io.papermc.paper.registry.TypedKey<org.bukkit.enchantments.Enchantment> typedKey : keySet.values()) {
-            ResourceLocation location = ResourceLocation.fromNamespaceAndPath(typedKey.key().namespace(), typedKey.key().value());
-            registry.getHolder(ResourceKey.create(Registries.ENCHANTMENT, location)).ifPresent(holders::add);
+            Identifier location = Identifier.fromNamespaceAndPath(typedKey.key().namespace(), typedKey.key().value());
+            registry.get(ResourceKey.create(Registries.ENCHANTMENT, location)).ifPresent(holders::add);
         }
         HolderSet<Enchantment> allowed = HolderSet.direct(holders);
         net.minecraft.world.item.ItemStack nms = CraftItemStack.asNMSCopy(itemStack);

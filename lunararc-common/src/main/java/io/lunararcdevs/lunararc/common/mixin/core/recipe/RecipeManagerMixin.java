@@ -1,78 +1,100 @@
 package io.lunararcdevs.lunararc.common.mixin.core.recipe;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableMultimap;
-import com.google.common.collect.LinkedHashMultimap;
-import com.google.common.collect.Multimap;
 import io.lunararcdevs.lunararc.common.bridge.recipe.RecipeManagerBridge;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.crafting.RecipeHolder;
-import net.minecraft.world.item.crafting.RecipeManager;
-import net.minecraft.world.item.crafting.RecipeType;
-import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
-
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.world.flag.FeatureFlagSet;
+import net.minecraft.world.item.crafting.RecipeHolder;
+import net.minecraft.world.item.crafting.RecipeManager;
+import net.minecraft.world.item.crafting.RecipeMap;
+import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
-/** CraftBukkit recipe mutation hooks applied to the real Minecraft RecipeManager. */
+/**
+ * CraftBukkit recipe mutation hooks applied to the real Minecraft RecipeManager. 1.21.2+ keeps all recipes in an
+ * immutable {@link RecipeMap}; every mutation rebuilds the map and re-runs vanilla's recipe finalisation so the
+ * synchronised recipe-book data stays consistent.
+ */
 @Mixin(RecipeManager.class)
 public abstract class RecipeManagerMixin implements RecipeManagerBridge {
-    @Shadow private Multimap<RecipeType<?>, RecipeHolder<?>> byType;
-    @Shadow private Map<ResourceLocation, RecipeHolder<?>> byName;
+    @Shadow public RecipeMap recipes;
+    @Shadow public abstract void finalizeRecipeLoading(FeatureFlagSet enabledFeatures);
 
-    @org.spongepowered.asm.mixin.injection.ModifyVariable(
-            method = "apply(Ljava/util/Map;Lnet/minecraft/server/packs/resources/ResourceManager;Lnet/minecraft/util/profiling/ProfilerFiller;)V",
-            at = @org.spongepowered.asm.mixin.injection.At("HEAD"), argsOnly = true)
-    private Map<ResourceLocation, com.google.gson.JsonElement> lunararc$filterOptionalMarketRecipes(
-            Map<ResourceLocation, com.google.gson.JsonElement> recipes) {
-        var filtered = io.lunararcdevs.lunararc.common.compat.MarketRecipeFilter.filter(
-                recipes, net.minecraft.core.registries.BuiltInRegistries.ITEM::containsKey);
-        int skipped = recipes.size() - filtered.size();
-        if (skipped > 0) org.slf4j.LoggerFactory.getLogger("LunarArc").info(
-                "Skipped {} optional market recipes whose result items are not registered", skipped);
-        return filtered;
+    @Unique private FeatureFlagSet lunararc$featureFlags;
+
+    @Inject(method = "finalizeRecipeLoading(Lnet/minecraft/world/flag/FeatureFlagSet;)V", at = @At("HEAD"))
+    private void lunararc$captureFeatureFlags(FeatureFlagSet enabledFeatures, CallbackInfo ci) {
+        this.lunararc$featureFlags = enabledFeatures;
+    }
+
+    @Unique
+    private void lunararc$refresh() {
+        if (this.lunararc$featureFlags != null) {
+            this.finalizeRecipeLoading(this.lunararc$featureFlags);
+            net.minecraft.server.MinecraftServer server = io.lunararcdevs.lunararc.common.mod.server.LunarArcServer.minecraftServer();
+            if (server != null && server.getPlayerList() != null) server.getPlayerList().reloadResources();
+        }
+    }
+
+    // --- Paper-compatible surface (patched vanilla): Paper classes call these directly ---
+    public void addRecipe(RecipeHolder<?> holder) {
+        this.lunararc$addRecipe(holder);
+    }
+
+    public boolean removeRecipe(ResourceKey<net.minecraft.world.item.crafting.Recipe<?>> key) {
+        return this.lunararc$removeRecipe(key.identifier());
+    }
+
+    public void clearRecipes() {
+        this.lunararc$clearRecipes();
+    }
+
+    public void finalizeRecipeLoading() {
+        this.lunararc$refresh();
     }
 
     @Override
     public synchronized Collection<RecipeHolder<?>> lunararc$recipes() {
-        return new ArrayList<>(this.byName.values());
+        return new ArrayList<>(this.recipes.values());
     }
 
     @Override
-    public synchronized RecipeHolder<?> lunararc$recipe(ResourceLocation id) {
-        return this.byName.get(id);
+    public synchronized RecipeHolder<?> lunararc$recipe(Identifier id) {
+        return this.recipes.byKey(ResourceKey.create(Registries.RECIPE, id));
     }
 
     @Override
     public synchronized boolean lunararc$addRecipe(RecipeHolder<?> recipe) {
-        if (this.byName.containsKey(recipe.id())) return false;
-        Multimap<RecipeType<?>, RecipeHolder<?>> mutableByType = LinkedHashMultimap.create(this.byType);
-        Map<ResourceLocation, RecipeHolder<?>> mutableByName = new HashMap<>(this.byName);
-        mutableByType.put(recipe.value().getType(), recipe);
-        mutableByName.put(recipe.id(), recipe);
-        this.byType = ImmutableMultimap.copyOf(mutableByType);
-        this.byName = ImmutableMap.copyOf(mutableByName);
+        if (this.recipes.byKey.containsKey(recipe.id())) return false;
+        List<RecipeHolder<?>> all = new ArrayList<>(this.recipes.values());
+        all.add(recipe);
+        this.recipes = RecipeMap.create(all);
+        this.lunararc$refresh();
         return true;
     }
 
     @Override
-    public synchronized boolean lunararc$removeRecipe(ResourceLocation id) {
-        if (!this.byName.containsKey(id)) return false;
-        Multimap<RecipeType<?>, RecipeHolder<?>> mutableByType = LinkedHashMultimap.create(this.byType);
-        Map<ResourceLocation, RecipeHolder<?>> mutableByName = new HashMap<>(this.byName);
-        mutableByType.values().removeIf(holder -> holder.id().equals(id));
-        mutableByName.remove(id);
-        this.byType = ImmutableMultimap.copyOf(mutableByType);
-        this.byName = ImmutableMap.copyOf(mutableByName);
+    public synchronized boolean lunararc$removeRecipe(Identifier id) {
+        ResourceKey<net.minecraft.world.item.crafting.Recipe<?>> key = ResourceKey.create(Registries.RECIPE, id);
+        if (!this.recipes.byKey.containsKey(key)) return false;
+        List<RecipeHolder<?>> all = new ArrayList<>(this.recipes.values());
+        all.removeIf(holder -> holder.id().equals(key));
+        this.recipes = RecipeMap.create(all);
+        this.lunararc$refresh();
         return true;
     }
 
     @Override
     public synchronized void lunararc$clearRecipes() {
-        this.byType = ImmutableMultimap.of();
-        this.byName = ImmutableMap.of();
+        this.recipes = RecipeMap.create(List.of());
+        this.lunararc$refresh();
     }
 }

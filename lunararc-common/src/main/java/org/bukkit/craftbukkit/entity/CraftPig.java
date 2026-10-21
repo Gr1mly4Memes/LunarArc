@@ -7,12 +7,12 @@ import org.bukkit.craftbukkit.CraftServer;
 import org.bukkit.entity.Pig;
 
 public final class CraftPig extends CraftAnimals implements Pig {
-    public CraftPig(CraftServer server, net.minecraft.world.entity.animal.Pig entity) {
+    public CraftPig(CraftServer server, net.minecraft.world.entity.animal.pig.Pig entity) {
         super(server, entity);
     }
 
-    @Override public net.minecraft.world.entity.animal.Pig getHandle() {
-        return (net.minecraft.world.entity.animal.Pig) this.entity;
+    @Override public net.minecraft.world.entity.animal.pig.Pig getHandle() {
+        return (net.minecraft.world.entity.animal.pig.Pig) this.entity;
     }
 
     private net.minecraft.world.entity.ItemBasedSteering steering() {
@@ -24,7 +24,37 @@ public final class CraftPig extends CraftAnimals implements Pig {
     }
 
     @Override public boolean hasSaddle() { return getHandle().isSaddled(); }
-    @Override public void setSaddle(boolean saddled) { steering().setSaddle(saddled); }
+    @Override public void setSaddle(boolean saddled) {
+        getHandle().setItemSlot(net.minecraft.world.entity.EquipmentSlot.SADDLE,
+                saddled ? new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.SADDLE) : net.minecraft.world.item.ItemStack.EMPTY);
+    }
+
+    @Override
+    public Variant getVariant() {
+        return CraftVariant.minecraftHolderToBukkit(this.getHandle().getVariant());
+    }
+
+    @Override
+    public void setVariant(Variant variant) {
+        com.google.common.base.Preconditions.checkArgument(variant != null, "variant cannot be null");
+        this.getHandle().setVariant(CraftVariant.bukkitToMinecraftHolder(variant));
+    }
+
+    public static class CraftVariant extends io.papermc.paper.registry.HolderableBase<net.minecraft.world.entity.animal.pig.PigVariant> implements Variant {
+
+        public static Variant minecraftHolderToBukkit(net.minecraft.core.Holder<net.minecraft.world.entity.animal.pig.PigVariant> minecraft) {
+            return org.bukkit.craftbukkit.CraftRegistry.minecraftHolderToBukkit(minecraft, net.minecraft.core.registries.Registries.PIG_VARIANT);
+        }
+
+        public static net.minecraft.core.Holder<net.minecraft.world.entity.animal.pig.PigVariant> bukkitToMinecraftHolder(Variant bukkit) {
+            return org.bukkit.craftbukkit.CraftRegistry.bukkitToMinecraftHolder(bukkit);
+        }
+
+        public CraftVariant(final net.minecraft.core.Holder<net.minecraft.world.entity.animal.pig.PigVariant> holder) {
+            super(holder);
+        }
+    }
+
 
     @Override
     public int getBoostTicks() {

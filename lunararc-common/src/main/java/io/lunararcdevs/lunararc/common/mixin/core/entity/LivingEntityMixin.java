@@ -10,7 +10,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 import net.kyori.adventure.util.TriState;
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.LivingEntity;
 import org.bukkit.craftbukkit.event.CraftEventFactory;
@@ -24,6 +23,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityMixin implements LivingEntityBridge {
+    /** Paper compatibility: Paper classes (for example the combat tracker wrapper) call this patched accessor. */
+    public org.bukkit.craftbukkit.entity.CraftLivingEntity getBukkitLivingEntity() {
+        return (org.bukkit.craftbukkit.entity.CraftLivingEntity) ((io.lunararcdevs.lunararc.common.bridge.EntityBridge) this).lunararc$getBukkitEntity();
+    }
+
     @org.spongepowered.asm.mixin.Shadow @org.spongepowered.asm.mixin.Final private static net.minecraft.network.syncher.EntityDataAccessor<Integer> DATA_ARROW_COUNT_ID;
     @org.spongepowered.asm.mixin.Shadow @org.spongepowered.asm.mixin.Final private static int LIVING_ENTITY_FLAG_SPIN_ATTACK;
     @org.spongepowered.asm.mixin.Shadow private static byte entityEventForEquipmentBreak(net.minecraft.world.entity.EquipmentSlot slot) { throw new AssertionError(); }
@@ -155,14 +159,6 @@ public abstract class LivingEntityMixin implements LivingEntityBridge {
             net.minecraft.world.entity.Entity source,
             Operation<Boolean> original) {
         LivingEntity entity = (LivingEntity) (Object) this;
-        // Structure/entity-spawn generation genuinely runs on worker threads even in vanilla
-        // (confirmed by a real crash: ChunkGenerationTask -> StructureTemplate.addEntitiesToWorld
-        // -> a mod's spawn-time potion-effect application -> this method, all on a
-        // ForkJoinWorkerThread). PaperEventManager correctly refuses to fire a synchronous event
-        // off the main thread (that's real, correct Paper safety behavior, not a bug) — so this
-        // must not even attempt to fire the event in that case. Falling through to the real
-        // vanilla/modded behavior unmodified, same as the existing suppressed/client-side cases
-        // below, rather than crashing the whole chunk generation task.
         if (this.lunararc$suppressEffectEvent || entity.level().isClientSide || !org.bukkit.Bukkit.isPrimaryThread()) {
             return original.call(incoming, source);
         }
@@ -219,8 +215,8 @@ public abstract class LivingEntityMixin implements LivingEntityBridge {
 
     @ModifyExpressionValue(
             method = "tickEffects",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/effect/MobEffectInstance;tick(Lnet/minecraft/world/entity/LivingEntity;Ljava/lang/Runnable;)Z"),
-            require = 0)
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/effect/MobEffectInstance;tickServer(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/entity/LivingEntity;Ljava/lang/Runnable;)Z"),
+            require = 1)
     private boolean lunararc$effectExpiration(
             boolean stillActive,
             @Local net.minecraft.world.effect.MobEffectInstance effect) {
@@ -238,22 +234,17 @@ public abstract class LivingEntityMixin implements LivingEntityBridge {
         return event.isCancelled();
     }
 
-    @WrapOperation(
-            method = "checkTotemDeathProtection",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;removeAllEffects()Z"),
-            require = 0)
-    private boolean lunararc$totemClearCause(LivingEntity entity, Operation<Boolean> original) {
-        return ((LivingEntityBridge) entity).lunararc$removeAllEffects(
-                org.bukkit.event.entity.EntityPotionEffectEvent.Cause.TOTEM);
-    }
-
-    @Inject(
-            method = "checkTotemDeathProtection",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;addEffect(Lnet/minecraft/world/effect/MobEffectInstance;)Z"),
-            require = 0)
-    private void lunararc$totemAddCause(
-            DamageSource source, CallbackInfoReturnable<Boolean> cir) {
-        this.lunararc$pushEffectCause(org.bukkit.event.entity.EntityPotionEffectEvent.Cause.TOTEM);
+    /** The totem's consume effects (clear effects, regeneration...) run through DeathProtection#applyEffects. */
+    @WrapOperation(method = "checkTotemDeathProtection", require = 1,
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/item/component/DeathProtection;applyEffects(Lnet/minecraft/world/item/ItemStack;Lnet/minecraft/world/entity/LivingEntity;)V"))
+    private void lunararc$totemEffects(net.minecraft.world.item.component.DeathProtection protection, net.minecraft.world.item.ItemStack stack,
+            LivingEntity entity, Operation<Void> original) {
+        io.lunararcdevs.lunararc.common.util.LunarArcEffectContext.totem(true);
+        try {
+            original.call(protection, stack, entity);
+        } finally {
+            io.lunararcdevs.lunararc.common.util.LunarArcEffectContext.totem(false);
+        }
     }
 
     @WrapOperation(
@@ -308,46 +299,70 @@ public abstract class LivingEntityMixin implements LivingEntityBridge {
         }
     }
 
-    @Inject(method = "addAdditionalSaveData", at = @At("TAIL"), require = 0)
-    private void lunararc$saveLivingState(CompoundTag tag, CallbackInfo ci) {
+    @Inject(method = "addAdditionalSaveData", at = @At("TAIL"), require = 1)
+    private void lunararc$saveLivingState(net.minecraft.world.level.storage.ValueOutput output, CallbackInfo ci) {
         if (lunararc$frictionState != TriState.NOT_SET) {
-            tag.putString("Paper.FrictionState", lunararc$frictionState.toString());
+            output.putString("Paper.FrictionState", lunararc$frictionState.toString());
         }
         if (lunararc$maximumAirOverride >= 0) {
-            tag.putInt("Bukkit.MaxAirSupply", lunararc$maximumAirOverride);
+            output.putInt("Bukkit.MaxAirSupply", lunararc$maximumAirOverride);
         }
         if (!lunararc$collidable) {
-            tag.putBoolean("Bukkit.Collidable", false);
+            output.putBoolean("Bukkit.Collidable", false);
         }
         if (lunararc$bukkitCanPickupItems) {
-            tag.putBoolean("Bukkit.PickupLoot", true);
+            output.putBoolean("Bukkit.PickupLoot", true);
         }
     }
 
-    @Inject(method = "readAdditionalSaveData", at = @At("TAIL"), require = 0)
-    private void lunararc$loadLivingState(CompoundTag tag, CallbackInfo ci) {
-        if (tag.contains("Paper.FrictionState")) {
+    @Inject(method = "readAdditionalSaveData", at = @At("TAIL"), require = 1)
+    private void lunararc$loadLivingState(net.minecraft.world.level.storage.ValueInput input, CallbackInfo ci) {
+        lunararc$frictionState = TriState.NOT_SET;
+        input.getString("Paper.FrictionState").ifPresent(name -> {
             try {
-                lunararc$frictionState = TriState.valueOf(tag.getString("Paper.FrictionState"));
+                lunararc$frictionState = TriState.valueOf(name);
             } catch (IllegalArgumentException ignored) {
                 lunararc$frictionState = TriState.NOT_SET;
             }
-        }
-        lunararc$maximumAirOverride = tag.contains("Bukkit.MaxAirSupply") ? Math.max(0, tag.getInt("Bukkit.MaxAirSupply")) : -1;
-        lunararc$collidable = !tag.contains("Bukkit.Collidable") || tag.getBoolean("Bukkit.Collidable");
-        lunararc$bukkitCanPickupItems = tag.getBoolean("Bukkit.PickupLoot");
+        });
+        lunararc$maximumAirOverride = input.getInt("Bukkit.MaxAirSupply").map(v -> Math.max(0, v)).orElse(-1);
+        lunararc$collidable = input.getBooleanOr("Bukkit.Collidable", true);
+        lunararc$bukkitCanPickupItems = input.getBooleanOr("Bukkit.PickupLoot", false);
     }
 
-    @WrapMethod(method = "hurt")
-    private boolean lunararc$onDamage(DamageSource source, float amount, Operation<Boolean> original) {
+    /** Paper's ArmorStand#canTick: ArmorStand no longer overrides tick(), so gate it from the shared LivingEntity#tick. */
+    @Inject(method = "tick", at = @At("HEAD"), cancellable = true, require = 1)
+    private void lunararc$armorStandTickGate(CallbackInfo ci) {
+        if (this instanceof io.lunararcdevs.lunararc.common.bridge.entity.ArmorStandTickBridge gate && !gate.lunararc$shouldTick()) ci.cancel();
+    }
+
+    @Unique private int lunararc$invulnerableDuration = 20;
+
+    @Override public int lunararc$getInvulnerableDuration() { return this.lunararc$invulnerableDuration; }
+    @Override public void lunararc$setInvulnerableDuration(int ticks) { this.lunararc$invulnerableDuration = ticks; }
+
+    /** CraftBukkit's maximumNoDamageTicks: the half-way "recently hurt" threshold... */
+    @org.spongepowered.asm.mixin.injection.ModifyConstant(method = "hurtServer", constant = @org.spongepowered.asm.mixin.injection.Constant(floatValue = 10.0F, ordinal = 0))
+    private float lunararc$halfInvulnerableDuration(float vanilla) {
+        return (float) this.lunararc$invulnerableDuration / 2.0F;
+    }
+
+    /** ...and the invulnerability a successful hit grants. */
+    // NeoForge replaces this constant with DamageContainer#getPostAttackInvulnerabilityTicks (handled in its own mixin), hence optional.
+    @org.spongepowered.asm.mixin.injection.ModifyConstant(method = "hurtServer", constant = @org.spongepowered.asm.mixin.injection.Constant(intValue = 20), require = 0)
+    private int lunararc$invulnerableDuration(int vanilla) {
+        return this.lunararc$invulnerableDuration;
+    }
+
+    @WrapMethod(method = "hurtServer")
+    private boolean lunararc$onDamage(net.minecraft.server.level.ServerLevel level, DamageSource source, float amount, Operation<Boolean> original) {
         LivingEntity entity = (LivingEntity) (Object) this;
 
-        if (entity.level().isClientSide
-                || entity.isDeadOrDying()
-                || entity.isInvulnerableTo(source)
+        if (entity.isDeadOrDying()
+                || entity.isInvulnerableTo(level, source)
                 || (source.is(net.minecraft.tags.DamageTypeTags.IS_FIRE)
                     && entity.hasEffect(net.minecraft.world.effect.MobEffects.FIRE_RESISTANCE))) {
-            return original.call(source, amount);
+            return original.call(level, source, amount);
         }
 
         EntityDamageEvent event = CraftEventFactory.callEntityDamageEvent(entity, source, amount);
@@ -355,7 +370,7 @@ public abstract class LivingEntityMixin implements LivingEntityBridge {
 
         double adjusted = event.getFinalDamage();
         if (!Double.isFinite(adjusted)) adjusted = 0.0D;
-        return original.call(source, (float) Math.max(0.0D, adjusted));
+        return original.call(level, source, (float) Math.max(0.0D, adjusted));
     }
 
     @org.spongepowered.asm.mixin.Shadow protected boolean dead;
@@ -409,7 +424,7 @@ public abstract class LivingEntityMixin implements LivingEntityBridge {
         java.util.List<org.bukkit.inventory.ItemStack> finalDrops = event == null ? drops : event.getDrops();
         for (org.bukkit.inventory.ItemStack drop : finalDrops) {
             if (drop == null || drop.getType().isAir() || drop.getAmount() <= 0) continue;
-            entity.spawnAtLocation(org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(drop));
+            if (entity.level() instanceof net.minecraft.server.level.ServerLevel dropLevel) entity.spawnAtLocation(dropLevel, org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(drop));
         }
         int exp = event == null ? capture.exp : event.getDroppedExp();
         if (dragonBase > 0) {

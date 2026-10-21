@@ -157,7 +157,7 @@ public class CraftAttributeInstance implements org.bukkit.attribute.AttributeIns
                     return constructor.newInstance(key, modifier.getAmount(), operation);
                 }
             }
-            throw new NoSuchMethodException("AttributeModifier(ResourceLocation,double,Operation)");
+            throw new NoSuchMethodException("AttributeModifier(Identifier,double,Operation)");
         } catch (ReflectiveOperationException e) {
             throw new IllegalStateException("Unable to convert Bukkit AttributeModifier to Minecraft 1.21.1", e);
         }
@@ -186,7 +186,7 @@ public class CraftAttributeInstance implements org.bukkit.attribute.AttributeIns
         // "parse"/"tryParse" are Mojang names - on Fabric/Quilt this class is loaded under its
         // Intermediary name, so a raw Class.getMethod(literal name) never finds them there. Route
         // through the reflection bridge, which maps the name for whichever runtime this is.
-        Class<?> resourceLocation = io.lunararcdevs.lunararc.common.mod.LunarArcReflectionBridge.forName("net.minecraft.resources.ResourceLocation");
+        Class<?> resourceLocation = io.lunararcdevs.lunararc.common.mod.LunarArcReflectionBridge.forName("net.minecraft.resources.Identifier");
         try {
             return io.lunararcdevs.lunararc.common.mod.LunarArcReflectionBridge
                     .getMethod(resourceLocation, "parse", new Class<?>[]{String.class}).invoke(null, key);

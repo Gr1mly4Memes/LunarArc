@@ -1,10 +1,10 @@
 package io.lunararcdevs.lunararc.common.bridge;
 
-import net.minecraft.world.level.portal.DimensionTransition;
+import net.minecraft.world.level.portal.TeleportTransition;
 
-/** Narrow vanilla 1.21.1 respawn bridge implemented by ServerPlayerMixin. */
+/** Narrow vanilla 1.21.11 respawn bridge implemented by ServerPlayerMixin. */
 public interface ServerPlayerRespawnBridge {
-    DimensionTransition lunararc$findRespawnPositionAndUseSpawnBlock(
+    TeleportTransition lunararc$findRespawnPositionAndUseSpawnBlock(
             boolean keepEverything,
-            DimensionTransition.PostDimensionTransition postTransition);
+            TeleportTransition.PostTeleportTransition postTransition);
 }

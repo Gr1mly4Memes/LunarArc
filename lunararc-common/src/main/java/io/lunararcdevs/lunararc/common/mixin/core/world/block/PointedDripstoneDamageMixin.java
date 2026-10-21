@@ -15,8 +15,8 @@ import org.spongepowered.asm.mixin.injection.At;
 @Mixin(PointedDripstoneBlock.class)
 public abstract class PointedDripstoneDamageMixin {
     @WrapOperation(method = "fallOn", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/world/entity/Entity;causeFallDamage(FFLnet/minecraft/world/damagesource/DamageSource;)Z"))
-    private boolean lunararc$blockDamage(Entity entity, float distance, float multiplier, DamageSource source, Operation<Boolean> original,
+            target = "Lnet/minecraft/world/entity/Entity;causeFallDamage(DFLnet/minecraft/world/damagesource/DamageSource;)Z"))
+    private boolean lunararc$blockDamage(Entity entity, double distance, float multiplier, DamageSource source, Operation<Boolean> original,
             @Local(argsOnly = true) BlockPos pos, @Local(argsOnly = true) BlockState state) {
         CraftEventFactory.damagingBlockPos = pos;
         CraftEventFactory.damagingBlockState = state;

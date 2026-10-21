@@ -44,7 +44,7 @@ public abstract class AnimalMixin implements AnimalBridge {
             return;
         }
         this.lunararc$loveTicks = Math.max(0, event.getTicksInLove());
-        this.lunararc$breedItem = player == null ? ItemStack.EMPTY : player.getInventory().getSelected().copy();
+        this.lunararc$breedItem = player == null ? ItemStack.EMPTY : player.getInventory().getSelectedItem().copy();
     }
 
     @ModifyConstant(method = "setInLove", constant = @Constant(intValue = 600), require = 0)

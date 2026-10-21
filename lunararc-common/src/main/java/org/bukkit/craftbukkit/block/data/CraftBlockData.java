@@ -5,7 +5,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.util.StringRepresentable;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
@@ -32,6 +32,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.Set;
 
 public class CraftBlockData implements BlockData {
+    public static final BlockFace[] ROTATION_CYCLE = {
+        BlockFace.SOUTH, BlockFace.SOUTH_SOUTH_WEST, BlockFace.SOUTH_WEST, BlockFace.WEST_SOUTH_WEST,
+        BlockFace.WEST, BlockFace.WEST_NORTH_WEST, BlockFace.NORTH_WEST, BlockFace.NORTH_NORTH_WEST,
+        BlockFace.NORTH, BlockFace.NORTH_NORTH_EAST, BlockFace.NORTH_EAST, BlockFace.EAST_NORTH_EAST,
+        BlockFace.EAST, BlockFace.EAST_SOUTH_EAST, BlockFace.SOUTH_EAST, BlockFace.SOUTH_SOUTH_EAST
+    };
+
     private BlockState state;
     private Set<String> parsedProperties;
 
@@ -252,7 +259,11 @@ public class CraftBlockData implements BlockData {
 
     private static CraftBlockData createConcreteData(BlockState state) {
         ensureGeneratedImplementationsLoaded();
-        Constructor<? extends CraftBlockData> constructor = GENERATED_IMPLEMENTATIONS.get(state.getBlock().getClass());
+        // modded blocks usually extend a vanilla class, so walk up to the nearest block class that has an implementation
+        Constructor<? extends CraftBlockData> constructor = null;
+        for (Class<?> type = state.getBlock().getClass(); type != null && type != Object.class && constructor == null; type = type.getSuperclass()) {
+            constructor = GENERATED_IMPLEMENTATIONS.get(type);
+        }
         if (constructor == null) return new CraftBlockData(state);
         try {
             return constructor.newInstance(state);
@@ -312,9 +323,9 @@ public class CraftBlockData implements BlockData {
         }
         if (keyText.isEmpty()) throw new IllegalArgumentException("Missing block name in " + input);
 
-        ResourceLocation key;
+        Identifier key;
         try {
-            key = keyText.indexOf(':') >= 0 ? ResourceLocation.parse(keyText) : ResourceLocation.withDefaultNamespace(keyText);
+            key = keyText.indexOf(':') >= 0 ? Identifier.parse(keyText) : Identifier.withDefaultNamespace(keyText);
         } catch (RuntimeException ex) {
             throw new IllegalArgumentException("Invalid block name: " + keyText, ex);
         }
@@ -322,7 +333,7 @@ public class CraftBlockData implements BlockData {
             throw new IllegalArgumentException("Unknown block: " + key);
         }
 
-        net.minecraft.world.level.block.Block block = BuiltInRegistries.BLOCK.get(key);
+        net.minecraft.world.level.block.Block block = BuiltInRegistries.BLOCK.getValue(key);
         BlockState state = block.defaultBlockState();
         Set<String> parsed = new LinkedHashSet<>();
         if (propertiesText != null && !propertiesText.isEmpty()) {
@@ -365,13 +376,13 @@ public class CraftBlockData implements BlockData {
     }
 
     private static net.minecraft.world.level.block.Block blockForMaterial(Material material) {
-        ResourceLocation key = ResourceLocation.fromNamespaceAndPath(material.getKey().getNamespace(), material.getKey().getKey());
+        Identifier key = Identifier.fromNamespaceAndPath(material.getKey().getNamespace(), material.getKey().getKey());
         if (!BuiltInRegistries.BLOCK.containsKey(key)) throw new IllegalArgumentException("Material is not a registered block: " + material);
-        return BuiltInRegistries.BLOCK.get(key);
+        return BuiltInRegistries.BLOCK.getValue(key);
     }
 
     @SuppressWarnings({"rawtypes", "unchecked"})
-    private static BlockState setPropertyValue(BlockState state, Property property, String rawValue, ResourceLocation key) {
+    private static BlockState setPropertyValue(BlockState state, Property property, String rawValue, Identifier key) {
         java.util.Optional value = property.getValue(rawValue);
         if (value.isEmpty()) {
             throw new IllegalArgumentException("Invalid value '" + rawValue + "' for property '" + property.getName() + "' on " + key);
@@ -386,7 +397,7 @@ public class CraftBlockData implements BlockData {
 
     @Override
     public @NotNull String getAsString() {
-        ResourceLocation key = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+        Identifier key = BuiltInRegistries.BLOCK.getKey(state.getBlock());
         if (key == null) throw new IllegalStateException("NMS block is not registered: " + state.getBlock());
         String base = key.toString();
         net.minecraft.world.level.block.state.StateDefinition<net.minecraft.world.level.block.Block,
@@ -412,7 +423,7 @@ public class CraftBlockData implements BlockData {
     @Override
     public @NotNull String getAsString(boolean hideUnspecified) {
         if (!hideUnspecified || parsedProperties == null) return getAsString();
-        ResourceLocation key = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+        Identifier key = BuiltInRegistries.BLOCK.getKey(state.getBlock());
         if (key == null) throw new IllegalStateException("NMS block is not registered: " + state.getBlock());
         if (parsedProperties.isEmpty()) return key.toString();
         StringBuilder out = new StringBuilder(key.toString()).append('[');
@@ -651,5 +662,10 @@ public class CraftBlockData implements BlockData {
         }
 
         return states;
+    }
+
+    @Override
+    public boolean isReplaceable() {
+        return this.state.canBeReplaced();
     }
 }

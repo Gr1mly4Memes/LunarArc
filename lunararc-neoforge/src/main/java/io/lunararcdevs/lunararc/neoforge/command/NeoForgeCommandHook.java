@@ -41,7 +41,7 @@ public final class NeoForgeCommandHook {
 
     private static CommandSourceStack source(CommandSender sender) {
         if (sender instanceof CraftEntity craftEntity) {
-            return craftEntity.getHandle().createCommandSourceStack();
+            return (craftEntity.getHandle() instanceof net.minecraft.server.level.ServerPlayer sp ? sp.createCommandSourceStack() : craftEntity.getHandle().createCommandSourceStackForNameResolution((net.minecraft.server.level.ServerLevel) craftEntity.getHandle().level()));
         }
         if (sender == Bukkit.getConsoleSender()) {
             return LunarArcServer.requireMinecraftServer().createCommandSourceStack();

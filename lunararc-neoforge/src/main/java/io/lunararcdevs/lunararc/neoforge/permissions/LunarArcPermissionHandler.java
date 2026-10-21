@@ -1,6 +1,6 @@
 package io.lunararcdevs.lunararc.neoforge.permissions;
 
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.server.permission.handler.IPermissionHandler;
 import net.neoforged.neoforge.server.permission.nodes.PermissionNode;
@@ -23,8 +23,8 @@ public class LunarArcPermissionHandler implements IPermissionHandler {
     }
 
     @Override
-    public @NotNull ResourceLocation getIdentifier() {
-        return ResourceLocation.fromNamespaceAndPath("lunararc", "bukkit");
+    public @NotNull Identifier getIdentifier() {
+        return Identifier.fromNamespaceAndPath("lunararc", "bukkit");
     }
 
     @Override

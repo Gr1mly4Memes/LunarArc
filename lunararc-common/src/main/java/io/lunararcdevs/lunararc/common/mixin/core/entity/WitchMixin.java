@@ -1,7 +1,7 @@
 package io.lunararcdevs.lunararc.common.mixin.core.entity;
 
 import io.lunararcdevs.lunararc.common.bridge.EntityBridge;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.sounds.SoundEvents;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.ai.attributes.AttributeModifier;
@@ -16,7 +16,7 @@ import org.spongepowered.asm.mixin.Shadow;
 @Mixin(Witch.class)
 public abstract class WitchMixin {
     @Shadow private int usingTime;
-    @Shadow @Final private static ResourceLocation SPEED_MODIFIER_DRINKING_ID;
+    @Shadow @Final private static Identifier SPEED_MODIFIER_DRINKING_ID;
     @Shadow @Final private static AttributeModifier SPEED_MODIFIER_DRINKING;
 
     public void setDrinkingPotion(ItemStack potion) {

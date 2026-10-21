@@ -14,11 +14,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(EnderDragonPhaseManager.class)
 public abstract class MoreMobEvents_DragonPhaseMixin {
     @Shadow @Final private EnderDragon dragon;
-    @Shadow public abstract net.minecraft.world.entity.boss.enderdragon.phases.DragonPhaseInstance getCurrentPhase();
+    @Shadow private net.minecraft.world.entity.boss.enderdragon.phases.DragonPhaseInstance currentPhase;
 
     @Inject(method = "setPhase", at = @At("HEAD"), cancellable = true, require = 0)
     private void lunararc$phase(EnderDragonPhase<?> phase, CallbackInfo ci) {
-        if (this.getCurrentPhase() == null) return;
-        if (!LunarArcMoreEvents.dragonPhase(this.dragon, this.getCurrentPhase().getPhase().getId(), phase.getId())) ci.cancel();
+        // currentPhase is still null while the constructor sets the initial phase; getCurrentPhase() would throw
+        if (this.currentPhase == null) return;
+        if (!LunarArcMoreEvents.dragonPhase(this.dragon, this.currentPhase.getPhase().getId(), phase.getId())) ci.cancel();
     }
 }

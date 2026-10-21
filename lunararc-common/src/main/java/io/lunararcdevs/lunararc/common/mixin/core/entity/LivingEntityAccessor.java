@@ -30,20 +30,18 @@ public interface LivingEntityAccessor extends io.lunararcdevs.lunararc.common.br
     @Accessor("jumping") boolean lunararc$isJumping();
     @Accessor("jumping") void lunararc$setJumping(boolean jumping);
 
-    @Accessor("invulnerableDuration") int lunararc$getInvulnerableDuration();
-    @Accessor("invulnerableDuration") void lunararc$setInvulnerableDuration(int ticks);
 
     @Accessor("lastHurt") float lunararc$getLastHurt();
     @Accessor("lastHurt") void lunararc$setLastHurt(float damage);
 
-    @Accessor("lastHurtByPlayer") net.minecraft.world.entity.player.Player lunararc$getLastHurtByPlayer();
-    @Accessor("lastHurtByPlayer") void lunararc$setLastHurtByPlayer(net.minecraft.world.entity.player.Player player);
+    @Accessor("lastHurtByPlayer") net.minecraft.world.entity.EntityReference<net.minecraft.world.entity.player.Player> lunararc$getLastHurtByPlayer();
+    @Accessor("lastHurtByPlayer") void lunararc$setLastHurtByPlayer(net.minecraft.world.entity.EntityReference<net.minecraft.world.entity.player.Player> player);
 
-    @Accessor("lastHurtByMob") net.minecraft.world.entity.LivingEntity lunararc$getLastHurtByMob();
-    @Accessor("lastHurtByMob") void lunararc$setLastHurtByMob(net.minecraft.world.entity.LivingEntity entity);
+    @Accessor("lastHurtByMob") net.minecraft.world.entity.EntityReference<net.minecraft.world.entity.LivingEntity> lunararc$getLastHurtByMob();
+    @Accessor("lastHurtByMob") void lunararc$setLastHurtByMob(net.minecraft.world.entity.EntityReference<net.minecraft.world.entity.LivingEntity> entity);
 
-    @Accessor("lastHurtByPlayerTime") int lunararc$getLastHurtByPlayerTime();
-    @Accessor("lastHurtByPlayerTime") void lunararc$setLastHurtByPlayerTime(int ticks);
+    @Accessor("lastHurtByPlayerMemoryTime") int lunararc$getLastHurtByPlayerTime();
+    @Accessor("lastHurtByPlayerMemoryTime") void lunararc$setLastHurtByPlayerTime(int ticks);
 
     @Accessor("LIVING_ENTITY_FLAG_SPIN_ATTACK")
     static int lunararc$getSpinAttackFlag() { throw new AssertionError(); }
@@ -64,12 +62,6 @@ public interface LivingEntityAccessor extends io.lunararcdevs.lunararc.common.br
 
     @Invoker("getDeathSound")
     net.minecraft.sounds.SoundEvent lunararc$invokeGetDeathSound();
-
-    @Invoker("getDrinkingSound")
-    net.minecraft.sounds.SoundEvent lunararc$invokeGetDrinkingSound(net.minecraft.world.item.ItemStack stack);
-
-    @Invoker("getEatingSound")
-    net.minecraft.sounds.SoundEvent lunararc$invokeGetEatingSound(net.minecraft.world.item.ItemStack stack);
 
     @Invoker("getFallDamageSound")
     net.minecraft.sounds.SoundEvent lunararc$invokeGetFallDamageSound(int fallHeight);

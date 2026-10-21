@@ -136,7 +136,7 @@ public final class LunarArcBlockCapture {
 
     private static TreeType treeType(ResourceKey<ConfiguredFeature<?, ?>> feature) {
         if (feature == null) return TreeType.TREE;
-        String path = feature.location().getPath();
+        String path = feature.identifier().getPath();
         int bees = path.indexOf("_bees");
         if (bees >= 0) path = path.substring(0, bees);
         return switch (path) {

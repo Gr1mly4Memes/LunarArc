@@ -10,10 +10,10 @@ import java.util.Objects;
 import java.util.UUID;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.Registries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.ai.gossip.GossipContainer;
 import net.minecraft.world.entity.ai.gossip.GossipType;
-import net.minecraft.world.entity.npc.VillagerTrades;
+import net.minecraft.world.entity.npc.villager.VillagerTrades;
 import org.bukkit.Location;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Registry;
@@ -22,15 +22,14 @@ import org.bukkit.entity.Villager;
 import org.bukkit.entity.ZombieVillager;
 
 public final class CraftVillager extends CraftAbstractVillager implements Villager {
-    public CraftVillager(CraftServer server, net.minecraft.world.entity.npc.Villager entity) { super(server, entity); }
-    @Override public net.minecraft.world.entity.npc.Villager getHandle() { return (net.minecraft.world.entity.npc.Villager) this.entity; }
+    public CraftVillager(CraftServer server, net.minecraft.world.entity.npc.villager.Villager entity) { super(server, entity); }
+    @Override public net.minecraft.world.entity.npc.villager.Villager getHandle() { return (net.minecraft.world.entity.npc.villager.Villager) this.entity; }
     private VillagerBridge concreteVillagerBridge() { return (VillagerBridge) (Object) getHandle(); }
 
     @Override
     public Profession getProfession() {
-        net.minecraft.world.entity.npc.VillagerProfession nms = getHandle().getVillagerData().getProfession();
-        ResourceLocation key = server.getServer().registryAccess().registryOrThrow(Registries.VILLAGER_PROFESSION).getKey(nms);
-        if (key == null) throw new IllegalStateException("Villager profession is not registry-backed");
+        Identifier key = getHandle().getVillagerData().profession().unwrapKey()
+                .orElseThrow(() -> new IllegalStateException("Villager profession is not registry-backed")).identifier();
         Profession profession = Registry.VILLAGER_PROFESSION.get(new NamespacedKey(key.getNamespace(), key.getPath()));
         if (profession == null) throw new IllegalStateException("No Bukkit profession for " + key);
         return profession;
@@ -40,17 +39,16 @@ public final class CraftVillager extends CraftAbstractVillager implements Villag
     public void setProfession(Profession profession) {
         Objects.requireNonNull(profession, "profession");
         NamespacedKey key = profession.getKey();
-        net.minecraft.world.entity.npc.VillagerProfession nms = server.getServer().registryAccess().registryOrThrow(Registries.VILLAGER_PROFESSION)
-                .get(ResourceLocation.fromNamespaceAndPath(key.getNamespace(), key.getKey()));
-        if (nms == null) throw new IllegalArgumentException("Unknown villager profession " + key);
-        getHandle().setVillagerData(getHandle().getVillagerData().setProfession(nms));
+        net.minecraft.core.Holder<net.minecraft.world.entity.npc.villager.VillagerProfession> nms = server.getServer().registryAccess().lookupOrThrow(Registries.VILLAGER_PROFESSION)
+                .get(net.minecraft.resources.ResourceKey.create(Registries.VILLAGER_PROFESSION, Identifier.fromNamespaceAndPath(key.getNamespace(), key.getKey())))
+                .orElseThrow(() -> new IllegalArgumentException("Unknown villager profession " + key));
+        getHandle().setVillagerData(getHandle().getVillagerData().withProfession(nms));
     }
 
     @Override
     public Type getVillagerType() {
-        net.minecraft.world.entity.npc.VillagerType nms = getHandle().getVillagerData().getType();
-        ResourceLocation key = server.getServer().registryAccess().registryOrThrow(Registries.VILLAGER_TYPE).getKey(nms);
-        if (key == null) throw new IllegalStateException("Villager type is not registry-backed");
+        Identifier key = getHandle().getVillagerData().type().unwrapKey()
+                .orElseThrow(() -> new IllegalStateException("Villager type is not registry-backed")).identifier();
         Type type = Registry.VILLAGER_TYPE.get(new NamespacedKey(key.getNamespace(), key.getPath()));
         if (type == null) throw new IllegalStateException("No Bukkit villager type for " + key);
         return type;
@@ -60,16 +58,16 @@ public final class CraftVillager extends CraftAbstractVillager implements Villag
     public void setVillagerType(Type type) {
         Objects.requireNonNull(type, "type");
         NamespacedKey key = type.getKey();
-        net.minecraft.world.entity.npc.VillagerType nms = server.getServer().registryAccess().registryOrThrow(Registries.VILLAGER_TYPE)
-                .get(ResourceLocation.fromNamespaceAndPath(key.getNamespace(), key.getKey()));
-        if (nms == null) throw new IllegalArgumentException("Unknown villager type " + key);
-        getHandle().setVillagerData(getHandle().getVillagerData().setType(nms));
+        net.minecraft.core.Holder<net.minecraft.world.entity.npc.villager.VillagerType> nms = server.getServer().registryAccess().lookupOrThrow(Registries.VILLAGER_TYPE)
+                .get(net.minecraft.resources.ResourceKey.create(Registries.VILLAGER_TYPE, Identifier.fromNamespaceAndPath(key.getNamespace(), key.getKey())))
+                .orElseThrow(() -> new IllegalArgumentException("Unknown villager type " + key));
+        getHandle().setVillagerData(getHandle().getVillagerData().withType(nms));
     }
 
-    @Override public int getVillagerLevel() { return getHandle().getVillagerData().getLevel(); }
+    @Override public int getVillagerLevel() { return getHandle().getVillagerData().level(); }
     @Override public void setVillagerLevel(int level) {
         if (level < 1 || level > 5) throw new IllegalArgumentException("level must be between 1 and 5");
-        getHandle().setVillagerData(getHandle().getVillagerData().setLevel(level));
+        getHandle().setVillagerData(getHandle().getVillagerData().withLevel(level));
     }
     @Override public int getVillagerExperience() { return concreteVillagerBridge().lunararc$getVillagerXp(); }
     @Override public void setVillagerExperience(int experience) {
@@ -86,7 +84,7 @@ public final class CraftVillager extends CraftAbstractVillager implements Villag
         while (getVillagerLevel() < target) {
             int next = getVillagerLevel() + 1;
             setVillagerLevel(next);
-            var byLevel = VillagerTrades.TRADES.get(getHandle().getVillagerData().getProfession());
+            var byLevel = VillagerTrades.TRADES.get(getHandle().getVillagerData().profession().unwrapKey().orElse(null));
             if (byLevel != null) {
                 VillagerTrades.ItemListing[] listings = byLevel.get(next);
                 if (listings != null) {
@@ -102,7 +100,7 @@ public final class CraftVillager extends CraftAbstractVillager implements Villag
     @Override
     public boolean addTrades(int amount) {
         if (amount <= 0) throw new IllegalArgumentException("amount must be positive");
-        var byLevel = VillagerTrades.TRADES.get(getHandle().getVillagerData().getProfession());
+        var byLevel = VillagerTrades.TRADES.get(getHandle().getVillagerData().profession().unwrapKey().orElse(null));
         if (byLevel == null) return false;
         VillagerTrades.ItemListing[] listings = byLevel.get(getVillagerLevel());
         if (listings == null || listings.length == 0) return false;
@@ -132,7 +130,7 @@ public final class CraftVillager extends CraftAbstractVillager implements Villag
     @Override
     public ZombieVillager zombify() {
         if (!(getHandle().level() instanceof net.minecraft.server.level.ServerLevel level)) return null;
-        net.minecraft.world.entity.monster.ZombieVillager converted =
+        net.minecraft.world.entity.monster.zombie.ZombieVillager converted =
                 io.lunararcdevs.lunararc.common.mod.util.LunarArcEntityTransforms.convert(
                         getHandle(),
                         net.minecraft.world.entity.EntityType.ZOMBIE_VILLAGER,
@@ -141,7 +139,7 @@ public final class CraftVillager extends CraftAbstractVillager implements Villag
                         org.bukkit.event.entity.CreatureSpawnEvent.SpawnReason.CUSTOM,
                         zombie -> {
                             zombie.setVillagerData(getHandle().getVillagerData());
-                            zombie.setGossips(getHandle().getGossips().store(net.minecraft.nbt.NbtOps.INSTANCE));
+                            zombie.setGossips(getHandle().getGossips().copy());
                             zombie.setTradeOffers(getHandle().getOffers().copy());
                             zombie.setVillagerXp(getHandle().getVillagerXp());
                         });
@@ -149,8 +147,8 @@ public final class CraftVillager extends CraftAbstractVillager implements Villag
         converted.finalizeSpawn(
                 level,
                 level.getCurrentDifficultyAt(converted.blockPosition()),
-                net.minecraft.world.entity.MobSpawnType.CONVERSION,
-                new net.minecraft.world.entity.monster.Zombie.ZombieGroupData(false, true));
+                net.minecraft.world.entity.EntitySpawnReason.CONVERSION,
+                new net.minecraft.world.entity.monster.zombie.Zombie.ZombieGroupData(false, true));
         return (ZombieVillager) ((io.lunararcdevs.lunararc.common.bridge.EntityBridge) converted).lunararc$getBukkitEntity();
     }
 
@@ -204,4 +202,46 @@ public final class CraftVillager extends CraftAbstractVillager implements Villag
     }
 
     @Override public String toString() { return "CraftVillager"; }
+
+    @Override
+    public void restock() {
+        getHandle().restock();
+    }
+
+    @Override
+    public void updateDemand() {
+        getHandle().updateDemand();
+    }
+
+    public static class CraftType extends io.papermc.paper.util.OldEnumHolderable<Type, net.minecraft.world.entity.npc.villager.VillagerType> implements Type {
+        private static int count = 0;
+
+        public static Type minecraftHolderToBukkit(net.minecraft.core.Holder<net.minecraft.world.entity.npc.villager.VillagerType> minecraft) {
+            return org.bukkit.craftbukkit.CraftRegistry.minecraftHolderToBukkit(minecraft, net.minecraft.core.registries.Registries.VILLAGER_TYPE);
+        }
+
+        public static net.minecraft.core.Holder<net.minecraft.world.entity.npc.villager.VillagerType> bukkitToMinecraftHolder(Type bukkit) {
+            return org.bukkit.craftbukkit.CraftRegistry.bukkitToMinecraftHolder(bukkit);
+        }
+
+        public CraftType(final net.minecraft.core.Holder<net.minecraft.world.entity.npc.villager.VillagerType> holder) {
+            super(holder, count++);
+        }
+    }
+
+    public static class CraftProfession extends io.papermc.paper.util.OldEnumHolderable<Profession, net.minecraft.world.entity.npc.villager.VillagerProfession> implements Profession {
+        private static int count = 0;
+
+        public static Profession minecraftHolderToBukkit(net.minecraft.core.Holder<net.minecraft.world.entity.npc.villager.VillagerProfession> minecraft) {
+            return org.bukkit.craftbukkit.CraftRegistry.minecraftHolderToBukkit(minecraft, net.minecraft.core.registries.Registries.VILLAGER_PROFESSION);
+        }
+
+        public static net.minecraft.core.Holder<net.minecraft.world.entity.npc.villager.VillagerProfession> bukkitToMinecraftHolder(Profession bukkit) {
+            return org.bukkit.craftbukkit.CraftRegistry.bukkitToMinecraftHolder(bukkit);
+        }
+
+        public CraftProfession(final net.minecraft.core.Holder<net.minecraft.world.entity.npc.villager.VillagerProfession> holder) {
+            super(holder, count++);
+        }
+    }
 }

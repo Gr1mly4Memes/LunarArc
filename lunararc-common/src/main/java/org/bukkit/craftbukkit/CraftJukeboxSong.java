@@ -20,9 +20,9 @@ public final class CraftJukeboxSong implements JukeboxSong, org.bukkit.craftbukk
     @Override public @NotNull NamespacedKey getKey() { return this.key; }
     @Override public @NotNull String getTranslationKey() {
         if (this.handle.description().getContents() instanceof TranslatableContents translatable) return translatable.getKey();
-        return net.minecraft.Util.makeDescriptionId(
+        return net.minecraft.util.Util.makeDescriptionId(
                 "jukebox_song",
-                net.minecraft.resources.ResourceLocation.fromNamespaceAndPath(key.getNamespace(), key.getKey()));
+                net.minecraft.resources.Identifier.fromNamespaceAndPath(key.getNamespace(), key.getKey()));
     }
     @Override public String toString() { return "CraftJukeboxSong[" + this.key + "]"; }
 
@@ -51,5 +51,25 @@ public final class CraftJukeboxSong implements JukeboxSong, org.bukkit.craftbukk
 
         throw new IllegalArgumentException("No Reference holder found for " + bukkit
                 + ", this can happen if a plugin creates its own jukebox song without properly registering it.");
+    }
+
+    @Override
+    public int getComparatorOutput() {
+        return this.getHandle().comparatorOutput();
+    }
+
+    @Override
+    public float getLengthInSeconds() {
+        return this.getHandle().lengthInSeconds();
+    }
+
+    @Override
+    public net.kyori.adventure.text.@NotNull Component getDescription() {
+        return io.papermc.paper.adventure.PaperAdventure.asAdventure(this.getHandle().description());
+    }
+
+    @Override
+    public org.bukkit.@NotNull Sound getSound() {
+        return org.bukkit.craftbukkit.CraftSound.minecraftHolderToBukkit(this.getHandle().soundEvent());
     }
 }

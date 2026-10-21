@@ -30,14 +30,10 @@ public class CraftPlayerInventory implements PlayerInventory, org.bukkit.invento
     }
 
 
+    // Bukkit slot order (0-35 storage, 36-39 boots..helmet, 40 offhand) matches vanilla Inventory#getItem/setItem.
     private net.minecraft.world.item.ItemStack nms(int slot) {
-        if (slot < 36) return handle.items.get(slot);
-        if (slot == 36) return handle.armor.get(0);
-        if (slot == 37) return handle.armor.get(1);
-        if (slot == 38) return handle.armor.get(2);
-        if (slot == 39) return handle.armor.get(3);
-        if (slot == 40) return handle.offhand.get(0);
-        return net.minecraft.world.item.ItemStack.EMPTY;
+        if (slot < 0 || slot > 40) return net.minecraft.world.item.ItemStack.EMPTY;
+        return handle.getItem(slot);
     }
 
     private void setNms(int slot, net.minecraft.world.item.ItemStack item) {
@@ -47,12 +43,7 @@ public class CraftPlayerInventory implements PlayerInventory, org.bukkit.invento
 
     private void setNmsNoSync(int slot, net.minecraft.world.item.ItemStack item) {
         if (item == null) item = net.minecraft.world.item.ItemStack.EMPTY;
-        if (slot >= 0 && slot < 36) { handle.items.set(slot, item); }
-        else if (slot == 36) { handle.armor.set(0, item); }
-        else if (slot == 37) { handle.armor.set(1, item); }
-        else if (slot == 38) { handle.armor.set(2, item); }
-        else if (slot == 39) { handle.armor.set(3, item); }
-        else if (slot == 40) { handle.offhand.set(0, item); }
+        if (slot >= 0 && slot <= 40) handle.setItem(slot, item);
     }
 
     private void finishMutation() {
@@ -100,7 +91,7 @@ public class CraftPlayerInventory implements PlayerInventory, org.bukkit.invento
 
 
     @Override public @NotNull ItemStack getItemInMainHand() {
-        net.minecraft.world.item.ItemStack nmsItem = handle.getSelected();
+        net.minecraft.world.item.ItemStack nmsItem = handle.getSelectedItem();
         if (nmsItem == null || nmsItem.isEmpty())
             return new CraftItemStack(net.minecraft.world.item.ItemStack.EMPTY);
         return CraftItemStack.asBukkitCopy(nmsItem);
@@ -131,7 +122,7 @@ public class CraftPlayerInventory implements PlayerInventory, org.bukkit.invento
         if (slot < 0 || slot > 8) throw new IllegalArgumentException("Held item slot must be between 0 and 8");
         handle.selected = slot;
         if (owner instanceof org.bukkit.craftbukkit.entity.CraftPlayer cp && cp.getHandle().connection != null) {
-            cp.getHandle().connection.send(new net.minecraft.network.protocol.game.ClientboundSetCarriedItemPacket(slot));
+            cp.getHandle().connection.send(new net.minecraft.network.protocol.game.ClientboundSetHeldSlotPacket(slot));
         }
         syncToClient();
     }
@@ -181,7 +172,7 @@ public class CraftPlayerInventory implements PlayerInventory, org.bukkit.invento
             case FEET -> getBoots();
             case OFF_HAND -> getItemInOffHand();
             case HAND -> getItemInMainHand();
-            case BODY -> throw new IllegalArgumentException("BODY is not valid for players!");
+            case BODY, SADDLE -> throw new IllegalArgumentException(slot + " is not valid for players!");
         };
         return result == null ? new CraftItemStack(net.minecraft.world.item.ItemStack.EMPTY) : result;
     }
@@ -195,7 +186,7 @@ public class CraftPlayerInventory implements PlayerInventory, org.bukkit.invento
             case FEET -> setBoots(item);
             case OFF_HAND -> setItemInOffHand(item);
             case HAND -> setItemInMainHand(item);
-            case BODY -> throw new IllegalArgumentException("BODY is not valid for players!");
+            case BODY, SADDLE -> throw new IllegalArgumentException(slot + " is not valid for players!");
         }
     }
     public void setItem(@NotNull EquipmentSlot slot, @Nullable ItemStack item, boolean silent) { setItem(slot, item); }

@@ -122,8 +122,8 @@ public abstract class ConnectionMixin implements ConnectionBridge {
     }
 
     @WrapOperation(method = "exceptionCaught", at = @At(value = "INVOKE",
-            target = "Lnet/minecraft/network/Connection;send(Lnet/minecraft/network/protocol/Packet;Lnet/minecraft/network/PacketSendListener;)V"))
-    private void lunararc$skipUnregisteredDisconnect(Connection self, Packet<?> packet, PacketSendListener listener,
+            target = "Lnet/minecraft/network/Connection;send(Lnet/minecraft/network/protocol/Packet;Lio/netty/channel/ChannelFutureListener;)V"))
+    private void lunararc$skipUnregisteredDisconnect(Connection self, Packet<?> packet, io.netty.channel.ChannelFutureListener listener,
             Operation<Void> original) {
         PacketListener packetListener = self.getPacketListener();
         ConnectionProtocol protocol = packetListener == null ? null : packetListener.protocol();

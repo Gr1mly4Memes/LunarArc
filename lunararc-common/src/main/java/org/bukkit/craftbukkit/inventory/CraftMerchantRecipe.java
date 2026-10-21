@@ -6,7 +6,7 @@ import io.lunararcdevs.lunararc.common.bridge.access.MerchantOfferAccessBridge;
 import java.util.List;
 import java.util.Optional;
 import net.minecraft.core.component.DataComponentMap;
-import net.minecraft.core.component.DataComponentPredicate;
+import net.minecraft.core.component.predicates.DataComponentPredicate;
 import net.minecraft.core.component.PatchedDataComponentMap;
 import net.minecraft.world.item.trading.ItemCost;
 import net.minecraft.world.item.trading.MerchantOffer;
@@ -54,7 +54,7 @@ public final class CraftMerchantRecipe extends MerchantRecipe {
     }
 
     private static ItemCost itemCost(net.minecraft.world.item.ItemStack stack) {
-        DataComponentPredicate predicate = DataComponentPredicate.allOf(
+        net.minecraft.core.component.DataComponentExactPredicate predicate = net.minecraft.core.component.DataComponentExactPredicate.allOf(
                 PatchedDataComponentMap.fromPatch(DataComponentMap.EMPTY, stack.getComponentsPatch()));
         return new ItemCost(stack.getItemHolder(), stack.getCount(), predicate, stack.copy());
     }

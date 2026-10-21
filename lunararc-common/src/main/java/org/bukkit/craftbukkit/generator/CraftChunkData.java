@@ -155,7 +155,7 @@ public final class CraftChunkData implements ChunkGenerator.ChunkData {
             int y = (int) packed;
             BlockState state = entry.getValue();
             net.minecraft.core.BlockPos pos = new net.minecraft.core.BlockPos(baseX + x, y, baseZ + z);
-            chunk.setBlockState(pos, state, false);
+            chunk.setBlockState(pos, state, 0);
             if (state.hasBlockEntity() && state.getBlock() instanceof net.minecraft.world.level.block.EntityBlock entityBlock) {
                 net.minecraft.world.level.block.entity.BlockEntity blockEntity = entityBlock.newBlockEntity(pos, state);
                 if (blockEntity != null) chunk.setBlockEntity(blockEntity);
@@ -191,5 +191,14 @@ public final class CraftChunkData implements ChunkGenerator.ChunkData {
 
     private static long key(int x, int y, int z) {
         return ((long) (x & 15) << 60) | ((long) (z & 15) << 56) | (Integer.toUnsignedLong(y));
+    }
+
+    @Override
+    public int getHeight(final org.bukkit.HeightMap heightMap, final int x, final int z) {
+        com.google.common.base.Preconditions.checkArgument(heightMap != null, "HeightMap cannot be null");
+        com.google.common.base.Preconditions.checkArgument(x >= 0 && x <= 15 && z >= 0 && z <= 15, "Cannot get height outside of a chunks bounds, must be between 0 and 15, got x: %s, z: %s", x, z);
+        net.minecraft.world.level.chunk.ChunkAccess chunk = this.weakChunk.get();
+        if (chunk == null) throw new IllegalStateException("ChunkData is no longer linked to a generation chunk");
+        return chunk.getHeight(org.bukkit.craftbukkit.CraftHeightMap.toNMS(heightMap), x, z);
     }
 }

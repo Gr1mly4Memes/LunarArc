@@ -31,7 +31,7 @@ public abstract class ItemEntitySettingsMixin {
         if (level.isClientSide) return;
         io.papermc.paper.configuration.WorldConfiguration.Tuning tuning = io.lunararcdevs.lunararc.common.server.LunarArcServerSettings.tuning(level);
         if (!tuning.altItemDespawnEnabled || tuning.altItemDespawn.isEmpty()) return;
-        net.minecraft.resources.ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(self.getItem().getItem());
+        net.minecraft.resources.Identifier id = net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(self.getItem().getItem());
         Integer rate = tuning.altItemDespawn.get(id.getPath());
         if (rate != null && this.age >= rate) {
             self.discard();

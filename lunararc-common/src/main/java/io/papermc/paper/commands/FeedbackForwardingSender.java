@@ -30,8 +30,8 @@ public final class FeedbackForwardingSender extends ServerCommandSender {
         var minecraft = server.getServer();
         var level = minecraft.overworld();
         return new net.minecraft.commands.CommandSourceStack(new Source(),
-                level == null ? net.minecraft.world.phys.Vec3.ZERO : net.minecraft.world.phys.Vec3.atLowerCornerOf(level.getSharedSpawnPos()),
-                net.minecraft.world.phys.Vec2.ZERO, level, 4, getName(),
+                level == null ? net.minecraft.world.phys.Vec3.ZERO : net.minecraft.world.phys.Vec3.atLowerCornerOf(level.getRespawnData().pos()),
+                net.minecraft.world.phys.Vec2.ZERO, level, net.minecraft.server.permissions.PermissionSet.ALL_PERMISSIONS, getName(),
                 net.minecraft.network.chat.Component.literal(getName()), minecraft, null);
     }
 

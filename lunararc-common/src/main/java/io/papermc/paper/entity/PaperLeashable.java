@@ -17,7 +17,7 @@ public interface PaperLeashable extends Leashable {
 
     private boolean unleash() {
         if (!isLeashed()) return false;
-        getHandle().dropLeash(true, false);
+        getHandle().removeLeash();
         return true;
     }
 

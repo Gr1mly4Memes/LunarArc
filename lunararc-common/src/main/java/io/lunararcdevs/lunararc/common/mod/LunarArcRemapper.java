@@ -1128,9 +1128,32 @@ public class LunarArcRemapper extends org.objectweb.asm.commons.Remapper {
             }
         }
         if (!matched) return remapped;
-        ClassWriter writer = new ClassWriter(0);
-        node.accept(writer);
-        return writer.toByteArray();
+        try {
+            ClassWriter writer = new ClassWriter(0);
+            node.accept(writer);
+            return writer.toByteArray();
+        } catch (IllegalStateException badFrames) {
+            // A patcher that removed or replaced code can leave stale or duplicate stack-map frames behind.
+            // Drop them all and let ASM compute fresh ones, as it must for code that has been rewritten.
+            for (org.objectweb.asm.tree.MethodNode method : node.methods) {
+                for (org.objectweb.asm.tree.AbstractInsnNode insn : method.instructions.toArray()) {
+                    if (insn instanceof org.objectweb.asm.tree.FrameNode) method.instructions.remove(insn);
+                }
+            }
+            ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_FRAMES) {
+                @Override
+                protected String getCommonSuperClass(String type1, String type2) {
+                    try {
+                        return super.getCommonSuperClass(type1, type2);
+                    } catch (Throwable unresolvable) {
+                        return "java/lang/Object";
+                    }
+                }
+            };
+            node.accept(writer);
+            LOGGER.debug("Recomputed stack-map frames for patched plugin class {}", className);
+            return writer.toByteArray();
+        }
     }
 
     private static boolean containsNmsReference(byte[] bytecode) {

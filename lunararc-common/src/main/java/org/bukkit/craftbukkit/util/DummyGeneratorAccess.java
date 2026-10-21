@@ -55,9 +55,7 @@ public class DummyGeneratorAccess implements WorldGenLevel {
     @Override public MinecraftServer getServer() { throw unsupported(); }
     @Override public ChunkSource getChunkSource() { throw unsupported(); }
     @Override public RandomSource getRandom() { throw unsupported(); }
-    @Override public void playSound(Player source, BlockPos pos, SoundEvent sound, SoundSource category, float volume, float pitch) { throw unsupported(); }
     @Override public void addParticle(ParticleOptions parameters, double x, double y, double z, double velocityX, double velocityY, double velocityZ) { throw unsupported(); }
-    @Override public void levelEvent(Player player, int eventId, BlockPos pos, int data) {}
     @Override public void gameEvent(Holder<GameEvent> event, Vec3 emitterPos, GameEvent.Context emitter) {}
     @Override public List<Entity> getEntities(Entity except, AABB box, Predicate<? super Entity> predicate) { throw unsupported(); }
     @Override public <T extends Entity> List<T> getEntities(EntityTypeTest<Entity, T> filter, AABB box, Predicate<? super T> predicate) { throw unsupported(); }
@@ -95,5 +93,20 @@ public class DummyGeneratorAccess implements WorldGenLevel {
 
     private static UnsupportedOperationException unsupported() {
         return new UnsupportedOperationException("Operation is not available on the tree-generation capture view");
+    }
+
+    @Override
+    public void levelEvent(net.minecraft.world.entity.Entity entity, int eventId, net.minecraft.core.BlockPos pos, int data) {
+        // Used by PowderSnowBlock.pickupBlock
+    }
+
+    @Override
+    public void playSound(net.minecraft.world.entity.Entity source, net.minecraft.core.BlockPos pos, net.minecraft.sounds.SoundEvent sound, net.minecraft.sounds.SoundSource category, float volume, float pitch) {
+        throw new UnsupportedOperationException("Not supported yet.");
+    }
+
+    @Override
+    public net.minecraft.world.attribute.EnvironmentAttributeReader environmentAttributes() {
+        return net.minecraft.world.attribute.EnvironmentAttributeReader.EMPTY;
     }
 }

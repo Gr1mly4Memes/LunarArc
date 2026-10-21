@@ -6,8 +6,8 @@ import org.bukkit.entity.Villager;
 import org.bukkit.entity.Zombie;
 
 public class CraftZombie extends CraftMonster implements Zombie {
-    public CraftZombie(CraftServer server, net.minecraft.world.entity.monster.Zombie entity) { super(server, entity); }
-    @Override public net.minecraft.world.entity.monster.Zombie getHandle() { return (net.minecraft.world.entity.monster.Zombie) this.entity; }
+    public CraftZombie(CraftServer server, net.minecraft.world.entity.monster.zombie.Zombie entity) { super(server, entity); }
+    @Override public net.minecraft.world.entity.monster.zombie.Zombie getHandle() { return (net.minecraft.world.entity.monster.zombie.Zombie) this.entity; }
     private ZombieBridge zombieBridge() { return (ZombieBridge) (Object) getHandle(); }
 
     @Override public boolean isBaby() { return getHandle().isBaby(); }
@@ -22,7 +22,7 @@ public class CraftZombie extends CraftMonster implements Zombie {
     @Override public boolean canBreed() { return false; }
     @Override public void setBreed(boolean breed) { }
 
-    @Override public boolean isVillager() { return getHandle() instanceof net.minecraft.world.entity.monster.ZombieVillager; }
+    @Override public boolean isVillager() { return getHandle() instanceof net.minecraft.world.entity.monster.zombie.ZombieVillager; }
     @Override public void setVillager(boolean villager) { throw new UnsupportedOperationException("Zombie type conversion is not mutable through this API"); }
     @Override public void setVillagerProfession(Villager.Profession profession) { throw new UnsupportedOperationException("Only ZombieVillager has a villager profession"); }
     @Override public Villager.Profession getVillagerProfession() { return null; }
@@ -44,7 +44,7 @@ public class CraftZombie extends CraftMonster implements Zombie {
     @Override public void setShouldBurnInDay(boolean burn) { zombieBridge().lunararc$setShouldBurnInDay(burn); }
     @Override public boolean isArmsRaised() { return getHandle().isAggressive(); }
     @Override public void setArmsRaised(boolean raised) { getHandle().setAggressive(raised); }
-    @Override public boolean supportsBreakingDoors() { return zombieBridge().lunararc$supportsBreakDoorGoal(); }
+    @Override public boolean supportsBreakingDoors() { return true; /* all zombies can break doors since 1.21.2 (MC-137053) */ }
     @Override public boolean canBreakDoors() { return getHandle().canBreakDoors(); }
     @Override public void setCanBreakDoors(boolean canBreakDoors) { getHandle().setCanBreakDoors(canBreakDoors); }
 

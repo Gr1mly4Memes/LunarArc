@@ -41,4 +41,18 @@ public final class CraftFishHook extends CraftProjectile implements FishHook {
     @Override public void setTimeUntilBite(int v){Preconditions.checkArgument(v>=1,"Time until bite must be at least 1");hook().lunararc$setTimeUntilLured(0);hook().lunararc$setTimeUntilHooked(v);}
     @Override public void resetFishingState(){hook().lunararc$resetFishingState();}
     @Override public net.minecraft.world.entity.projectile.FishingHook getHandle(){return (net.minecraft.world.entity.projectile.FishingHook)this.entity;}
+
+    @Override
+    public int retrieve(org.bukkit.inventory.EquipmentSlot slot) {
+        com.google.common.base.Preconditions.checkArgument(slot == org.bukkit.inventory.EquipmentSlot.HAND || slot == org.bukkit.inventory.EquipmentSlot.OFF_HAND, "Equipment slot must be HAND or OFF_HAND");
+        final net.minecraft.world.entity.projectile.FishingHook fishingHook = getHandle();
+        final net.minecraft.world.entity.player.Player playerOwner = fishingHook.getPlayerOwner();
+        com.google.common.base.Preconditions.checkState(playerOwner != null, "Player owner cannot be null");
+
+        final net.minecraft.world.InteractionHand hand = slot == org.bukkit.inventory.EquipmentSlot.HAND ? net.minecraft.world.InteractionHand.MAIN_HAND : net.minecraft.world.InteractionHand.OFF_HAND;
+        final net.minecraft.world.item.ItemStack itemInHand = playerOwner.getItemInHand(hand);
+        com.google.common.base.Preconditions.checkState(itemInHand.is(net.minecraft.world.item.Items.FISHING_ROD), "Item in slot is not a FISHING_ROD");
+
+        return fishingHook.retrieve(itemInHand);
+    }
 }

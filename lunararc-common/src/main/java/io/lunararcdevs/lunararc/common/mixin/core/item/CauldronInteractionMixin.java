@@ -10,7 +10,7 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.ItemInteractionResult;
+import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.ItemUtils;
@@ -28,11 +28,11 @@ import java.util.function.Predicate;
 /** Bukkit bucket events for the separate vanilla cauldron bucket path. */
 @Mixin(CauldronInteraction.class)
 public interface CauldronInteractionMixin {
-    @Inject(method = "fillBucket", at = @At(value = "FIELD", target = "Lnet/minecraft/world/level/Level;isClientSide:Z"), cancellable = true, require = 0)
+    @Inject(method = "fillBucket", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;isClientSide()Z"), cancellable = true, require = 0)
     private static void lunararc$bucketFillCauldron(
             BlockState state, Level level, BlockPos pos, Player player, InteractionHand hand,
             ItemStack stack, ItemStack output, Predicate<BlockState> fullPredicate, SoundEvent sound,
-            CallbackInfoReturnable<ItemInteractionResult> cir) {
+            CallbackInfoReturnable<InteractionResult> cir) {
         LunarArcCauldronContext.takeResult();
         Direction direction = LunarArcCauldronContext.direction();
         if (direction == null || !(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer serverPlayer)) return;
@@ -40,7 +40,7 @@ public interface CauldronInteractionMixin {
                 serverLevel, serverPlayer, pos, pos, direction, stack, output, hand);
         if (event == null) return;
         if (event.isCancelled()) {
-            cir.setReturnValue(ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION);
+            cir.setReturnValue(InteractionResult.TRY_WITH_EMPTY_HAND);
             return;
         }
         LunarArcCauldronContext.setResult(event.getItemStack() == null
@@ -56,10 +56,10 @@ public interface CauldronInteractionMixin {
         return original.call(input, player, override == null ? vanillaResult : override);
     }
 
-    @Inject(method = "emptyBucket", at = @At(value = "FIELD", target = "Lnet/minecraft/world/level/Level;isClientSide:Z"), cancellable = true, require = 0)
+    @Inject(method = "emptyBucket", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/level/Level;isClientSide()Z"), cancellable = true, require = 0)
     private static void lunararc$bucketEmptyCauldron(
             Level level, BlockPos pos, Player player, InteractionHand hand, ItemStack stack,
-            BlockState state, SoundEvent sound, CallbackInfoReturnable<ItemInteractionResult> cir) {
+            BlockState state, SoundEvent sound, CallbackInfoReturnable<InteractionResult> cir) {
         LunarArcCauldronContext.takeResult();
         Direction direction = LunarArcCauldronContext.direction();
         if (direction == null || !(level instanceof ServerLevel serverLevel) || !(player instanceof ServerPlayer serverPlayer)) return;
@@ -67,7 +67,7 @@ public interface CauldronInteractionMixin {
                 serverLevel, serverPlayer, pos, pos, direction, stack, new ItemStack(Items.BUCKET), hand);
         if (event == null) return;
         if (event.isCancelled()) {
-            cir.setReturnValue(ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION);
+            cir.setReturnValue(InteractionResult.TRY_WITH_EMPTY_HAND);
             return;
         }
         LunarArcCauldronContext.setResult(event.getItemStack() == null

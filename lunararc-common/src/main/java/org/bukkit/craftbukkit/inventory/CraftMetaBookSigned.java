@@ -57,11 +57,11 @@ public final class CraftMetaBookSigned extends CraftItemMeta implements BookMeta
     }
 
     private static Component fromNms(net.minecraft.network.chat.Component component) {
-        try { return GsonComponentSerializer.gson().deserialize(net.minecraft.network.chat.Component.Serializer.toJson(component, net.minecraft.core.RegistryAccess.EMPTY)); }
+        try { return GsonComponentSerializer.gson().deserialize(new com.google.gson.Gson().toJson(net.minecraft.network.chat.ComponentSerialization.CODEC.encodeStart(net.minecraft.core.RegistryAccess.EMPTY.createSerializationContext(com.mojang.serialization.JsonOps.INSTANCE), component).getOrThrow(com.google.gson.JsonParseException::new))); }
         catch (Throwable ignored) { return Component.text(component == null ? "" : component.getString()); }
     }
     private static net.minecraft.network.chat.Component toNms(Component component) {
-        try { return net.minecraft.network.chat.Component.Serializer.fromJson(GsonComponentSerializer.gson().serialize(component), net.minecraft.core.RegistryAccess.EMPTY); }
+        try { return net.minecraft.network.chat.ComponentSerialization.CODEC.parse(net.minecraft.core.RegistryAccess.EMPTY.createSerializationContext(com.mojang.serialization.JsonOps.INSTANCE), com.google.gson.JsonParser.parseString(GsonComponentSerializer.gson().serialize(component))).getOrThrow(com.google.gson.JsonParseException::new); }
         catch (Throwable ignored) { return net.minecraft.network.chat.Component.literal(LEGACY.serialize(component)); }
     }
     private String validatePage(String page) { if (page == null) return ""; return page.length() > MAX_PAGE_LENGTH ? page.substring(0, MAX_PAGE_LENGTH) : page; }

@@ -14,13 +14,13 @@ import org.spongepowered.asm.mixin.injection.At;
 
 @Mixin(MagmaBlock.class)
 public abstract class MagmaBlockDamageMixin {
-    @WrapOperation(method = "stepOn", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Entity;hurt(Lnet/minecraft/world/damagesource/DamageSource;F)Z"))
-    private boolean lunararc$blockDamage(Entity entity, DamageSource source, float amount, Operation<Boolean> original,
+    @WrapOperation(method = "stepOn", at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Entity;hurt(Lnet/minecraft/world/damagesource/DamageSource;F)V"))
+    private void lunararc$blockDamage(Entity entity, DamageSource source, float amount, Operation<Void> original,
             @Local(argsOnly = true) BlockPos pos, @Local(argsOnly = true) BlockState state) {
         CraftEventFactory.damagingBlockPos = pos;
         CraftEventFactory.damagingBlockState = state;
         try {
-            return original.call(entity, source, amount);
+            original.call(entity, source, amount);
         } finally {
             CraftEventFactory.damagingBlockPos = null;
             CraftEventFactory.damagingBlockState = null;

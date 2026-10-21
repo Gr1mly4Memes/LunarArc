@@ -26,7 +26,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(FireBlock.class)
 public abstract class FireBlockMixin {
 
-    @Shadow protected abstract BlockState getStateWithAge(LevelAccessor level, BlockPos pos, int age);
+    @Shadow protected abstract BlockState getStateWithAge(net.minecraft.world.level.LevelReader level, BlockPos pos, int age);
 
     @Unique
     private BlockPos lunararc$tickingFire;
@@ -89,28 +89,12 @@ public abstract class FireBlockMixin {
         }
     }
 
-    @Inject(method = "tryCatchFire", cancellable = true, require = 0,
-            at = @At(value = "INVOKE", ordinal = 1, target = "Lnet/minecraft/world/level/Level;getBlockState(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/block/state/BlockState;"))
-    private void lunararc$blockBurnWithFace(Level level, BlockPos pos, int chance, RandomSource random, int age, Direction face, CallbackInfo ci) {
-        if (!(level instanceof ServerLevel serverLevel) || !org.bukkit.Bukkit.isPrimaryThread()) return;
-        BlockPos source = pos.relative(face);
-        var event = new org.bukkit.event.block.BlockBurnEvent(CraftBlock.at(serverLevel, pos), CraftBlock.at(serverLevel, source));
-        org.bukkit.Bukkit.getPluginManager().callEvent(event);
-        if (event.isCancelled()) {
-            ci.cancel();
-            return;
-        }
-        if (level.getBlockState(pos).getBlock() instanceof TntBlock
-                && !CraftEventFactory.callTNTPrimeEvent(level, pos, org.bukkit.event.block.TNTPrimeEvent.PrimeCause.FIRE, null, source)) {
-            ci.cancel();
-        }
-    }
-
     @Inject(method = "updateShape", at = @At("RETURN"), cancellable = true)
-    private void lunararc$fadeOnUpdate(BlockState state, Direction direction, BlockState neighborState, LevelAccessor level,
-            BlockPos pos, BlockPos neighborPos, CallbackInfoReturnable<BlockState> cir) {
-        if (!cir.getReturnValue().isAir() || !(level instanceof ServerLevel)) return;
-        if (CraftEventFactory.callBlockFadeCancelled(level, pos, Blocks.AIR.defaultBlockState())) {
+    private void lunararc$fadeOnUpdate(BlockState state, net.minecraft.world.level.LevelReader level, net.minecraft.world.level.ScheduledTickAccess ticks,
+            BlockPos pos, Direction direction, BlockPos neighborPos, BlockState neighborState, net.minecraft.util.RandomSource random,
+            CallbackInfoReturnable<BlockState> cir) {
+        if (!cir.getReturnValue().isAir() || !(level instanceof LevelAccessor access) || !(level instanceof ServerLevel)) return;
+        if (CraftEventFactory.callBlockFadeCancelled(access, pos, Blocks.AIR.defaultBlockState())) {
             cir.setReturnValue(this.getStateWithAge(level, pos, state.getValue(FireBlock.AGE)));
         }
     }

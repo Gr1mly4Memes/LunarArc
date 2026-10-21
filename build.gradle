@@ -209,6 +209,15 @@ tasks.register('preparePaperCompileReference') {
 
     doLast {
         rootProject.ext.paperDir.mkdirs()
+        // Drop reference jars left over from other Minecraft/Paper versions (e.g. a restored CI cache).
+        rootProject.ext.paperDir.listFiles()?.each { stale ->
+            if (stale.isFile() && stale.name.startsWith('paper-server-') && stale.name.endsWith('.jar')
+                    && stale != rootProject.ext.paperServerJar) {
+                println "Removing stale Paper compile reference: ${stale.name}"
+                stale.delete()
+                new File(stale.parentFile, stale.name + '.excluded').delete()
+            }
+        }
         def mc = libs.versions.minecraft.get()
         def requestedBuild = Integer.parseInt(libs.versions.paper.build.get())
         def userAgent = 'LunarArc (https://github.com/LunarArcDevs/LunarArc)'

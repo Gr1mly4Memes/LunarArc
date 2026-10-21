@@ -17,4 +17,15 @@ public abstract class SlimeKeepOnJumpingGoalMixin_NeoForge {
     private void lunararc$paperCanWander(CallbackInfoReturnable<Boolean> cir) {
         if (!((SlimeBridge) (Object) this.slime).lunararc$canWander()) cir.setReturnValue(false);
     }
+
+    // SlimeWanderEvent: a plugin may stop a slime from picking its jumping goal.
+    @Inject(method = "canUse", remap = false, at = @At("RETURN"), cancellable = true)
+    private void lunararc$wanderEvent(CallbackInfoReturnable<Boolean> cir) {
+        if (cir.getReturnValueZ() && org.bukkit.Bukkit.isPrimaryThread()
+                && com.destroystokyo.paper.event.entity.SlimeWanderEvent.getHandlerList().getRegisteredListeners().length != 0
+                && ((io.lunararcdevs.lunararc.common.bridge.EntityBridge) (Object) this.slime).lunararc$getBukkitEntity() instanceof org.bukkit.entity.Slime bukkit
+                && !new com.destroystokyo.paper.event.entity.SlimeWanderEvent(bukkit).callEvent()) {
+            cir.setReturnValue(false);
+        }
+    }
 }

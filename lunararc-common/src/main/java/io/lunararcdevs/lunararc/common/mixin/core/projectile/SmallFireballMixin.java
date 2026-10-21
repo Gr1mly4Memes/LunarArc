@@ -1,7 +1,7 @@
 package io.lunararcdevs.lunararc.common.mixin.core.projectile;
 
 import io.lunararcdevs.lunararc.common.bridge.AbstractHurtingProjectileBridge;
-import net.minecraft.world.entity.projectile.SmallFireball;
+import net.minecraft.world.entity.projectile.hurtingprojectile.SmallFireball;
 import net.minecraft.world.phys.BlockHitResult;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -12,7 +12,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 public abstract class SmallFireballMixin {
     @Inject(
             method = "onHitBlock",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/projectile/Projectile;onHitBlock(Lnet/minecraft/world/phys/BlockHitResult;)V", shift = At.Shift.AFTER),
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/projectile/hurtingprojectile/Fireball;onHitBlock(Lnet/minecraft/world/phys/BlockHitResult;)V", shift = At.Shift.AFTER),
             cancellable = true,
             require = 0
     )

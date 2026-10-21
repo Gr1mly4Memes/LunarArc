@@ -89,11 +89,7 @@ public final class CraftEntityEquipment implements EntityEquipment {
     public float getDropChance(@NotNull EquipmentSlot slot) {
         net.minecraft.world.entity.Mob mob = mob();
         net.minecraft.world.entity.EquipmentSlot nms = CraftEquipmentSlot.getNMS(slot);
-        return switch (nms.getType()) {
-            case HAND -> mob.handDropChances[nms.getIndex()];
-            case HUMANOID_ARMOR -> mob.armorDropChances[nms.getIndex()];
-            case ANIMAL_ARMOR -> ((io.lunararcdevs.lunararc.common.bridge.access.MobAccessBridge) mob).lunararc$getBodyArmorDropChance();
-        };
+        return ((io.lunararcdevs.lunararc.common.bridge.access.MobAccessBridge) mob).lunararc$getDropChances().byEquipment(nms);
     }
 
     @Override
@@ -101,11 +97,8 @@ public final class CraftEntityEquipment implements EntityEquipment {
         if (!Float.isFinite(chance) || chance < 0.0F) throw new IllegalArgumentException("chance must be finite and >= 0");
         net.minecraft.world.entity.Mob mob = mob();
         net.minecraft.world.entity.EquipmentSlot nms = CraftEquipmentSlot.getNMS(slot);
-        switch (nms.getType()) {
-            case HAND -> mob.handDropChances[nms.getIndex()] = chance;
-            case HUMANOID_ARMOR -> mob.armorDropChances[nms.getIndex()] = chance;
-            case ANIMAL_ARMOR -> ((io.lunararcdevs.lunararc.common.bridge.access.MobAccessBridge) mob).lunararc$setBodyArmorDropChance(chance);
-        }
+        io.lunararcdevs.lunararc.common.bridge.access.MobAccessBridge access = (io.lunararcdevs.lunararc.common.bridge.access.MobAccessBridge) mob;
+        access.lunararc$setDropChances(access.lunararc$getDropChances().withEquipmentChance(nms, chance));
     }
 
     private net.minecraft.world.entity.Mob mob() {

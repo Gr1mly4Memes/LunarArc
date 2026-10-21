@@ -66,8 +66,88 @@ public final class LunarArcMixinConfigPlugin implements IMixinConfigPlugin {
             } else if (PLAYER_INFO_PACKET.equals(targetClass.name)) {
                 addSingleEntryConstructor(targetClass);
             }
+            addPaperStatics(targetClass);
+            addPaperStaticFields(targetClass);
         } catch (Throwable ignored) {
             // A missing accessor is a plugin-compatibility gap; a thrown one is a dead server.
+        }
+    }
+
+    private static final String STATICS = "io/lunararcdevs/lunararc/common/compat/PaperStatics";
+    private static final String[][] PAPER_STATICS = {
+            // target class, method name, descriptor, PaperStatics method
+            {"net/minecraft/world/entity/decoration/ItemFrame", "createBoundingBoxStatic",
+                    "(Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;Z)Lnet/minecraft/world/phys/AABB;", "itemFrameBox"},
+            {"net/minecraft/world/entity/decoration/painting/Painting", "calculateBoundingBoxStatic",
+                    "(Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Direction;II)Lnet/minecraft/world/phys/AABB;", "paintingBox"},
+            {"net/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity", "getTotalCookTime",
+                    "(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/level/block/entity/AbstractFurnaceBlockEntity;"
+                            + "Lnet/minecraft/world/item/crafting/RecipeType;D)I", "totalCookTime"},
+            {"net/minecraft/world/level/block/entity/ConduitBlockEntity", "updateAndAttackTarget",
+                    "(Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;"
+                            + "Lnet/minecraft/world/level/block/entity/ConduitBlockEntity;ZZ)V", "conduitUpdate"},
+            {"net/minecraft/world/level/storage/TagValueInput", "createGlobal",
+                    "(Lnet/minecraft/util/ProblemReporter;Lnet/minecraft/nbt/CompoundTag;)Lnet/minecraft/world/level/storage/ValueInput;", "createGlobal"},
+    };
+
+    // target class, field name, descriptor, PaperStatics method producing its initial value
+    private static final String[][] PAPER_STATIC_FIELDS = {
+            {"net/minecraft/world/item/component/AttackRange", "CODEC_DEFAULT", "Lnet/minecraft/world/item/component/AttackRange;", "attackRangeDefault"},
+    };
+
+    /**
+     * Declares the public statics Paper patches into vanilla, as thin delegates to {@code PaperStatics}. A mixin may not
+     * declare public statics, so they are added to the target class directly.
+     */
+    private static void addPaperStatics(ClassNode targetClass) {
+        for (String[] entry : PAPER_STATICS) {
+            if (!entry[0].equals(targetClass.name)) continue;
+            boolean present = false;
+            for (MethodNode existing : targetClass.methods) {
+                if (entry[1].equals(existing.name) && entry[2].equals(existing.desc)) present = true;
+            }
+            if (present) continue;
+            MethodNode method = new MethodNode(Opcodes.ASM9, Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC, entry[1], entry[2], null, null);
+            org.objectweb.asm.Type[] args = org.objectweb.asm.Type.getArgumentTypes(entry[2]);
+            int slot = 0;
+            for (org.objectweb.asm.Type arg : args) {
+                method.instructions.add(new VarInsnNode(arg.getOpcode(Opcodes.ILOAD), slot));
+                slot += arg.getSize();
+            }
+            method.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC, STATICS, entry[3], entry[2], false));
+            method.instructions.add(new InsnNode(org.objectweb.asm.Type.getReturnType(entry[2]).getOpcode(Opcodes.IRETURN)));
+            method.maxStack = slot + 2;
+            method.maxLocals = slot;
+            targetClass.methods.add(method);
+        }
+    }
+
+    /** Adds a public static final field and initialises it at the end of the class initialiser. */
+    private static void addPaperStaticFields(ClassNode targetClass) {
+        for (String[] entry : PAPER_STATIC_FIELDS) {
+            if (!entry[0].equals(targetClass.name)) continue;
+            for (org.objectweb.asm.tree.FieldNode existing : targetClass.fields) {
+                if (entry[1].equals(existing.name)) return;
+            }
+            MethodNode clinit = null;
+            for (MethodNode method : targetClass.methods) {
+                if ("<clinit>".equals(method.name)) clinit = method;
+            }
+            if (clinit == null) {
+                clinit = new MethodNode(Opcodes.ASM9, Opcodes.ACC_STATIC, "<clinit>", "()V", null, null);
+                clinit.instructions.add(new InsnNode(Opcodes.RETURN));
+                clinit.maxStack = 1;
+                targetClass.methods.add(clinit);
+            }
+            targetClass.fields.add(new org.objectweb.asm.tree.FieldNode(Opcodes.ASM9,
+                    Opcodes.ACC_PUBLIC | Opcodes.ACC_STATIC | Opcodes.ACC_FINAL, entry[1], entry[2], null, null));
+            org.objectweb.asm.tree.InsnList init = new org.objectweb.asm.tree.InsnList();
+            init.add(new MethodInsnNode(Opcodes.INVOKESTATIC, STATICS, entry[3], "()" + entry[2], false));
+            init.add(new FieldInsnNode(Opcodes.PUTSTATIC, targetClass.name, entry[1], entry[2]));
+            org.objectweb.asm.tree.AbstractInsnNode last = clinit.instructions.getLast();
+            while (last != null && last.getOpcode() != Opcodes.RETURN) last = last.getPrevious();
+            if (last != null) clinit.instructions.insertBefore(last, init); else clinit.instructions.add(init);
+            clinit.maxStack = Math.max(clinit.maxStack, 2);
         }
     }
 

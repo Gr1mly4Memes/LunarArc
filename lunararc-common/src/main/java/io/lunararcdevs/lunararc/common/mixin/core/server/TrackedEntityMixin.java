@@ -21,7 +21,7 @@ public abstract class TrackedEntityMixin {
         if (!LunarArcPaperEvents.trackEntity(player, this.entity)) original.call(serverEntity, player);
     }
 
-    @WrapOperation(method = "updatePlayer", require = 0,
+    @WrapOperation(method = {"removePlayer", "broadcastRemoved"}, require = 1,
             at = @At(value = "INVOKE", target = "Lnet/minecraft/server/level/ServerEntity;removePairing(Lnet/minecraft/server/level/ServerPlayer;)V"))
     private void lunararc$untrack(ServerEntity serverEntity, ServerPlayer player, Operation<Void> original) {
         original.call(serverEntity, player);

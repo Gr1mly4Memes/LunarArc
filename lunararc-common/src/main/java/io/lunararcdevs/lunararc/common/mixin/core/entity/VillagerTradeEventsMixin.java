@@ -4,7 +4,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import io.lunararcdevs.lunararc.common.event.LunarArcPaperEvents;
 import io.papermc.paper.event.player.PlayerTradeEvent;
-import net.minecraft.world.entity.npc.AbstractVillager;
+import net.minecraft.world.entity.npc.villager.AbstractVillager;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.MerchantOffers;
@@ -39,7 +39,7 @@ public abstract class VillagerTradeEventsMixin {
     }
 
     @WrapOperation(method = "notifyTrade", require = 0,
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/npc/AbstractVillager;rewardTradeXp(Lnet/minecraft/world/item/trading/MerchantOffer;)V"))
+            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/npc/villager/AbstractVillager;rewardTradeXp(Lnet/minecraft/world/item/trading/MerchantOffer;)V"))
     private void lunararc$xp(AbstractVillager villager, MerchantOffer offer, Operation<Void> original) {
         if (this.lunararc$tradeEvent == null || this.lunararc$tradeEvent.isRewardingExp()) original.call(villager, offer);
     }

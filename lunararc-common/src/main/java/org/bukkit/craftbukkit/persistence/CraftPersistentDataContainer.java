@@ -149,7 +149,7 @@ public class CraftPersistentDataContainer implements PersistentDataContainer {
             public Set<Entry<String, Tag>> entrySet() {
                 LinkedHashSet<Entry<String, Tag>> entries = new LinkedHashSet<>();
                 CompoundTag tag = CraftPersistentDataContainer.this.toTag();
-                for (String key : tag.getAllKeys()) {
+                for (String key : tag.keySet()) {
                     Tag value = tag.get(key);
                     if (value != null) entries.add(new SimpleImmutableEntry<>(key, value));
                 }
@@ -161,7 +161,7 @@ public class CraftPersistentDataContainer implements PersistentDataContainer {
 
     public void putAll(CompoundTag tag) {
         if (tag == null) return;
-        for (String keyString : tag.getAllKeys()) {
+        for (String keyString : tag.keySet()) {
             NamespacedKey key = NamespacedKey.fromString(keyString);
             if (key == null) continue;
             StoredValue stored = fromNbt(tag.get(keyString));
@@ -196,7 +196,7 @@ public class CraftPersistentDataContainer implements PersistentDataContainer {
     public void fromTag(CompoundTag tag) {
         customData.clear();
         if (tag == null) return;
-        for (String keyString : tag.getAllKeys()) {
+        for (String keyString : tag.keySet()) {
             NamespacedKey key = NamespacedKey.fromString(keyString);
             if (key == null) continue;
             StoredValue stored = fromNbt(tag.get(keyString));
@@ -205,13 +205,13 @@ public class CraftPersistentDataContainer implements PersistentDataContainer {
     }
 
     private static StoredValue fromNbt(Tag value) {
-        if (value instanceof net.minecraft.nbt.StringTag v) return new StoredValue(String.class, v.getAsString());
-        if (value instanceof net.minecraft.nbt.ByteTag v) return new StoredValue(Byte.class, v.getAsByte());
-        if (value instanceof net.minecraft.nbt.ShortTag v) return new StoredValue(Short.class, v.getAsShort());
-        if (value instanceof net.minecraft.nbt.IntTag v) return new StoredValue(Integer.class, v.getAsInt());
-        if (value instanceof net.minecraft.nbt.LongTag v) return new StoredValue(Long.class, v.getAsLong());
-        if (value instanceof net.minecraft.nbt.FloatTag v) return new StoredValue(Float.class, v.getAsFloat());
-        if (value instanceof net.minecraft.nbt.DoubleTag v) return new StoredValue(Double.class, v.getAsDouble());
+        if (value instanceof net.minecraft.nbt.StringTag v) return new StoredValue(String.class, v.value());
+        if (value instanceof net.minecraft.nbt.ByteTag v) return new StoredValue(Byte.class, v.value());
+        if (value instanceof net.minecraft.nbt.ShortTag v) return new StoredValue(Short.class, v.value());
+        if (value instanceof net.minecraft.nbt.IntTag v) return new StoredValue(Integer.class, v.value());
+        if (value instanceof net.minecraft.nbt.LongTag v) return new StoredValue(Long.class, v.value());
+        if (value instanceof net.minecraft.nbt.FloatTag v) return new StoredValue(Float.class, v.value());
+        if (value instanceof net.minecraft.nbt.DoubleTag v) return new StoredValue(Double.class, v.value());
         if (value instanceof net.minecraft.nbt.ByteArrayTag v) return new StoredValue(byte[].class, v.getAsByteArray());
         if (value instanceof net.minecraft.nbt.IntArrayTag v) return new StoredValue(int[].class, v.getAsIntArray());
         if (value instanceof net.minecraft.nbt.LongArrayTag v) return new StoredValue(long[].class, v.getAsLongArray());
@@ -315,7 +315,7 @@ public class CraftPersistentDataContainer implements PersistentDataContainer {
     public java.util.Map<String, net.minecraft.nbt.Tag> getTagsCloned() {
         net.minecraft.nbt.CompoundTag compound = this.toTagCompound();
         java.util.Map<String, net.minecraft.nbt.Tag> tags = new java.util.HashMap<>();
-        for (String key : compound.getAllKeys()) {
+        for (String key : compound.keySet()) {
             net.minecraft.nbt.Tag tag = compound.get(key);
             if (tag != null) tags.put(key, tag.copy());
         }
@@ -324,5 +324,10 @@ public class CraftPersistentDataContainer implements PersistentDataContainer {
 
     public String serialize() {
         return org.bukkit.craftbukkit.util.CraftNBTTagConfigSerializer.serialize(this.toTagCompound());
+    }
+
+    @Override
+    public int getSize() {
+        return customData.size();
     }
 }

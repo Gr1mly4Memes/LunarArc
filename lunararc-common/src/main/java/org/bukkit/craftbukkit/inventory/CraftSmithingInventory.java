@@ -1,6 +1,5 @@
 package org.bukkit.craftbukkit.inventory;
 
-import io.lunararcdevs.lunararc.common.bridge.access.SmithingMenuAccessBridge;
 import net.minecraft.world.inventory.SmithingMenu;
 import org.bukkit.entity.HumanEntity;
 import org.bukkit.event.inventory.InventoryType;
@@ -22,7 +21,8 @@ public final class CraftSmithingInventory extends CraftInventoryView.MenuSlotInv
 
     @Override
     public @Nullable Recipe getRecipe() {
-        var holder = ((SmithingMenuAccessBridge) (Object) this.handle).lunararc$getSelectedRecipe();
+        net.minecraft.world.item.crafting.RecipeHolder<?> holder = this.handle.getSlot(3).container instanceof net.minecraft.world.inventory.ResultContainer result
+                ? result.getRecipeUsed() : null;
         return holder == null ? null : CraftRecipeAdapter.toBukkit(holder);
     }
 }

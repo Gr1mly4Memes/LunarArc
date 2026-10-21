@@ -48,7 +48,7 @@ public final class PlayerJoinListener {
     }
 
     private static boolean hasLevelFourOperatorAccess(GameProfile profile, net.minecraft.server.MinecraftServer server) {
-        return server.getProfilePermissions(profile) >= 4;
+        return server.getProfilePermissions(new net.minecraft.server.players.NameAndId(profile)).hasPermission(net.minecraft.server.permissions.Permissions.COMMANDS_OWNER);
     }
 
     private static boolean isCurrentVersion(String latestVersion) {

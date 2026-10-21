@@ -72,6 +72,12 @@ public final class LunarArcPaperServiceBootstrap {
     }
 
     private static void seedOptional(String holderClass, String name, java.util.function.Supplier<?> provider) throws Exception {
+        // Some API providers moved to ServiceLoader; when the holder class no longer exists there is nothing to seed.
+        try {
+            Class.forName(holderClass);
+        } catch (ClassNotFoundException absent) {
+            return;
+        }
         Field field = staticField(holderClass, name);
         if (readStatic(field) instanceof Optional<?> present && present.isPresent()) return;
         writeStatic(field, Optional.of(provider.get()));

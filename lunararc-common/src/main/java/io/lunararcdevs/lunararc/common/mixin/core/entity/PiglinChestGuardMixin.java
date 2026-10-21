@@ -10,8 +10,8 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(PiglinAi.class)
 public abstract class PiglinChestGuardMixin {
-    @Inject(method = "angerNearbyPiglins", at = @At("HEAD"), cancellable = true, require = 0)
-    private static void lunararc$chestGuard(Player player, boolean requiresLineOfSight, CallbackInfo ci) {
+    @Inject(method = "angerNearbyPiglins", at = @At("HEAD"), cancellable = true, require = 1)
+    private static void lunararc$chestGuard(net.minecraft.server.level.ServerLevel level, Player player, boolean requiresLineOfSight, CallbackInfo ci) {
         if (requiresLineOfSight && !LunarArcServerSettings.tuning(player.level()).piglinsGuardChests) ci.cancel();
     }
 }

@@ -10,7 +10,7 @@ import java.util.Map;
 
 @Mixin(Raids.class)
 public abstract class RaidsMixin implements RaidsBridge {
-    @Shadow private Map<Integer, Raid> raidMap;
+    @Shadow @org.spongepowered.asm.mixin.Final public it.unimi.dsi.fastutil.ints.Int2ObjectMap<Raid> raidMap;
 
     @Override
     public Map<Integer, Raid> lunararc$raids() {

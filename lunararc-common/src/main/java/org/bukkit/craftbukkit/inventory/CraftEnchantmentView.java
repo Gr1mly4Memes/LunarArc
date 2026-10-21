@@ -29,7 +29,7 @@ public final class CraftEnchantmentView extends CraftInventoryView implements En
     }
 
     private Registry<Enchantment> registry() {
-        return ((org.bukkit.craftbukkit.entity.CraftPlayer) getPlayer()).getHandle().registryAccess().registryOrThrow(Registries.ENCHANTMENT);
+        return ((org.bukkit.craftbukkit.entity.CraftPlayer) getPlayer()).getHandle().registryAccess().lookupOrThrow(Registries.ENCHANTMENT);
     }
 
     @Override public @NotNull EnchantingInventory getTopInventory() { return this.top; }
@@ -41,7 +41,7 @@ public final class CraftEnchantmentView extends CraftInventoryView implements En
         Registry<Enchantment> registry = registry();
         EnchantmentOffer[] offers = new EnchantmentOffer[3];
         for (int i = 0; i < 3; i++) {
-            Holder<Enchantment> clue = this.handle.enchantClue[i] < 0 ? null : registry.getHolder(this.handle.enchantClue[i]).orElse(null);
+            Holder<Enchantment> clue = this.handle.enchantClue[i] < 0 ? null : registry.get(this.handle.enchantClue[i]).orElse(null);
             offers[i] = clue == null ? null
                     : new EnchantmentOffer(CraftEnchantment.minecraftHolderToBukkit(clue), this.handle.levelClue[i], this.handle.costs[i]);
         }
@@ -58,5 +58,10 @@ public final class CraftEnchantmentView extends CraftInventoryView implements En
             this.handle.enchantClue[i] = offer == null ? -1 : registry.getId(CraftEnchantment.bukkitToMinecraft(offer.getEnchantment()));
             this.handle.levelClue[i] = offer == null ? -1 : offer.getEnchantmentLevel();
         }
+    }
+
+    @Override
+    public void open() {
+        getPlayer().openInventory(this);
     }
 }

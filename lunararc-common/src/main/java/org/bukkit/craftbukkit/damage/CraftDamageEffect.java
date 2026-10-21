@@ -17,7 +17,7 @@ public final class CraftDamageEffect implements DamageEffect {
     @Override
     public @NotNull Sound getSound() {
         net.minecraft.sounds.SoundEvent event = this.handle.sound();
-        net.minecraft.resources.ResourceLocation id = net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.getKey(event);
+        net.minecraft.resources.Identifier id = net.minecraft.core.registries.BuiltInRegistries.SOUND_EVENT.getKey(event);
         if (id == null) throw new IllegalStateException("Unregistered sound for damage effect " + this.handle);
         Sound sound = org.bukkit.Registry.SOUNDS.get(new NamespacedKey(id.getNamespace(), id.getPath()));
         if (sound == null) throw new IllegalStateException("No Bukkit Sound for NMS sound " + id);

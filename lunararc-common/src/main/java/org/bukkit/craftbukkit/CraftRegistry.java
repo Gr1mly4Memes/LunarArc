@@ -1,5 +1,6 @@
 package org.bukkit.craftbukkit;
 
+import io.papermc.paper.util.Holderable;
 import com.google.common.base.Preconditions;
 import io.lunararcdevs.lunararc.common.LunarArcServerAccess;
 import net.minecraft.core.Holder;
@@ -28,7 +29,7 @@ public final class CraftRegistry {
 
     public static <E> net.minecraft.core.Registry<E> getMinecraftRegistry(
             ResourceKey<net.minecraft.core.Registry<E>> key) {
-        return getMinecraftRegistry().registryOrThrow(key);
+        return getMinecraftRegistry().lookupOrThrow(key);
     }
 
     /**
@@ -43,7 +44,7 @@ public final class CraftRegistry {
         B bukkit = bukkitRegistry.get(CraftNamespacedKey.fromMinecraft(registry.getResourceKey(minecraft)
                 .orElseThrow(() -> new IllegalStateException(String.format(
                         "Cannot convert '%s' to bukkit representation, since it is not registered.",
-                        minecraft))).location()));
+                        minecraft))).identifier()));
 
         Preconditions.checkArgument(bukkit != null);
 
@@ -71,6 +72,37 @@ public final class CraftRegistry {
                 + ", this can happen if a plugin creates its own registry entry with out properly registering it.");
     }
 
+    @SuppressWarnings("unchecked")
+    public static <B extends Keyed, M> B minecraftHolderToBukkit(final Holder<M> minecraft,
+            final ResourceKey<? extends net.minecraft.core.Registry<M>> registryKey) {
+        Preconditions.checkArgument(minecraft != null);
+
+        final Registry<B> bukkitRegistry = io.papermc.paper.registry.RegistryAccess.registryAccess()
+                .getRegistry(io.papermc.paper.registry.PaperRegistries.<B>registryFromNms(registryKey));
+        if (!(minecraft instanceof Holder.Reference<M> reference)) {
+            throw new IllegalArgumentException("Cannot convert direct holder to bukkit representation");
+        }
+        final B bukkit = bukkitRegistry.get(CraftNamespacedKey.fromMinecraft(reference.key().identifier()));
+        Preconditions.checkArgument(bukkit != null);
+        return bukkit;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <B extends Keyed, M> B minecraftToBukkit(final M minecraft,
+            final ResourceKey<? extends net.minecraft.core.Registry<M>> registryKey) {
+        Preconditions.checkArgument(minecraft != null);
+
+        final net.minecraft.core.Registry<M> registry = getMinecraftRegistry().lookupOrThrow(registryKey);
+        return CraftRegistry.<B, M>minecraftHolderToBukkit(registry.wrapAsHolder(minecraft), registryKey);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <B extends Keyed, M> Holder<M> bukkitToMinecraftHolder(final B bukkit) {
+        Preconditions.checkArgument(bukkit != null);
+
+        return ((Holderable<M>) bukkit).getHolder();
+    }
+
     public static <T extends Keyed, M> Optional<T> unwrapAndConvertHolder(
             io.papermc.paper.registry.RegistryKey<T> registryKey, Holder<M> value) {
         return unwrapAndConvertHolder(
@@ -78,7 +110,7 @@ public final class CraftRegistry {
     }
 
     public static <T extends Keyed, M> Optional<T> unwrapAndConvertHolder(Registry<T> registry, Holder<M> value) {
-        return value.unwrapKey().map(key -> registry.get(CraftNamespacedKey.fromMinecraft(key.location())));
+        return value.unwrapKey().map(key -> registry.get(CraftNamespacedKey.fromMinecraft(key.identifier())));
     }
 
     public static <B extends Keyed> B get(Registry<B> bukkit, NamespacedKey namespacedKey, ApiVersion apiVersion) {

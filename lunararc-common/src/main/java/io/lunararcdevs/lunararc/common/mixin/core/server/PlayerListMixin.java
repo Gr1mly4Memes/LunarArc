@@ -41,18 +41,20 @@ import java.util.List;
 @Mixin(PlayerList.class)
 public abstract class PlayerListMixin implements PlayerListBridge {
 
-    @Unique private net.minecraft.world.level.portal.DimensionTransition lunararc$lastRespawnTransition;
+    @Unique private net.minecraft.world.level.portal.TeleportTransition lunararc$lastRespawnTransition;
     @Unique private boolean lunararc$lastRespawnBedSpawn;
+    @Unique private boolean lunararc$lastRespawnAnchor;
+    @Unique private boolean lunararc$lastRespawnMissing;
+    @Unique private org.bukkit.event.player.PlayerRespawnEvent.RespawnReason lunararc$lastRespawnReason = org.bukkit.event.player.PlayerRespawnEvent.RespawnReason.DEATH;
 
     @Shadow @Final private MinecraftServer server;
     @Shadow @Final private UserBanList bans;
     @Shadow @Final private IpBanList ipBans;
     @Shadow @Final public List<ServerPlayer> players;
-    @Shadow public int maxPlayers;
 
-    @Shadow public abstract boolean isWhiteListed(GameProfile profile);
-    @Shadow public abstract boolean canBypassPlayerLimit(GameProfile profile);
-    @Shadow public abstract Component canPlayerLogin(SocketAddress address, GameProfile profile);
+    @Shadow public abstract boolean isWhiteListed(net.minecraft.server.players.NameAndId profile);
+    @Shadow public abstract boolean canBypassPlayerLimit(net.minecraft.server.players.NameAndId profile);
+    @Shadow public abstract Component canPlayerLogin(SocketAddress address, net.minecraft.server.players.NameAndId profile);
     @Shadow public abstract void broadcastSystemMessage(Component component, boolean overlay);
 
     @org.spongepowered.asm.mixin.injection.ModifyVariable(
@@ -78,7 +80,8 @@ public abstract class PlayerListMixin implements PlayerListBridge {
     public void lunararc$reloadRecipeData() {
         net.minecraft.network.protocol.game.ClientboundUpdateRecipesPacket packet =
                 new net.minecraft.network.protocol.game.ClientboundUpdateRecipesPacket(
-                        this.server.getRecipeManager().getOrderedRecipes());
+                        this.server.getRecipeManager().getSynchronizedItemProperties(),
+                        this.server.getRecipeManager().getSynchronizedStonecutterRecipes());
         for (ServerPlayer player : this.players) {
             if (player.connection != null && player.connection.isAcceptingMessages()) {
                 player.connection.send(packet);
@@ -97,7 +100,7 @@ public abstract class PlayerListMixin implements PlayerListBridge {
 
     @Override
     public ServerPlayer lunararc$canPlayerLogin(SocketAddress address, GameProfile profile, ServerLoginPacketListenerImpl handler) {
-        Component vanillaDenial = this.canPlayerLogin(address, profile);
+        Component vanillaDenial = this.canPlayerLogin(address, new net.minecraft.server.players.NameAndId(profile));
         ServerPlayer player = new ServerPlayer(this.server, this.server.overworld(), profile, ClientInformation.createDefault());
         Player bukkitPlayer = (Player) ((EntityBridge) player).lunararc$getBukkitEntity();
 
@@ -135,16 +138,16 @@ public abstract class PlayerListMixin implements PlayerListBridge {
 
     @Unique
     private PlayerLoginEvent.Result lunararc$loginResult(SocketAddress address, GameProfile profile) {
-        if (this.bans.isBanned(profile)) {
+        if (this.bans.isBanned(new net.minecraft.server.players.NameAndId(profile))) {
             return PlayerLoginEvent.Result.KICK_BANNED;
         }
-        if (!this.isWhiteListed(profile)) {
+        if (!this.isWhiteListed(new net.minecraft.server.players.NameAndId(profile))) {
             return PlayerLoginEvent.Result.KICK_WHITELIST;
         }
         if (this.ipBans.isBanned(address)) {
             return PlayerLoginEvent.Result.KICK_BANNED;
         }
-        if (this.players.size() >= this.maxPlayers && !this.canBypassPlayerLimit(profile)) {
+        if (this.players.size() >= this.server.getMaxPlayers() && !this.canBypassPlayerLimit(new net.minecraft.server.players.NameAndId(profile))) {
             return PlayerLoginEvent.Result.KICK_FULL;
         }
         return PlayerLoginEvent.Result.KICK_OTHER;
@@ -155,73 +158,17 @@ public abstract class PlayerListMixin implements PlayerListBridge {
         ((ServerPlayerBukkitDataBridge) player).lunararc$setLoginTime(System.currentTimeMillis());
     }
 
-    /**
-     * Spigot/Paper expose a final pre-join spawn-location hook before the player is
-     * installed into a world. Keep the real ServerPlayer and loader-owned ServerLevel;
-     * only let the event select the destination and coordinates. This mirrors the
-     * 1.21.1 Arclight/CraftBukkit placement point and intentionally does not create a
-     * competing world-transfer implementation.
-     */
-    @Redirect(
-            method = "placeNewPlayer",
-            at = @At(
-                    value = "INVOKE",
-                    target = "Lnet/minecraft/server/MinecraftServer;getLevel(Lnet/minecraft/resources/ResourceKey;)Lnet/minecraft/server/level/ServerLevel;"),
-            require = 0)
-    private net.minecraft.server.level.ServerLevel lunararc$playerSpawnLocationEvent(
-            MinecraftServer minecraftServer,
-            net.minecraft.resources.ResourceKey<net.minecraft.world.level.Level> dimension,
-            Connection connection,
-            ServerPlayer player,
-            CommonListenerCookie cookie) {
-        net.minecraft.server.level.ServerLevel vanillaLevel = minecraftServer.getLevel(dimension);
-        if (vanillaLevel == null) {
-            return null;
-        }
-
-        Object bukkit = ((EntityBridge) player).lunararc$getBukkitEntity();
-        if (!(bukkit instanceof org.bukkit.craftbukkit.entity.CraftPlayer craftPlayer)) {
-            return vanillaLevel;
-        }
-
-        // craftPlayer.getLocation() here still reflects the placeholder ServerPlayer built with
-        // this.server.overworld() back in lunararc$canPlayerLogin - the real saved position/level
-        // this player is actually returning to (e.g. the Aether) is only applied later, by
-        // player.load(tag) further down in this same vanilla method, well after this redirected
-        // call returns. A real live boot proved this: a player logged out in the Aether came back
-        // in the overworld on the very next join, with no plugin touching spawn location at all.
-        // The event's own default is therefore stale, not authoritative - only trust a location
-        // this event actually returns AS CHANGED from that stale default; otherwise defer to
-        // vanillaLevel, which getLevel(dimension) already resolved correctly from the real save data.
-        org.bukkit.Location defaultLocation = craftPlayer.getLocation();
-        org.spigotmc.event.player.PlayerSpawnLocationEvent event =
-                new org.spigotmc.event.player.PlayerSpawnLocationEvent(craftPlayer, defaultLocation);
-        this.lunararc$getCraftServer().getPluginManager().callEvent(event);
-
-        org.bukkit.Location selected = event.getSpawnLocation();
-        if (selected == null || selected.equals(defaultLocation)
-                || !(selected.getWorld() instanceof org.bukkit.craftbukkit.CraftWorld craftWorld)) {
-            return vanillaLevel;
-        }
-
-        net.minecraft.server.level.ServerLevel selectedLevel = craftWorld.getHandle();
-        player.setServerLevel(selectedLevel);
-        player.absMoveTo(selected.getX(), selected.getY(), selected.getZ(), selected.getYaw(), selected.getPitch());
-        return selectedLevel;
-    }
-
-
     @Redirect(
             method = "respawn",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/server/level/ServerPlayer;findRespawnPositionAndUseSpawnBlock(ZLnet/minecraft/world/level/portal/DimensionTransition$PostDimensionTransition;)Lnet/minecraft/world/level/portal/DimensionTransition;"),
+                    target = "Lnet/minecraft/server/level/ServerPlayer;findRespawnPositionAndUseSpawnBlock(ZLnet/minecraft/world/level/portal/TeleportTransition$PostTeleportTransition;)Lnet/minecraft/world/level/portal/TeleportTransition;"),
             require = 0)
-    private net.minecraft.world.level.portal.DimensionTransition lunararc$respawnEvent(
+    private net.minecraft.world.level.portal.TeleportTransition lunararc$respawnEvent(
             ServerPlayer player,
             boolean keepEverything,
-            net.minecraft.world.level.portal.DimensionTransition.PostDimensionTransition postTransition) {
-        net.minecraft.world.level.portal.DimensionTransition vanilla =
+            net.minecraft.world.level.portal.TeleportTransition.PostTeleportTransition postTransition) {
+        net.minecraft.world.level.portal.TeleportTransition vanilla =
                 ((io.lunararcdevs.lunararc.common.bridge.ServerPlayerRespawnBridge) (Object) player).lunararc$findRespawnPositionAndUseSpawnBlock(keepEverything, postTransition);
         if (vanilla == null) {
             return null;
@@ -232,16 +179,17 @@ public abstract class PlayerListMixin implements PlayerListBridge {
                 this.lunararc$getCraftServer().getCraftWorld(vanilla.newLevel());
         org.bukkit.Location location = new org.bukkit.Location(
                 craftWorld,
-                vanilla.pos().x,
-                vanilla.pos().y,
-                vanilla.pos().z,
+                vanilla.position().x,
+                vanilla.position().y,
+                vanilla.position().z,
                 vanilla.yRot(),
                 vanilla.xRot());
 
         boolean bedSpawn = false;
         boolean anchorSpawn = false;
-        net.minecraft.core.BlockPos respawnPos = player.getRespawnPosition();
-        if (respawnPos != null && vanilla.newLevel() == this.server.getLevel(player.getRespawnDimension())) {
+        net.minecraft.server.level.ServerPlayer.RespawnConfig respawnConfig = player.getRespawnConfig();
+        if (respawnConfig != null && vanilla.newLevel() == this.server.getLevel(respawnConfig.respawnData().dimension())) {
+            net.minecraft.core.BlockPos respawnPos = respawnConfig.respawnData().pos();
             net.minecraft.world.level.block.state.BlockState state = vanilla.newLevel().getBlockState(respawnPos);
             bedSpawn = state.getBlock() instanceof net.minecraft.world.level.block.BedBlock;
             anchorSpawn = state.is(net.minecraft.world.level.block.Blocks.RESPAWN_ANCHOR);
@@ -252,12 +200,15 @@ public abstract class PlayerListMixin implements PlayerListBridge {
                 : org.bukkit.event.player.PlayerRespawnEvent.RespawnReason.DEATH;
         org.bukkit.event.player.PlayerRespawnEvent event =
                 new org.bukkit.event.player.PlayerRespawnEvent(
-                        bukkitPlayer, location, bedSpawn, anchorSpawn, reason);
+                        bukkitPlayer, location, bedSpawn, anchorSpawn, vanilla.missingRespawnBlock(), reason);
+        this.lunararc$lastRespawnReason = reason;
+        this.lunararc$lastRespawnAnchor = anchorSpawn;
+        this.lunararc$lastRespawnMissing = vanilla.missingRespawnBlock();
         this.lunararc$getCraftServer().getPluginManager().callEvent(event);
 
         org.bukkit.Location chosen = event.getRespawnLocation();
         if (!(chosen.getWorld() instanceof org.bukkit.craftbukkit.CraftWorld chosenWorld)) {
-            net.minecraft.core.BlockPos vanillaPos = net.minecraft.core.BlockPos.containing(vanilla.pos());
+            net.minecraft.core.BlockPos vanillaPos = net.minecraft.core.BlockPos.containing(vanilla.position());
             net.minecraft.world.level.block.state.BlockState vanillaState = vanilla.newLevel().getBlockState(vanillaPos);
             this.lunararc$lastRespawnTransition = vanilla;
             this.lunararc$lastRespawnBedSpawn = vanillaState.is(net.minecraft.tags.BlockTags.BEDS)
@@ -268,21 +219,23 @@ public abstract class PlayerListMixin implements PlayerListBridge {
         net.minecraft.world.phys.Vec3 chosenPos = new net.minecraft.world.phys.Vec3(
                 chosen.getX(), chosen.getY(), chosen.getZ());
         boolean unchanged = chosenLevel == vanilla.newLevel()
-                && chosenPos.equals(vanilla.pos())
+                && chosenPos.equals(vanilla.position())
                 && chosen.getYaw() == vanilla.yRot()
                 && chosen.getPitch() == vanilla.xRot();
-        net.minecraft.world.level.portal.DimensionTransition selected = unchanged
+        net.minecraft.world.level.portal.TeleportTransition selected = unchanged
                 ? vanilla
-                : new net.minecraft.world.level.portal.DimensionTransition(
+                : new net.minecraft.world.level.portal.TeleportTransition(
                         chosenLevel,
                         chosenPos,
-                        vanilla.speed(),
+                        vanilla.deltaMovement(),
                         chosen.getYaw(),
                         chosen.getPitch(),
-                        false,
-                        vanilla.postDimensionTransition());
+                        vanilla.missingRespawnBlock(),
+                        vanilla.asPassenger(),
+                        vanilla.relatives(),
+                        vanilla.postTeleportTransition());
 
-        net.minecraft.core.BlockPos selectedPos = net.minecraft.core.BlockPos.containing(selected.pos());
+        net.minecraft.core.BlockPos selectedPos = net.minecraft.core.BlockPos.containing(selected.position());
         net.minecraft.world.level.block.state.BlockState selectedState = selected.newLevel().getBlockState(selectedPos);
         this.lunararc$lastRespawnTransition = selected;
         this.lunararc$lastRespawnBedSpawn = selectedState.is(net.minecraft.tags.BlockTags.BEDS)
@@ -293,10 +246,15 @@ public abstract class PlayerListMixin implements PlayerListBridge {
     @Inject(method = "respawn", at = @At("RETURN"), require = 0)
     private void lunararc$postRespawn(ServerPlayer original, boolean keepEverything, net.minecraft.world.entity.Entity.RemovalReason removalReason, CallbackInfoReturnable<ServerPlayer> cir) {
         ServerPlayer respawned = cir.getReturnValue();
-        net.minecraft.world.level.portal.DimensionTransition transition = this.lunararc$lastRespawnTransition;
+        net.minecraft.world.level.portal.TeleportTransition transition = this.lunararc$lastRespawnTransition;
         boolean bedSpawn = this.lunararc$lastRespawnBedSpawn;
+        boolean anchorSpawn = this.lunararc$lastRespawnAnchor;
+        boolean missingRespawn = this.lunararc$lastRespawnMissing;
+        org.bukkit.event.player.PlayerRespawnEvent.RespawnReason respawnReason = this.lunararc$lastRespawnReason;
         this.lunararc$lastRespawnTransition = null;
         this.lunararc$lastRespawnBedSpawn = false;
+        this.lunararc$lastRespawnAnchor = false;
+        this.lunararc$lastRespawnMissing = false;
         if (respawned == null || transition == null || respawned.connection == null) return;
 
         if (original instanceof io.lunararcdevs.lunararc.common.bridge.ServerPlayerDeathBridge deathBridge) {
@@ -351,7 +309,7 @@ public abstract class PlayerListMixin implements PlayerListBridge {
                 respawned.getYRot(), respawned.getXRot());
         this.lunararc$getCraftServer().getPluginManager().callEvent(
                 new com.destroystokyo.paper.event.player.PlayerPostRespawnEvent(
-                        craftPlayer, postLocation, bedSpawn));
+                        craftPlayer, postLocation, bedSpawn, anchorSpawn, missingRespawn, respawnReason));
     }
 
     @Redirect(
@@ -429,8 +387,5 @@ public abstract class PlayerListMixin implements PlayerListBridge {
         this.lunararc$getCraftServer().getPluginManager().callEvent(event);
     }
 
-    @Inject(method = "setUsingWhiteList", at = @At("HEAD"), require = 0)
-    private void lunararc$whitelistToggle(boolean enabled, CallbackInfo ci) {
-        io.lunararcdevs.lunararc.common.event.LunarArcPaperEvents.whitelistToggle(enabled);
-    }
+
 }

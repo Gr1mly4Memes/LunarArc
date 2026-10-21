@@ -83,15 +83,15 @@ public final class PaperRegistryAccess implements RegistryAccess {
             case "org.bukkit.enchantments.Enchantment":
                 return (Registry<T>) LunarArcRegistryEntries.createEnchantmentRegistry();
             case "org.bukkit.attribute.Attribute":
-                return (Registry<T>) LunarArcRegistryEntries.createAttributeRegistry();
+                return (Registry<T>) holderRegistry(net.minecraft.core.registries.Registries.ATTRIBUTE, org.bukkit.craftbukkit.attribute.CraftAttribute::new);
             case "org.bukkit.Fluid":
-                return (Registry<T>) LunarArcRegistryEntries.createFluidRegistry();
+                return (Registry<T>) holderRegistry(net.minecraft.core.registries.Registries.FLUID, org.bukkit.craftbukkit.CraftFluid::new);
             case "org.bukkit.Sound":
-                return (Registry<T>) LunarArcRegistryEntries.createSoundRegistry();
+                return (Registry<T>) holderRegistry(net.minecraft.core.registries.Registries.SOUND_EVENT, org.bukkit.craftbukkit.CraftSound::new);
             case "org.bukkit.block.Biome":
-                return (Registry<T>) LunarArcRegistryEntries.createBiomeRegistry();
+                return (Registry<T>) holderRegistry(net.minecraft.core.registries.Registries.BIOME, org.bukkit.craftbukkit.block.CraftBiome::new);
             case "org.bukkit.Art":
-                return (Registry<T>) LunarArcRegistryEntries.createArtRegistry();
+                return (Registry<T>) holderRegistry(net.minecraft.core.registries.Registries.PAINTING_VARIANT, org.bukkit.craftbukkit.CraftArt::new);
             case "org.bukkit.entity.memory.MemoryKey":
                 return (Registry<T>) LunarArcRegistryEntries.createMemoryKeyRegistry();
             case "org.bukkit.GameEvent":
@@ -125,12 +125,12 @@ public final class PaperRegistryAccess implements RegistryAccess {
             case "org.bukkit.entity.Cat$Type":
                 return type.isInterface()
                         ? (Registry<T>) LunarArcRegistryEntries.createKeyedNmsRegistry(
-                                (Class<? extends Keyed>) type, net.minecraft.core.registries.BuiltInRegistries.CAT_VARIANT)
+                                (Class<? extends Keyed>) type, net.minecraft.core.registries.Registries.CAT_VARIANT)
                         : LunarArcBukkitRegistry.forType(type);
             case "org.bukkit.entity.Frog$Variant":
                 return type.isInterface()
                         ? (Registry<T>) LunarArcRegistryEntries.createKeyedNmsRegistry(
-                                (Class<? extends Keyed>) type, net.minecraft.core.registries.BuiltInRegistries.FROG_VARIANT)
+                                (Class<? extends Keyed>) type, net.minecraft.core.registries.Registries.FROG_VARIANT)
                         : LunarArcBukkitRegistry.forType(type);
             case "org.bukkit.entity.Villager$Profession":
                 return type.isInterface()
@@ -142,6 +142,24 @@ public final class PaperRegistryAccess implements RegistryAccess {
                         ? (Registry<T>) LunarArcRegistryEntries.createKeyedNmsRegistry(
                                 (Class<? extends Keyed>) type, net.minecraft.core.registries.BuiltInRegistries.VILLAGER_TYPE)
                         : LunarArcBukkitRegistry.forType(type);
+            case "io.papermc.paper.datacomponent.DataComponentType":
+                return (Registry<T>) holderRegistry(net.minecraft.core.registries.Registries.DATA_COMPONENT_TYPE,
+                        holder -> io.papermc.paper.datacomponent.PaperDataComponentType.of(holder));
+            case "org.bukkit.GameRule":
+                return (Registry<T>) LunarArcBukkitRegistry.lazy(() -> {
+                    java.util.List<Keyed> values = new java.util.ArrayList<>();
+                    net.minecraft.core.registries.BuiltInRegistries.GAME_RULE.listElements()
+                            .forEach(holder -> values.add(new org.bukkit.craftbukkit.CraftGameRule<>(holder)));
+                    return values;
+                });
+            case "org.bukkit.entity.Pig$Variant":
+                return (Registry<T>) holderRegistry(net.minecraft.core.registries.Registries.PIG_VARIANT, org.bukkit.craftbukkit.entity.CraftPig.CraftVariant::new);
+            case "org.bukkit.entity.Cow$Variant":
+                return (Registry<T>) holderRegistry(net.minecraft.core.registries.Registries.COW_VARIANT, org.bukkit.craftbukkit.entity.CraftCow.CraftVariant::new);
+            case "org.bukkit.entity.Chicken$Variant":
+                return (Registry<T>) holderRegistry(net.minecraft.core.registries.Registries.CHICKEN_VARIANT, org.bukkit.craftbukkit.entity.CraftChicken.CraftVariant::new);
+            case "org.bukkit.entity.Wolf$SoundVariant":
+                return (Registry<T>) holderRegistry(net.minecraft.core.registries.Registries.WOLF_SOUND_VARIANT, org.bukkit.craftbukkit.entity.CraftWolf.CraftSoundVariant::new);
             case "org.bukkit.entity.Wolf$Variant":
                 return type.isInterface()
                         ? (Registry<T>) LunarArcRegistryEntries.createWolfVariantRegistry()
@@ -152,6 +170,18 @@ public final class PaperRegistryAccess implements RegistryAccess {
     }
 
 
+    /** Lazy Bukkit registry over a data-driven vanilla registry, one Holderable wrapper per registry entry. */
+    private static <M> Registry<? extends Keyed> holderRegistry(
+            net.minecraft.resources.ResourceKey<? extends net.minecraft.core.Registry<M>> key,
+            java.util.function.Function<net.minecraft.core.Holder<M>, ? extends Keyed> wrapper) {
+        return LunarArcBukkitRegistry.lazy(() -> {
+            java.util.List<Keyed> values = new java.util.ArrayList<>();
+            org.bukkit.craftbukkit.CraftRegistry.getMinecraftRegistry().lookupOrThrow(key).listElements()
+                    .forEach(holder -> values.add(wrapper.apply(holder)));
+            return values;
+        });
+    }
+
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static Registry<? extends Keyed> createMenuTypeRegistry(Class<? extends Keyed> type) {
         net.minecraft.core.Registry<net.minecraft.world.inventory.MenuType<?>> nms =
@@ -159,7 +189,7 @@ public final class PaperRegistryAccess implements RegistryAccess {
         return LunarArcBukkitRegistry.lazy(() -> {
             java.util.List<Keyed> values = new java.util.ArrayList<>();
             for (java.util.Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.inventory.MenuType<?>>, net.minecraft.world.inventory.MenuType<?>> entry : nms.entrySet()) {
-                net.minecraft.resources.ResourceLocation location = entry.getKey().location();
+                net.minecraft.resources.Identifier location = entry.getKey().identifier();
                 org.bukkit.NamespacedKey key = new org.bukkit.NamespacedKey(location.getNamespace(), location.getPath());
                 values.add(new org.bukkit.craftbukkit.inventory.CraftMenuType<>(key, entry.getValue(), viewClassFor(location.getPath())));
             }
@@ -190,14 +220,14 @@ public final class PaperRegistryAccess implements RegistryAccess {
             if (itemRegistry) {
                 for (java.util.Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.item.Item>, net.minecraft.world.item.Item> entry
                         : net.minecraft.core.registries.BuiltInRegistries.ITEM.entrySet()) {
-                    net.minecraft.resources.ResourceLocation id = entry.getKey().location();
+                    net.minecraft.resources.Identifier id = entry.getKey().identifier();
                     values.add(new org.bukkit.craftbukkit.inventory.CraftItemType<>(
                             new org.bukkit.NamespacedKey(id.getNamespace(), id.getPath()), entry.getValue()));
                 }
             } else {
                 for (java.util.Map.Entry<net.minecraft.resources.ResourceKey<net.minecraft.world.level.block.Block>, net.minecraft.world.level.block.Block> entry
                         : net.minecraft.core.registries.BuiltInRegistries.BLOCK.entrySet()) {
-                    net.minecraft.resources.ResourceLocation id = entry.getKey().location();
+                    net.minecraft.resources.Identifier id = entry.getKey().identifier();
                     values.add(new org.bukkit.craftbukkit.block.CraftBlockType<>(
                             new org.bukkit.NamespacedKey(id.getNamespace(), id.getPath()), entry.getValue()));
                 }
@@ -213,7 +243,7 @@ public final class PaperRegistryAccess implements RegistryAccess {
             java.util.List<Keyed> values = new java.util.ArrayList<>();
             var nmsRegistry = net.minecraft.core.registries.BuiltInRegistries.MOB_EFFECT;
             for (var location : nmsRegistry.keySet()) {
-                net.minecraft.world.effect.MobEffect effect = nmsRegistry.get(location);
+                net.minecraft.world.effect.MobEffect effect = nmsRegistry.getValue(location);
                 if (effect == null) continue;
                 values.add(new org.bukkit.craftbukkit.potion.CraftPotionEffectType(
                         new org.bukkit.NamespacedKey(location.getNamespace(), location.getPath()), effect));
@@ -251,7 +281,11 @@ public final class PaperRegistryAccess implements RegistryAccess {
             RegistryKey.ENTITY_TYPE,
             RegistryKey.PARTICLE_TYPE,
             RegistryKey.POTION,
-            RegistryKey.MEMORY_MODULE_TYPE);
+            RegistryKey.MEMORY_MODULE_TYPE,
+            RegistryKey.PIG_VARIANT,
+            RegistryKey.COW_VARIANT,
+            RegistryKey.CHICKEN_VARIANT,
+            RegistryKey.WOLF_SOUND_VARIANT);
 
     @SuppressWarnings({"unchecked", "rawtypes"})
     private static <T extends Keyed> RegistryKey<T> registryKeyFor(Class<T> type) {
@@ -263,7 +297,7 @@ public final class PaperRegistryAccess implements RegistryAccess {
 
     @SuppressWarnings("unchecked")
     private static <T extends Keyed> Class<T> resolveType(RegistryKey<T> key) {
-        // Paper 1.21.1 registry keys only. Keep this explicit so registry lookup does
+        // Explicit table (Paper 1.21.11 registry keys we adapt). Keep it explicit so registry lookup does
         // not depend on runtime generic/reflection discovery.
         if (key == RegistryKey.GAME_EVENT) return (Class<T>) org.bukkit.GameEvent.class;
         if (key == RegistryKey.STRUCTURE_TYPE) return (Class<T>) org.bukkit.generator.structure.StructureType.class;
@@ -294,6 +328,12 @@ public final class PaperRegistryAccess implements RegistryAccess {
         if (key == RegistryKey.PARTICLE_TYPE) return (Class<T>) org.bukkit.Particle.class;
         if (key == RegistryKey.POTION) return (Class<T>) org.bukkit.potion.PotionType.class;
         if (key == RegistryKey.MEMORY_MODULE_TYPE) return (Class<T>) org.bukkit.entity.memory.MemoryKey.class;
+        if (key == RegistryKey.DATA_COMPONENT_TYPE) return (Class<T>) io.papermc.paper.datacomponent.DataComponentType.class;
+        if (key == RegistryKey.GAME_RULE) return (Class<T>) org.bukkit.GameRule.class;
+        if (key == RegistryKey.PIG_VARIANT) return (Class<T>) org.bukkit.entity.Pig.Variant.class;
+        if (key == RegistryKey.COW_VARIANT) return (Class<T>) org.bukkit.entity.Cow.Variant.class;
+        if (key == RegistryKey.CHICKEN_VARIANT) return (Class<T>) org.bukkit.entity.Chicken.Variant.class;
+        if (key == RegistryKey.WOLF_SOUND_VARIANT) return (Class<T>) org.bukkit.entity.Wolf.SoundVariant.class;
         return null;
     }
 

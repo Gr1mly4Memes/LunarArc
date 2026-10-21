@@ -13,7 +13,7 @@ import org.spongepowered.asm.mixin.injection.At;
 @Mixin(LivingEntity.class)
 public abstract class LivingEntityKnockbackMixin {
 
-    @WrapOperation(method = "hurt", require = 0,
+    @WrapOperation(method = "hurtServer", require = 1,
             at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/LivingEntity;knockback(DDD)V"))
     private void lunararc$knockback(LivingEntity target, double strength, double x, double z, Operation<Void> original,
             @Local(argsOnly = true) DamageSource source) {

@@ -12,9 +12,9 @@ public final class MappingEnvironment {
 
     /**
      * The versioned CraftBukkit package Spigot-era plugins were compiled against on 1.21.1.
-     * Commodore builds {@code org/bukkit/craftbukkit/v1_21_R1/} from this to strip it.
+     * Commodore builds {@code org/bukkit/craftbukkit/v1_21_R7/} from this to strip it.
      */
-    public static final String LEGACY_CB_VERSION = "v1_21_R1";
+    public static final String LEGACY_CB_VERSION = "v1_21_R7";
 
     private static final boolean REOBF = checkReobf();
     // A real boot proved this needs the same one-time treatment as REOBF: Commodore calls

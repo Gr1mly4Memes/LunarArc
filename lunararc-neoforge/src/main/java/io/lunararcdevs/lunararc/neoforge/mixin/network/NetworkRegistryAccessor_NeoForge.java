@@ -6,7 +6,8 @@ import net.minecraft.network.ConnectionProtocol;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
+import net.neoforged.neoforge.network.handling.IPayloadHandler;
 import net.neoforged.neoforge.network.registration.NetworkRegistry;
 import net.neoforged.neoforge.network.registration.PayloadRegistration;
 import org.spongepowered.asm.mixin.Final;
@@ -19,13 +20,16 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(value = NetworkRegistry.class, remap = false)
 public abstract class NetworkRegistryAccessor_NeoForge {
     @Shadow @Final
-    private static Map<ConnectionProtocol, Map<ResourceLocation, PayloadRegistration<?>>> PAYLOAD_REGISTRATIONS;
+    private static Map<ConnectionProtocol, Map<Identifier, PayloadRegistration<?>>> PAYLOAD_REGISTRATIONS;
 
     @Shadow @Final
-    private static Map<ResourceLocation, StreamCodec<FriendlyByteBuf, ? extends CustomPacketPayload>> BUILTIN_PAYLOADS;
+    private static Map<Identifier, StreamCodec<FriendlyByteBuf, ? extends CustomPacketPayload>> BUILTIN_PAYLOADS;
+
+    @Shadow @Final
+    private static Map<ConnectionProtocol, Map<Identifier, IPayloadHandler<?>>> SERVERBOUND_HANDLERS;
 
     @Inject(method = "<clinit>", at = @At("RETURN"))
     private static void lunararc$exportPayloadRegistries(CallbackInfo ci) {
-        NeoForgeNetworkRegistryBridge.install(PAYLOAD_REGISTRATIONS, BUILTIN_PAYLOADS);
+        NeoForgeNetworkRegistryBridge.install(PAYLOAD_REGISTRATIONS, BUILTIN_PAYLOADS, SERVERBOUND_HANDLERS);
     }
 }

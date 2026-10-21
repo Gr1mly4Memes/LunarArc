@@ -183,7 +183,7 @@ public final class CraftEnchantment extends Enchantment implements org.bukkit.cr
         List<TypedKey<B>> keys = new ArrayList<>();
         for (Holder<M> holder : holders) {
             holder.unwrapKey().ifPresent(resourceKey -> {
-                net.minecraft.resources.ResourceLocation location = resourceKey.location();
+                net.minecraft.resources.Identifier location = resourceKey.identifier();
                 keys.add(TypedKey.create(registryKey, Key.key(location.getNamespace(), location.getPath())));
             });
         }

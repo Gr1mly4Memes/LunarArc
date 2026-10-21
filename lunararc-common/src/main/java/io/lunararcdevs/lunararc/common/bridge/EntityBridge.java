@@ -28,6 +28,8 @@ public interface EntityBridge {
     void lunararc$setInWorld(boolean inWorld);
     boolean lunararc$isVisualFire();
     void lunararc$setVisualFire(boolean visualFire);
+    net.kyori.adventure.util.TriState lunararc$getVisualFireState();
+    void lunararc$setVisualFireState(net.kyori.adventure.util.TriState state);
     boolean lunararc$isPersistent();
     void lunararc$setPersistent(boolean persistent);
     void lunararc$setLevel(Level level);

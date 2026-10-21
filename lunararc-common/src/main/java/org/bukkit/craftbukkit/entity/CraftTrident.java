@@ -2,7 +2,7 @@ package org.bukkit.craftbukkit.entity;
 
 import io.lunararcdevs.lunararc.common.bridge.ThrownTridentBridge;
 import java.util.Objects;
-import net.minecraft.world.entity.projectile.ThrownTrident;
+import net.minecraft.world.entity.projectile.arrow.ThrownTrident;
 import org.bukkit.craftbukkit.CraftServer;
 import org.bukkit.craftbukkit.inventory.CraftItemStack;
 import org.bukkit.inventory.ItemStack;

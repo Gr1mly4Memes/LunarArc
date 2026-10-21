@@ -4,16 +4,16 @@ import com.google.gson.JsonElement;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Predicate;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 public final class MarketRecipeFilter {
     private MarketRecipeFilter() {}
 
-    public static Map<ResourceLocation, JsonElement> filter(Map<ResourceLocation, JsonElement> recipes,
-            Predicate<ResourceLocation> itemExists) {
-        Map<ResourceLocation, JsonElement> filtered = new LinkedHashMap<>(recipes);
+    public static Map<Identifier, JsonElement> filter(Map<Identifier, JsonElement> recipes,
+            Predicate<Identifier> itemExists) {
+        Map<Identifier, JsonElement> filtered = new LinkedHashMap<>(recipes);
         filtered.entrySet().removeIf(entry -> {
-            ResourceLocation id = entry.getKey();
+            Identifier id = entry.getKey();
             if (!id.getNamespace().equals("farmingforblockheads") || !id.getPath().startsWith("market/")) return false;
             if (!entry.getValue().isJsonObject()) return false;
             var recipe = entry.getValue().getAsJsonObject();
@@ -23,7 +23,7 @@ public final class MarketRecipeFilter {
             var result = recipe.getAsJsonObject("result");
             if (!result.has("item") || !result.get("item").isJsonPrimitive()
                     || !result.getAsJsonPrimitive("item").isString()) return false;
-            ResourceLocation item = ResourceLocation.tryParse(result.get("item").getAsString());
+            Identifier item = Identifier.tryParse(result.get("item").getAsString());
             return item != null && !itemExists.test(item);
         });
         return filtered;

@@ -162,7 +162,7 @@ public final class LunarArcPaperEvents {
                         hand == InteractionHand.MAIN_HAND ? EquipmentSlot.HAND : EquipmentSlot.OFF_HAND)) ? Boolean.FALSE : null;
             }
         }
-        EntityResurrectEvent event = new EntityResurrectEvent(bukkit);
+        EntityResurrectEvent event = new EntityResurrectEvent(bukkit, null);
         event.setCancelled(true);
         call(entity, event);
         if (event.isCancelled()) return null;
@@ -181,10 +181,10 @@ public final class LunarArcPaperEvents {
                 || !(((EntityBridge) player).lunararc$getBukkitEntity() instanceof org.bukkit.entity.Player bukkit)) {
             return progress;
         }
-        BlockDamageEvent event = new BlockDamageEvent(bukkit, CraftBlock.at(player.serverLevel(), pos),
+        BlockDamageEvent event = new BlockDamageEvent(bukkit, CraftBlock.at(player.level(), pos),
                 CraftBlock.notchToBlockFace(direction), CraftItemStack.asCraftMirror(player.getMainHandItem()), progress >= 1.0F);
         if (call(player, event)) {
-            player.connection.send(new ClientboundBlockUpdatePacket(player.serverLevel(), pos));
+            player.connection.send(new ClientboundBlockUpdatePacket(player.level(), pos));
             return 0.0F;
         }
         return event.getInstaBreak() ? 2.0F : progress;
@@ -193,7 +193,7 @@ public final class LunarArcPaperEvents {
     public static void blockDamageAbort(ServerPlayer player, BlockPos pos) {
         if (!listened(BlockDamageAbortEvent.getHandlerList())
                 || !(((EntityBridge) player).lunararc$getBukkitEntity() instanceof org.bukkit.entity.Player bukkit)) return;
-        call(player, new BlockDamageAbortEvent(bukkit, CraftBlock.at(player.serverLevel(), pos),
+        call(player, new BlockDamageAbortEvent(bukkit, CraftBlock.at(player.level(), pos),
                 CraftItemStack.asCraftMirror(player.getMainHandItem())));
     }
 
@@ -204,7 +204,7 @@ public final class LunarArcPaperEvents {
 
     public static void beginBlockDrops(ServerPlayer player, BlockPos pos) {
         if (!listened(BlockDropItemEvent.getHandlerList())) return;
-        DROPS.set(new BlockDrops(player, pos.immutable(), CraftBlock.at(player.serverLevel(), pos).getState(),
+        DROPS.set(new BlockDrops(player, pos.immutable(), CraftBlock.at(player.level(), pos).getState(),
                 player.level().getGameTime(), new java.util.ArrayList<>()));
     }
 
@@ -222,7 +222,7 @@ public final class LunarArcPaperEvents {
         DROPS.remove();
         if (drops.items().isEmpty()
                 || !(((EntityBridge) drops.player()).lunararc$getBukkitEntity() instanceof org.bukkit.entity.Player bukkit)) return;
-        ServerLevel level = drops.player().serverLevel();
+        ServerLevel level = drops.player().level();
         java.util.List<org.bukkit.entity.Item> items = new java.util.ArrayList<>(drops.items().size());
         for (ItemEntity item : drops.items()) items.add((org.bukkit.entity.Item) ((EntityBridge) item).lunararc$getBukkitEntity());
         BlockDropItemEvent event = new BlockDropItemEvent(CraftBlock.at(level, drops.pos()), drops.state(), bukkit, items);
@@ -262,14 +262,14 @@ public final class LunarArcPaperEvents {
     public static void chunkLoad(ServerPlayer player, net.minecraft.world.level.chunk.LevelChunk chunk) {
         if (!listened(PlayerChunkLoadEvent.getHandlerList())
                 || !(((EntityBridge) player).lunararc$getBukkitEntity() instanceof org.bukkit.entity.Player bukkit)) return;
-        org.bukkit.craftbukkit.CraftWorld world = LunarArcServerAccess.getCraftWorld(player.serverLevel());
+        org.bukkit.craftbukkit.CraftWorld world = LunarArcServerAccess.getCraftWorld(player.level());
         if (world != null) call(player, new PlayerChunkLoadEvent(new org.bukkit.craftbukkit.CraftChunk(chunk, world), bukkit));
     }
 
     public static void chunkUnload(ServerPlayer player, net.minecraft.world.level.ChunkPos pos) {
         if (!listened(PlayerChunkUnloadEvent.getHandlerList())
                 || !(((EntityBridge) player).lunararc$getBukkitEntity() instanceof org.bukkit.entity.Player bukkit)) return;
-        org.bukkit.craftbukkit.CraftWorld world = LunarArcServerAccess.getCraftWorld(player.serverLevel());
+        org.bukkit.craftbukkit.CraftWorld world = LunarArcServerAccess.getCraftWorld(player.level());
         if (world != null) call(player, new PlayerChunkUnloadEvent(world.getChunkAt(pos.x, pos.z, false), bukkit));
     }
 
@@ -344,9 +344,9 @@ public final class LunarArcPaperEvents {
         return event;
     }
 
-    public static boolean pickupArrow(Player player, net.minecraft.world.entity.projectile.AbstractArrow arrow, ItemStack stack) {
+    public static boolean pickupArrow(Player player, net.minecraft.world.entity.projectile.arrow.AbstractArrow arrow, ItemStack stack) {
         if (!(player instanceof ServerPlayer) || stack.isEmpty() || !listened(PlayerPickupArrowEvent.getHandlerList())
-                || arrow.pickup != net.minecraft.world.entity.projectile.AbstractArrow.Pickup.ALLOWED
+                || arrow.pickup != net.minecraft.world.entity.projectile.arrow.AbstractArrow.Pickup.ALLOWED
                 || !(((EntityBridge) player).lunararc$getBukkitEntity() instanceof org.bukkit.entity.Player bukkit)
                 || !(((EntityBridge) arrow).lunararc$getBukkitEntity() instanceof org.bukkit.entity.AbstractArrow bukkitArrow)) return false;
         ItemEntity item = new ItemEntity(arrow.level(), arrow.getX(), arrow.getY(), arrow.getZ(), stack);
@@ -456,6 +456,40 @@ public final class LunarArcPaperEvents {
         return !callGlobal(new BellRingEvent(CraftBlock.at(serverLevel, pos), CraftBlock.notchToBlockFace(direction), bukkit));
     }
 
+    /** Returns true when no plugin cancelled a natural or fire-driven cauldron level change. */
+    public static boolean cauldronLevelChange(net.minecraft.world.level.Level level, BlockPos pos,
+            net.minecraft.world.level.block.state.BlockState newState,
+            org.bukkit.event.block.CauldronLevelChangeEvent.ChangeReason reason) {
+        if (!listened(org.bukkit.event.block.CauldronLevelChangeEvent.getHandlerList())
+                || !(level instanceof ServerLevel serverLevel) || !org.bukkit.Bukkit.isPrimaryThread()) return true;
+        org.bukkit.block.BlockState state = CraftBlock.at(serverLevel, pos).getState();
+        state.setBlockData(org.bukkit.craftbukkit.block.data.CraftBlockData.fromData(newState));
+        return !callGlobal(new org.bukkit.event.block.CauldronLevelChangeEvent(
+                CraftBlock.at(serverLevel, pos), null, reason, state));
+    }
+
+    /** Campfire cooking: null when cancelled, otherwise the (possibly plugin-replaced) result. */
+    public static net.minecraft.world.item.ItemStack campfireCook(net.minecraft.world.level.Level level, BlockPos pos,
+            net.minecraft.world.item.ItemStack source, net.minecraft.world.item.ItemStack result) {
+        if (!listened(org.bukkit.event.block.BlockCookEvent.getHandlerList())
+                || !(level instanceof ServerLevel serverLevel) || !org.bukkit.Bukkit.isPrimaryThread()) return result;
+        org.bukkit.event.block.BlockCookEvent event = new org.bukkit.event.block.BlockCookEvent(
+                CraftBlock.at(serverLevel, pos),
+                org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(source),
+                org.bukkit.craftbukkit.inventory.CraftItemStack.asCraftMirror(result), null);
+        if (callGlobal(event)) return null;
+        return org.bukkit.craftbukkit.inventory.CraftItemStack.asNMSCopy(event.getResult());
+    }
+
+    /** Returns true when no plugin cancelled an entity dropping the item. */
+    public static boolean entityDropItem(Entity entity, net.minecraft.world.entity.item.ItemEntity item) {
+        if (!listened(org.bukkit.event.entity.EntityDropItemEvent.getHandlerList())
+                || !(entity.level() instanceof ServerLevel) || !org.bukkit.Bukkit.isPrimaryThread()) return true;
+        if (!(((EntityBridge) entity).lunararc$getBukkitEntity() instanceof org.bukkit.entity.Entity bukkit)
+                || !(((EntityBridge) item).lunararc$getBukkitEntity() instanceof org.bukkit.entity.Item bukkitItem)) return true;
+        return !callGlobal(new org.bukkit.event.entity.EntityDropItemEvent(bukkit, bukkitItem));
+    }
+
     public static int targetHit(net.minecraft.world.level.LevelAccessor level, Entity entity, net.minecraft.world.phys.BlockHitResult hit, int signal) {
         if (!(entity instanceof net.minecraft.world.entity.projectile.Projectile) || !(level instanceof ServerLevel serverLevel)
                 || !listened(TargetHitEvent.getHandlerList()) || !org.bukkit.Bukkit.isPrimaryThread()
@@ -490,16 +524,16 @@ public final class LunarArcPaperEvents {
         return event;
     }
 
-    public static boolean career(net.minecraft.world.entity.npc.Villager villager, net.minecraft.world.entity.npc.VillagerData data) {
-        net.minecraft.world.entity.npc.VillagerProfession old = villager.getVillagerData().getProfession();
-        net.minecraft.world.entity.npc.VillagerProfession target = data.getProfession();
-        if (old == target || villager.tickCount == 0 || !listened(VillagerCareerChangeEvent.getHandlerList()) || !entityEventsActive(villager)
+    public static boolean career(net.minecraft.world.entity.npc.villager.Villager villager, net.minecraft.world.entity.npc.villager.VillagerData data) {
+        net.minecraft.core.Holder<net.minecraft.world.entity.npc.villager.VillagerProfession> old = villager.getVillagerData().profession();
+        net.minecraft.core.Holder<net.minecraft.world.entity.npc.villager.VillagerProfession> target = data.profession();
+        if (old.equals(target) || villager.tickCount == 0 || !listened(VillagerCareerChangeEvent.getHandlerList()) || !entityEventsActive(villager)
                 || !(((EntityBridge) villager).lunararc$getBukkitEntity() instanceof org.bukkit.entity.Villager bukkit)) return true;
         org.bukkit.entity.Villager.Profession profession = org.bukkit.Registry.VILLAGER_PROFESSION.get(
                 org.bukkit.craftbukkit.util.CraftNamespacedKey.fromMinecraft(
-                        net.minecraft.core.registries.BuiltInRegistries.VILLAGER_PROFESSION.getKey(target)));
+                        target.unwrapKey().orElseThrow().identifier()));
         if (profession == null) return true;
-        VillagerCareerChangeEvent.ChangeReason reason = target == net.minecraft.world.entity.npc.VillagerProfession.NONE
+        VillagerCareerChangeEvent.ChangeReason reason = target.is(net.minecraft.world.entity.npc.villager.VillagerProfession.NONE)
                 ? VillagerCareerChangeEvent.ChangeReason.LOSING_JOB : VillagerCareerChangeEvent.ChangeReason.EMPLOYED;
         return !call(villager, new VillagerCareerChangeEvent(bukkit, profession, reason));
     }
@@ -509,7 +543,7 @@ public final class LunarArcPaperEvents {
                                    net.minecraft.world.item.crafting.RecipeType recipeType, int totalTime) {
         if (source.isEmpty() || recipeType == null || !listened(FurnaceStartSmeltEvent.getHandlerList())
                 || !(level instanceof ServerLevel serverLevel) || !org.bukkit.Bukkit.isPrimaryThread()) return totalTime;
-        net.minecraft.world.item.crafting.RecipeHolder<?> recipe = (net.minecraft.world.item.crafting.RecipeHolder<?>) serverLevel.getRecipeManager()
+        net.minecraft.world.item.crafting.RecipeHolder<?> recipe = (net.minecraft.world.item.crafting.RecipeHolder<?>) serverLevel.recipeAccess()
                 .getRecipeFor(recipeType, new net.minecraft.world.item.crafting.SingleRecipeInput(source), serverLevel).orElse(null);
         if (recipe == null || !(org.bukkit.craftbukkit.inventory.CraftRecipeAdapter.toBukkit(recipe) instanceof org.bukkit.inventory.CookingRecipe<?> cooking)) return totalTime;
         FurnaceStartSmeltEvent event = new FurnaceStartSmeltEvent(CraftBlock.at(serverLevel, pos),
@@ -537,10 +571,18 @@ public final class LunarArcPaperEvents {
     public static void clientOptions(ServerPlayer player, net.minecraft.server.level.ClientInformation info) {
         if (!listened(PlayerClientOptionsChangeEvent.getHandlerList())
                 || !(((EntityBridge) player).lunararc$getBukkitEntity() instanceof org.bukkit.entity.Player bukkit)) return;
-        callGlobal(new PlayerClientOptionsChangeEvent(bukkit, info.language(), info.viewDistance(),
-                ClientOption.ChatVisibility.valueOf(info.chatVisibility().name()), info.chatColors(),
-                new com.destroystokyo.paper.PaperSkinParts(info.modelCustomisation()),
-                info.mainHand() == net.minecraft.world.entity.HumanoidArm.LEFT ? org.bukkit.inventory.MainHand.LEFT : org.bukkit.inventory.MainHand.RIGHT));
+        java.util.Map<ClientOption<?>, Object> options = new java.util.IdentityHashMap<>();
+        options.put(ClientOption.LOCALE, info.language());
+        options.put(ClientOption.VIEW_DISTANCE, info.viewDistance());
+        options.put(ClientOption.CHAT_VISIBILITY, ClientOption.ChatVisibility.valueOf(info.chatVisibility().name()));
+        options.put(ClientOption.CHAT_COLORS_ENABLED, info.chatColors());
+        options.put(ClientOption.SKIN_PARTS, new com.destroystokyo.paper.PaperSkinParts(info.modelCustomisation()));
+        options.put(ClientOption.MAIN_HAND, info.mainHand() == net.minecraft.world.entity.HumanoidArm.LEFT
+                ? org.bukkit.inventory.MainHand.LEFT : org.bukkit.inventory.MainHand.RIGHT);
+        options.put(ClientOption.TEXT_FILTERING_ENABLED, info.textFilteringEnabled());
+        options.put(ClientOption.ALLOW_SERVER_LISTINGS, info.allowsListing());
+        options.put(ClientOption.PARTICLE_VISIBILITY, ClientOption.ParticleVisibility.valueOf(info.particleStatus().name()));
+        callGlobal(new PlayerClientOptionsChangeEvent(bukkit, options));
     }
 
     private static boolean borderReentry;

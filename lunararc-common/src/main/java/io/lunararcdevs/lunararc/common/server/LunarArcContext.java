@@ -24,7 +24,7 @@ public final class LunarArcContext {
         synchronized (FAKE_PLAYERS) {
             java.lang.ref.WeakReference<ServerPlayer> reference = FAKE_PLAYERS.get(level);
             ServerPlayer existing = reference != null ? reference.get() : null;
-            if (existing != null && existing.serverLevel() == level) return existing;
+            if (existing != null && existing.level() == level) return existing;
 
             com.mojang.authlib.GameProfile profile = new com.mojang.authlib.GameProfile(
                     java.util.UUID.fromString("41C82CFA-7D36-4BDE-94F3-3221944886E6"), "[LunarArc]");

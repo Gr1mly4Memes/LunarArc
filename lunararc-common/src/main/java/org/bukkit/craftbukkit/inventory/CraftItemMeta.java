@@ -63,6 +63,12 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
     private boolean hideTooltip = false;
     private boolean fireResistant = false;
     private boolean glider = false;
+    private org.bukkit.craftbukkit.inventory.components.CraftEquippableComponent equippable;
+    private org.bukkit.craftbukkit.inventory.components.CraftUseCooldownComponent useCooldown;
+    private org.bukkit.craftbukkit.inventory.components.CraftCustomModelDataComponent customModelDataComponent;
+    private Integer enchantableValue;
+    private NamespacedKey itemModel;
+    private net.minecraft.tags.TagKey<net.minecraft.world.damagesource.DamageType> damageResistant;
     private org.bukkit.inventory.meta.components.ToolComponent tool;
     private org.bukkit.inventory.meta.components.JukeboxPlayableComponent jukeboxPlayable;
     private org.bukkit.inventory.meta.components.FoodComponent food;
@@ -131,9 +137,7 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
         net.minecraft.network.chat.Component customName = nms.get(DataComponents.CUSTOM_NAME);
         if (customName != null) {
             try {
-                String json = net.minecraft.network.chat.Component.Serializer.toJson(customName,
-                    net.minecraft.core.RegistryAccess.EMPTY);
-                displayName = GsonComponentSerializer.gson().deserialize(json);
+                displayName = io.papermc.paper.adventure.PaperAdventure.asAdventure(customName);
             } catch (Throwable t) {
                 displayName = Component.text(customName.getString());
             }
@@ -142,8 +146,7 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
         net.minecraft.network.chat.Component nmsItemName = nms.get(DataComponents.ITEM_NAME);
         if (nmsItemName != null) {
             try {
-                String json = net.minecraft.network.chat.Component.Serializer.toJson(nmsItemName, net.minecraft.core.RegistryAccess.EMPTY);
-                itemName = GsonComponentSerializer.gson().deserialize(json);
+                itemName = io.papermc.paper.adventure.PaperAdventure.asAdventure(nmsItemName);
             } catch (Throwable t) { itemName = Component.text(nmsItemName.getString()); }
         }
 
@@ -152,30 +155,28 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
             lore = new ArrayList<>();
             for (net.minecraft.network.chat.Component line : itemLore.lines()) {
                 try {
-                    String json = net.minecraft.network.chat.Component.Serializer.toJson(line,
-                        net.minecraft.core.RegistryAccess.EMPTY);
-                    lore.add(GsonComponentSerializer.gson().deserialize(json));
+                    lore.add(io.papermc.paper.adventure.PaperAdventure.asAdventure(line));
                 } catch (Throwable t) {
                     lore.add(Component.text(line.getString()));
                 }
             }
         }
 
-        net.minecraft.world.item.component.Unbreakable u = nms.get(DataComponents.UNBREAKABLE);
+        net.minecraft.util.Unit u = nms.get(DataComponents.UNBREAKABLE);
         if (u != null) unbreakable = true;
 
         net.minecraft.world.item.component.CustomModelData cmd = nms.get(DataComponents.CUSTOM_MODEL_DATA);
         if (cmd != null) {
             hasCustomModelData = true;
-            customModelData = cmd.value();
+            customModelData = cmd.floats().isEmpty() ? 0 : (int) (float) cmd.floats().get(0);
         }
 
         net.minecraft.world.item.enchantment.ItemEnchantments enc = nms.get(DataComponents.ENCHANTMENTS);
         if (enc != null) {
             enc.entrySet().forEach(e -> {
                 try {
-                    net.minecraft.resources.ResourceLocation key =
-                        e.getKey().unwrapKey().map(k -> k.location()).orElse(null);
+                    net.minecraft.resources.Identifier key =
+                        e.getKey().unwrapKey().map(k -> k.identifier()).orElse(null);
                     if (key != null) {
                         Enchantment bukkit = Enchantment.getByKey(
                             org.bukkit.NamespacedKey.fromString(key.toString()));
@@ -190,6 +191,7 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
         try { damage = nms.get(DataComponents.DAMAGE); } catch (Throwable ignored) {}
         try { maxDamage = nms.get(DataComponents.MAX_DAMAGE); } catch (Throwable ignored) {}
         readOptionalComponents(nms);
+        readNewComponents(nms);
         captureUnhandledComponents(nms);
         loadPersistentData(nms);
     }
@@ -201,11 +203,7 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
 
         if (displayName != null) {
             try {
-                String json = GsonComponentSerializer.gson().serialize(displayName);
-                net.minecraft.network.chat.Component nmsComp =
-                    net.minecraft.network.chat.Component.Serializer.fromJson(json,
-                        net.minecraft.core.RegistryAccess.EMPTY);
-                nms.set(DataComponents.CUSTOM_NAME, nmsComp);
+                nms.set(DataComponents.CUSTOM_NAME, io.papermc.paper.adventure.PaperAdventure.asVanilla(displayName));
             } catch (Throwable t) {
                 nms.set(DataComponents.CUSTOM_NAME,
                     net.minecraft.network.chat.Component.literal(
@@ -217,8 +215,7 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
 
         if (itemName != null) {
             try {
-                String json = GsonComponentSerializer.gson().serialize(itemName);
-                nms.set(DataComponents.ITEM_NAME, net.minecraft.network.chat.Component.Serializer.fromJson(json, net.minecraft.core.RegistryAccess.EMPTY));
+                nms.set(DataComponents.ITEM_NAME, io.papermc.paper.adventure.PaperAdventure.asVanilla(itemName));
             } catch (Throwable t) {
                 nms.set(DataComponents.ITEM_NAME, net.minecraft.network.chat.Component.literal(net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(itemName)));
             }
@@ -228,9 +225,7 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
             List<net.minecraft.network.chat.Component> lines = new ArrayList<>();
             for (Component line : lore) {
                 try {
-                    String json = GsonComponentSerializer.gson().serialize(line);
-                    lines.add(net.minecraft.network.chat.Component.Serializer.fromJson(json,
-                        net.minecraft.core.RegistryAccess.EMPTY));
+                    lines.add(io.papermc.paper.adventure.PaperAdventure.asVanilla(line));
                 } catch (Throwable t) {
                     lines.add(net.minecraft.network.chat.Component.literal(
                         net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(line)));
@@ -242,13 +237,13 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
         }
 
         if (unbreakable) {
-            nms.set(DataComponents.UNBREAKABLE, new net.minecraft.world.item.component.Unbreakable(true));
+            nms.set(DataComponents.UNBREAKABLE, net.minecraft.util.Unit.INSTANCE);
         } else {
             nms.remove(DataComponents.UNBREAKABLE);
         }
 
-        if (hasCustomModelData) {
-            nms.set(DataComponents.CUSTOM_MODEL_DATA, new net.minecraft.world.item.component.CustomModelData(customModelData));
+        if (hasCustomModelData && customModelDataComponent == null) {
+            nms.set(DataComponents.CUSTOM_MODEL_DATA, new net.minecraft.world.item.component.CustomModelData(java.util.List.of((float) customModelData), java.util.List.of(), java.util.List.of(), java.util.List.of()));
         } else {
             nms.remove(DataComponents.CUSTOM_MODEL_DATA);
         }
@@ -260,6 +255,7 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
         applyEnchantments(nms);
         applyAttributeModifiers(nms);
         writeOptionalComponents(nms);
+        writeNewComponents(nms);
         applyPersistentData(nms);
     }
 
@@ -311,15 +307,15 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
         try {
             net.minecraft.core.Registry<net.minecraft.world.item.enchantment.Enchantment> registry =
                     ((org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer()).getServer().registryAccess()
-                            .registryOrThrow(net.minecraft.core.registries.Registries.ENCHANTMENT);
+                            .lookupOrThrow(net.minecraft.core.registries.Registries.ENCHANTMENT);
             net.minecraft.world.item.enchantment.ItemEnchantments.Mutable mutable =
                     new net.minecraft.world.item.enchantment.ItemEnchantments.Mutable(
                             net.minecraft.world.item.enchantment.ItemEnchantments.EMPTY);
             for (Map.Entry<Enchantment, Integer> entry : enchantments.entrySet()) {
                 net.minecraft.resources.ResourceKey<net.minecraft.world.item.enchantment.Enchantment> key =
                         net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.ENCHANTMENT,
-                                net.minecraft.resources.ResourceLocation.parse(entry.getKey().getKey().toString()));
-                registry.getHolder(key).ifPresent(holder -> mutable.set(holder, entry.getValue()));
+                                net.minecraft.resources.Identifier.parse(entry.getKey().getKey().toString()));
+                registry.get(key).ifPresent(holder -> mutable.set(holder, entry.getValue()));
             }
             nms.set(DataComponents.ENCHANTMENTS, mutable.toImmutable());
         } catch (Throwable ignored) {
@@ -336,21 +332,21 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
         try {
             net.minecraft.core.Registry<net.minecraft.world.entity.ai.attributes.Attribute> registry =
                     ((org.bukkit.craftbukkit.CraftServer) org.bukkit.Bukkit.getServer()).getServer().registryAccess()
-                            .registryOrThrow(net.minecraft.core.registries.Registries.ATTRIBUTE);
+                            .lookupOrThrow(net.minecraft.core.registries.Registries.ATTRIBUTE);
             net.minecraft.world.item.component.ItemAttributeModifiers.Builder builder =
                     net.minecraft.world.item.component.ItemAttributeModifiers.builder();
             for (Map.Entry<Attribute, AttributeModifier> entry : attributeModifiers.entries()) {
                 net.minecraft.resources.ResourceKey<net.minecraft.world.entity.ai.attributes.Attribute> key =
                         net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.ATTRIBUTE,
-                                net.minecraft.resources.ResourceLocation.parse(entry.getKey().getKey().toString()));
+                                net.minecraft.resources.Identifier.parse(entry.getKey().getKey().toString()));
                 java.util.Optional<net.minecraft.core.Holder.Reference<net.minecraft.world.entity.ai.attributes.Attribute>> holder =
-                        registry.getHolder(key);
+                        registry.get(key);
                 if (holder.isEmpty()) continue;
                 builder.add(holder.get(), (net.minecraft.world.entity.ai.attributes.AttributeModifier) org.bukkit.craftbukkit.attribute.CraftAttributeInstance.toMinecraft(entry.getValue()),
                         toMinecraftSlotGroup(entry.getValue().getSlotGroup()));
             }
             nms.set(DataComponents.ATTRIBUTE_MODIFIERS,
-                    builder.build().withTooltip(!hasItemFlag(org.bukkit.inventory.ItemFlag.HIDE_ATTRIBUTES)));
+                    builder.build());
         } catch (Throwable ignored) {
             Object existing = rawDataComponents.get("ATTRIBUTE_MODIFIERS");
             if (existing != null) setComponent(nms, "ATTRIBUTE_MODIFIERS", existing);
@@ -390,6 +386,30 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
             }
         } catch (Throwable ignored) {}
     }
+    private void readNewComponents(ItemStack nms) {
+        net.minecraft.resources.Identifier model = nms.get(DataComponents.ITEM_MODEL);
+        if (model != null) itemModel = NamespacedKey.fromString(model.toString());
+        net.minecraft.world.item.enchantment.Enchantable enchantable = nms.get(DataComponents.ENCHANTABLE);
+        if (enchantable != null) enchantableValue = enchantable.value();
+        net.minecraft.world.item.component.DamageResistant resistant = nms.get(DataComponents.DAMAGE_RESISTANT);
+        if (resistant != null) damageResistant = resistant.types();
+        net.minecraft.world.item.component.UseCooldown cooldown = nms.get(DataComponents.USE_COOLDOWN);
+        if (cooldown != null) useCooldown = new org.bukkit.craftbukkit.inventory.components.CraftUseCooldownComponent(cooldown);
+        net.minecraft.world.item.equipment.Equippable equip = nms.get(DataComponents.EQUIPPABLE);
+        if (equip != null) equippable = new org.bukkit.craftbukkit.inventory.components.CraftEquippableComponent(equip);
+        net.minecraft.world.item.component.CustomModelData cmd = nms.get(DataComponents.CUSTOM_MODEL_DATA);
+        if (cmd != null) customModelDataComponent = new org.bukkit.craftbukkit.inventory.components.CraftCustomModelDataComponent(cmd);
+    }
+
+    private void writeNewComponents(ItemStack nms) {
+        if (itemModel != null) nms.set(DataComponents.ITEM_MODEL, net.minecraft.resources.Identifier.parse(itemModel.toString()));
+        if (enchantableValue != null) nms.set(DataComponents.ENCHANTABLE, new net.minecraft.world.item.enchantment.Enchantable(enchantableValue));
+        if (damageResistant != null) nms.set(DataComponents.DAMAGE_RESISTANT, new net.minecraft.world.item.component.DamageResistant(damageResistant));
+        if (useCooldown != null) nms.set(DataComponents.USE_COOLDOWN, useCooldown.getHandle());
+        if (equippable != null) nms.set(DataComponents.EQUIPPABLE, equippable.getHandle());
+        if (customModelDataComponent != null) nms.set(DataComponents.CUSTOM_MODEL_DATA, customModelDataComponent.getHandle());
+    }
+
     private void readOptionalComponents(ItemStack nms) {
         for (String key : new String[]{"TOOL","FOOD","JUKEBOX_PLAYABLE","USE_REMAINDER","TOOLTIP_STYLE","GLIDER","FIRE_RESISTANT","HIDE_TOOLTIP","RARITY","ENCHANTMENTS","ATTRIBUTE_MODIFIERS"}) {
             Object value = getComponent(nms, key); if (value != null) rawDataComponents.put(key, value);
@@ -400,7 +420,7 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
         Object remainder = rawDataComponents.get("USE_REMAINDER");
         if (remainder instanceof net.minecraft.world.item.ItemStack is) useRemainder = CraftItemStack.asBukkitCopy(is);
         Object style = rawDataComponents.get("TOOLTIP_STYLE");
-        if (style instanceof net.minecraft.resources.ResourceLocation rl) tooltipStyle = NamespacedKey.fromString(rl.toString());
+        if (style instanceof net.minecraft.resources.Identifier rl) tooltipStyle = NamespacedKey.fromString(rl.toString());
         Object r = rawDataComponents.get("RARITY");
         if (r instanceof Enum<?> e) try { rarity = org.bukkit.inventory.ItemRarity.valueOf(e.name()); } catch (IllegalArgumentException ignored) {}
         Object rawFood = rawDataComponents.get("FOOD");
@@ -419,7 +439,7 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
         if (tool instanceof CraftToolComponent c) setComponent(nms, "TOOL", c.getHandle());
         if (jukeboxPlayable instanceof CraftJukeboxComponent c) setComponent(nms, "JUKEBOX_PLAYABLE", c.getHandle());
         setComponent(nms, "USE_REMAINDER", useRemainder == null ? null : CraftItemStack.asNMSCopy(useRemainder));
-        setComponent(nms, "TOOLTIP_STYLE", tooltipStyle == null ? null : net.minecraft.resources.ResourceLocation.parse(tooltipStyle.toString()));
+        setComponent(nms, "TOOLTIP_STYLE", tooltipStyle == null ? null : net.minecraft.resources.Identifier.parse(tooltipStyle.toString()));
         writeUnitFlag(nms, "GLIDER", glider); writeUnitFlag(nms, "FIRE_RESISTANT", fireResistant); writeUnitFlag(nms, "HIDE_TOOLTIP", hideTooltip);
         if (rarity != null) {
             try { setComponent(nms, "RARITY", net.minecraft.world.item.Rarity.valueOf(rarity.name())); } catch (Throwable ignored) {}
@@ -627,6 +647,7 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
     public void setCustomModelData(@Nullable Integer data) {
         if (data == null) { hasCustomModelData = false; customModelData = 0; }
         else { hasCustomModelData = true; customModelData = data; }
+        customModelDataComponent = null;
     }
 
 
@@ -808,10 +829,10 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
             net.minecraft.core.RegistryAccess registryAccess = io.lunararcdevs.lunararc.common.LunarArcServerAccess.getMinecraftServer().registryAccess();
             com.mojang.serialization.DynamicOps<net.minecraft.nbt.Tag> ops = registryAccess.createSerializationContext(net.minecraft.nbt.NbtOps.INSTANCE);
             net.minecraft.core.Registry<net.minecraft.core.component.DataComponentType<?>> componentRegistry =
-                    registryAccess.registryOrThrow(net.minecraft.core.registries.Registries.DATA_COMPONENT_TYPE);
+                    registryAccess.lookupOrThrow(net.minecraft.core.registries.Registries.DATA_COMPONENT_TYPE);
             StringJoiner out = new StringJoiner(",", "[", "]");
             for (Map.Entry<net.minecraft.core.component.DataComponentType<?>, Optional<?>> entry : patch.entrySet()) {
-                String key = componentRegistry.getResourceKey(entry.getKey()).orElseThrow().location().toString();
+                String key = componentRegistry.getResourceKey(entry.getKey()).orElseThrow().identifier().toString();
                 if (entry.getValue().isEmpty()) {
                     out.add("!" + key);
                 } else {
@@ -841,29 +862,29 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
     @Override public @NotNull org.bukkit.inventory.meta.components.ToolComponent getTool() {
         if (tool instanceof CraftToolComponent c) return new CraftToolComponent(c);
 
-        return new CraftToolComponent(new net.minecraft.world.item.component.Tool(java.util.List.of(), 1.0f, 0));
+        return new CraftToolComponent(new net.minecraft.world.item.component.Tool(java.util.List.of(), 1.0f, 0, true));
     }
     @Override public void setTool(@Nullable org.bukkit.inventory.meta.components.ToolComponent value) {
-        this.tool = value == null ? null : new CraftToolComponent(value);
+        this.tool = value == null ? null : new CraftToolComponent((CraftToolComponent) value);
         rawDataComponents.remove("TOOL");
     }
     @Override public boolean hasJukeboxPlayable() { return jukeboxPlayable != null; }
     @Override public @NotNull org.bukkit.inventory.meta.components.JukeboxPlayableComponent getJukeboxPlayable() {
         if (jukeboxPlayable instanceof CraftJukeboxComponent c) return new CraftJukeboxComponent(c);
         return new CraftJukeboxComponent(new net.minecraft.world.item.JukeboxPlayable(
-                new net.minecraft.world.item.EitherHolder<>(net.minecraft.world.item.JukeboxSongs.THIRTEEN), true));
+                new net.minecraft.world.item.EitherHolder<>(net.minecraft.world.item.JukeboxSongs.THIRTEEN)));
     }
     @Override public void setJukeboxPlayable(@Nullable org.bukkit.inventory.meta.components.JukeboxPlayableComponent value) {
-        this.jukeboxPlayable = value == null ? null : new CraftJukeboxComponent(value);
+        this.jukeboxPlayable = value == null ? null : new CraftJukeboxComponent((CraftJukeboxComponent) value);
         rawDataComponents.remove("JUKEBOX_PLAYABLE");
     }
     @Override public boolean hasFood() { return food != null; }
     @Override public @NotNull org.bukkit.inventory.meta.components.FoodComponent getFood() {
         if (food instanceof CraftFoodComponent c) return new CraftFoodComponent(c);
-        return new CraftFoodComponent(new net.minecraft.world.food.FoodProperties(0, 0.0f, false, 1.6f, java.util.Optional.empty(), java.util.List.of()));
+        return new CraftFoodComponent(new net.minecraft.world.food.FoodProperties(0, 0.0f, false));
     }
     @Override public void setFood(@Nullable org.bukkit.inventory.meta.components.FoodComponent value) {
-        this.food = value == null ? null : new CraftFoodComponent(value);
+        this.food = value == null ? null : new CraftFoodComponent((CraftFoodComponent) value);
         rawDataComponents.remove("FOOD");
     }
     public boolean hasUseRemainder() { return useRemainder != null; }
@@ -888,8 +909,12 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
     public boolean hasRepairCost() { return repairCost != null && repairCost > 0; }
     public int getRepairCost() { return repairCost == null ? 0 : repairCost; }
     public void setRepairCost(int cost) { if (cost < 0) throw new IllegalArgumentException("repair cost must be >= 0"); repairCost = cost; }
-    public boolean isFireResistant() { return fireResistant; }
-    public void setFireResistant(boolean fireResistant) { this.fireResistant = fireResistant; }
+    public boolean isFireResistant() { return damageResistant == net.minecraft.tags.DamageTypeTags.IS_FIRE; }
+    public void setFireResistant(boolean fireResistant) {
+        this.fireResistant = fireResistant;
+        if (fireResistant) this.damageResistant = net.minecraft.tags.DamageTypeTags.IS_FIRE;
+        else if (this.damageResistant == net.minecraft.tags.DamageTypeTags.IS_FIRE) this.damageResistant = null;
+    }
     public net.md_5.bungee.api.chat.BaseComponent[] getDisplayNameComponent() {
         if (displayName == null) return new net.md_5.bungee.api.chat.BaseComponent[0];
         try {
@@ -1017,9 +1042,12 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
             clone.useRemainder = useRemainder == null ? null : useRemainder.clone();
             clone.rawDataComponents = new HashMap<>(rawDataComponents);
             clone.unhandledDataComponents = new LinkedHashMap<>(unhandledDataComponents);
-            clone.tool = tool == null ? null : new CraftToolComponent(tool);
-            clone.food = food == null ? null : new CraftFoodComponent(food);
-            clone.jukeboxPlayable = jukeboxPlayable == null ? null : new CraftJukeboxComponent(jukeboxPlayable);
+            clone.tool = tool == null ? null : new CraftToolComponent((CraftToolComponent) tool);
+            clone.food = food == null ? null : new CraftFoodComponent((CraftFoodComponent) food);
+            clone.jukeboxPlayable = jukeboxPlayable == null ? null : new CraftJukeboxComponent((CraftJukeboxComponent) jukeboxPlayable);
+            clone.equippable = equippable == null ? null : new org.bukkit.craftbukkit.inventory.components.CraftEquippableComponent(equippable);
+            clone.useCooldown = useCooldown == null ? null : new org.bukkit.craftbukkit.inventory.components.CraftUseCooldownComponent(useCooldown);
+            clone.customModelDataComponent = customModelDataComponent == null ? null : new org.bukkit.craftbukkit.inventory.components.CraftCustomModelDataComponent(customModelDataComponent.getHandle());
             clone.persistentDataContainer =
                     new org.bukkit.craftbukkit.persistence.CraftPersistentDataContainer(persistentDataContainer);
             return clone;
@@ -1057,6 +1085,12 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
             && Objects.equals(tool, other.tool)
             && Objects.equals(food, other.food)
             && Objects.equals(jukeboxPlayable, other.jukeboxPlayable)
+            && Objects.equals(equippable, other.equippable)
+            && Objects.equals(useCooldown, other.useCooldown)
+            && Objects.equals(customModelDataComponent, other.customModelDataComponent)
+            && Objects.equals(enchantableValue, other.enchantableValue)
+            && Objects.equals(itemModel, other.itemModel)
+            && Objects.equals(damageResistant, other.damageResistant)
             && Objects.equals(unhandledDataComponents, other.unhandledDataComponents)
             && Objects.equals(persistentDataContainer, other.persistentDataContainer);
     }
@@ -1066,6 +1100,68 @@ public class CraftItemMeta implements ItemMeta, org.bukkit.inventory.meta.Damage
         return Objects.hash(displayName, itemName, lore, enchantments, unbreakable, hasCustomModelData, customModelData,
                 enchantmentGlintOverride, attributeModifiers, canDestroy, canPlaceOn, itemFlags, rarity, maxStackSize,
                 hideTooltip, fireResistant, glider, useRemainder, tooltipStyle, repairCost, damage, maxDamage, tool, food,
-                jukeboxPlayable, unhandledDataComponents, persistentDataContainer);
+                jukeboxPlayable, equippable, useCooldown, customModelDataComponent, enchantableValue, itemModel, damageResistant,
+                unhandledDataComponents, persistentDataContainer);
+    }
+
+    @Override public @Nullable Component customName() { return displayName(); }
+    @Override public void customName(@Nullable Component customName) { displayName(customName); }
+
+    @Override public boolean hasCustomModelDataComponent() { return customModelDataComponent != null || hasCustomModelData; }
+    @Override public @NotNull org.bukkit.inventory.meta.components.CustomModelDataComponent getCustomModelDataComponent() {
+        if (customModelDataComponent != null) return new org.bukkit.craftbukkit.inventory.components.CraftCustomModelDataComponent(customModelDataComponent.getHandle());
+        net.minecraft.world.item.component.CustomModelData data = hasCustomModelData
+                ? new net.minecraft.world.item.component.CustomModelData(java.util.List.of((float) customModelData), java.util.List.of(), java.util.List.of(), java.util.List.of())
+                : new net.minecraft.world.item.component.CustomModelData(java.util.List.of(), java.util.List.of(), java.util.List.of(), java.util.List.of());
+        return new org.bukkit.craftbukkit.inventory.components.CraftCustomModelDataComponent(data);
+    }
+    @Override public void setCustomModelDataComponent(@Nullable org.bukkit.inventory.meta.components.CustomModelDataComponent component) {
+        this.customModelDataComponent = component == null ? null : new org.bukkit.craftbukkit.inventory.components.CraftCustomModelDataComponent(((org.bukkit.craftbukkit.inventory.components.CraftCustomModelDataComponent) component).getHandle());
+        if (component == null) { hasCustomModelData = false; customModelData = 0; return; }
+        java.util.List<Float> floats = component.getFloats();
+        hasCustomModelData = !floats.isEmpty();
+        customModelData = floats.isEmpty() ? 0 : floats.get(0).intValue();
+    }
+
+    @Override public boolean hasEnchantable() { return enchantableValue != null; }
+    @Override public int getEnchantable() {
+        if (enchantableValue == null) throw new IllegalStateException("We don't have Enchantable! Check hasEnchantable first!");
+        return enchantableValue;
+    }
+    @Override public void setEnchantable(@Nullable Integer data) {
+        if (data != null && data <= 0) throw new IllegalArgumentException("Enchantability must be positive");
+        this.enchantableValue = data;
+    }
+
+    @Override public boolean hasItemModel() { return itemModel != null; }
+    @Override public @Nullable NamespacedKey getItemModel() { return itemModel; }
+    @Override public void setItemModel(@Nullable NamespacedKey itemModel) { this.itemModel = itemModel; }
+
+    @Override public boolean hasDamageResistant() { return damageResistant != null; }
+    @Override public @Nullable org.bukkit.Tag<org.bukkit.damage.DamageType> getDamageResistant() {
+        return damageResistant == null ? null : org.bukkit.Bukkit.getTag(org.bukkit.tag.DamageTypeTags.REGISTRY_DAMAGE_TYPES,
+                org.bukkit.craftbukkit.util.CraftNamespacedKey.fromMinecraft(damageResistant.location()), org.bukkit.damage.DamageType.class);
+    }
+    @Override public void setDamageResistant(@Nullable org.bukkit.Tag<org.bukkit.damage.DamageType> tag) {
+        this.damageResistant = tag == null ? null : net.minecraft.tags.TagKey.create(net.minecraft.core.registries.Registries.DAMAGE_TYPE,
+                net.minecraft.resources.Identifier.fromNamespaceAndPath(tag.getKey().getNamespace(), tag.getKey().getKey()));
+    }
+
+    @Override public boolean hasUseCooldown() { return useCooldown != null; }
+    @Override public @NotNull org.bukkit.inventory.meta.components.UseCooldownComponent getUseCooldown() {
+        return useCooldown != null ? new org.bukkit.craftbukkit.inventory.components.CraftUseCooldownComponent(useCooldown)
+                : new org.bukkit.craftbukkit.inventory.components.CraftUseCooldownComponent(new net.minecraft.world.item.component.UseCooldown(1.0F));
+    }
+    @Override public void setUseCooldown(@Nullable org.bukkit.inventory.meta.components.UseCooldownComponent cooldown) {
+        this.useCooldown = cooldown == null ? null : new org.bukkit.craftbukkit.inventory.components.CraftUseCooldownComponent((org.bukkit.craftbukkit.inventory.components.CraftUseCooldownComponent) cooldown);
+    }
+
+    @Override public boolean hasEquippable() { return equippable != null; }
+    @Override public @NotNull org.bukkit.inventory.meta.components.EquippableComponent getEquippable() {
+        return equippable != null ? new org.bukkit.craftbukkit.inventory.components.CraftEquippableComponent(equippable)
+                : new org.bukkit.craftbukkit.inventory.components.CraftEquippableComponent(net.minecraft.world.item.equipment.Equippable.builder(net.minecraft.world.entity.EquipmentSlot.HEAD).build());
+    }
+    @Override public void setEquippable(@Nullable org.bukkit.inventory.meta.components.EquippableComponent component) {
+        this.equippable = component == null ? null : new org.bukkit.craftbukkit.inventory.components.CraftEquippableComponent((org.bukkit.craftbukkit.inventory.components.CraftEquippableComponent) component);
     }
 }

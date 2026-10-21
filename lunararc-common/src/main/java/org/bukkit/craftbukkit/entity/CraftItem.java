@@ -79,12 +79,13 @@ public final class CraftItem extends CraftEntity implements org.bukkit.entity.It
 
     @Override
     public void setThrower(@Nullable UUID uuid) {
-        access().lunararc$setThrower(uuid);
+        access().lunararc$setThrower(uuid == null ? null : net.minecraft.world.entity.EntityReference.of(uuid));
     }
 
     @Override
     public @Nullable UUID getThrower() {
-        return access().lunararc$getThrower();
+        net.minecraft.world.entity.EntityReference<net.minecraft.world.entity.Entity> thrower = access().lunararc$getThrower();
+        return thrower == null ? null : thrower.getUUID();
     }
 
     @Override

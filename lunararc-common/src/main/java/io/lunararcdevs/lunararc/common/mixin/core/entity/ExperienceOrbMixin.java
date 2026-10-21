@@ -35,7 +35,7 @@ public abstract class ExperienceOrbMixin {
                         player, net.minecraft.world.item.ItemStack::isDamaged);
         if (optional.isEmpty()) return;
         net.minecraft.world.item.ItemStack stack = optional.get().itemStack();
-        int durability = net.minecraft.world.item.enchantment.EnchantmentHelper.modifyDurabilityToRepairFromXp(player.serverLevel(), stack, experience);
+        int durability = net.minecraft.world.item.enchantment.EnchantmentHelper.modifyDurabilityToRepairFromXp(player.level(), stack, experience);
         int repair = io.lunararcdevs.lunararc.common.event.LunarArcPaperEvents.mend((ServerPlayer) player,
                 (ExperienceOrb) (Object) this, stack, optional.get().inSlot(), Math.min(durability, stack.getDamageValue()), experience);
         if (repair < 0) {

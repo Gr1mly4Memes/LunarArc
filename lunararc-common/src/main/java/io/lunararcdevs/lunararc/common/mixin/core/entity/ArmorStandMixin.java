@@ -15,21 +15,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(ArmorStand.class)
-public abstract class ArmorStandMixin implements io.lunararcdevs.lunararc.common.bridge.entity.MovementLockBridge {
+public abstract class ArmorStandMixin implements io.lunararcdevs.lunararc.common.bridge.entity.MovementLockBridge, io.lunararcdevs.lunararc.common.bridge.entity.ArmorStandTickBridge {
     public boolean canMove = true;
     public boolean canTick = true;
     public boolean canTickSetByAPI = false;
 
     @Override public boolean lunararc$canMove() { return this.canMove; }
 
-    @Inject(method = "tick", at = @At("HEAD"), cancellable = true)
-    private void lunararc$skipTick(CallbackInfo ci) {
-        if (!this.canTick) {
-            ci.cancel();
-            return;
-        }
+    @Override
+    public boolean lunararc$shouldTick() {
         ArmorStand self = (ArmorStand) (Object) this;
-        if (!this.canTickSetByAPI && !io.lunararcdevs.lunararc.common.server.LunarArcServerSettings.tuning(self.level()).armorStandTick) ci.cancel();
+        if (!this.canTick) return false;
+        return this.canTickSetByAPI || io.lunararcdevs.lunararc.common.server.LunarArcServerSettings.tuning(self.level()).armorStandTick;
     }
 
     @Inject(method = "swapItem", cancellable = true, at = @At(value = "INVOKE",

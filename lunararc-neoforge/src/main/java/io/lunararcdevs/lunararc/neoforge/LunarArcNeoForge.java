@@ -19,7 +19,7 @@ public final class LunarArcNeoForge {
     public LunarArcNeoForge(IEventBus modBus) {
         // Before anything is wired up: FML surfaces an exception thrown from a mod constructor
         // on its mod-loading error screen, so this is what a client user actually reads.
-        LunarArcClientSideGuard.requireDedicatedServer(FMLEnvironment.dist == Dist.CLIENT);
+        LunarArcClientSideGuard.requireDedicatedServer(FMLEnvironment.getDist() == Dist.CLIENT);
         LunarArcServer.installPlatform("NeoForge", LunarArcNeoForge.class.getClassLoader());
         io.lunararcdevs.lunararc.common.config.IncompatibleList.screenLoadedMods(
                 io.lunararcdevs.lunararc.common.mod.LunarArcModListReflection.loadedMods(

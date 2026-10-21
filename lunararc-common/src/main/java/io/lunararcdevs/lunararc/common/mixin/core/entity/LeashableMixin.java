@@ -15,25 +15,23 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 @Mixin(Leashable.class)
 public interface LeashableMixin {
 
-    @WrapOperation(
-            method = "tickLeash",
-            at = @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Leashable;dropLeash(Lnet/minecraft/world/entity/Entity;ZZ)V"),
-            require = 0)
-    private static void lunararc$holderGone(
-            Entity entity, boolean broadcast, boolean dropLead, Operation<Void> original) {
-        if (entity.level().isClientSide) {
-            original.call(entity, broadcast, dropLead);
+    @WrapOperation(method = "tickLeash", require = 1,
+            at = {@At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Leashable;dropLeash()V"),
+                  @At(value = "INVOKE", target = "Lnet/minecraft/world/entity/Leashable;removeLeash()V")})
+    private static void lunararc$holderGone(Leashable leashable, Operation<Void> original) {
+        Entity entity = (Entity) leashable;
+        if (entity.level().isClientSide()) {
+            original.call(leashable);
             return;
         }
         EntityUnleashEvent.UnleashReason reason = !entity.isAlive()
                 ? EntityUnleashEvent.UnleashReason.PLAYER_UNLEASH
                 : EntityUnleashEvent.UnleashReason.HOLDER_GONE;
         EntityUnleashEvent event = new EntityUnleashEvent(
-                ((EntityBridge) entity).lunararc$getBukkitEntity(), reason, dropLead);
+                ((EntityBridge) entity).lunararc$getBukkitEntity(), reason, true);
         org.bukkit.Bukkit.getPluginManager().callEvent(event);
-        if (!event.isCancelled()) {
-            original.call(entity, broadcast, event.isDropLeash());
-        }
+        if (event.isCancelled()) return;
+        if (event.isDropLeash()) leashable.dropLeash(); else leashable.removeLeash();
     }
 
     @Inject(method = "leashTooFarBehaviour", at = @At("HEAD"), cancellable = true, require = 0)

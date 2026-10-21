@@ -3,7 +3,7 @@ package io.lunararcdevs.lunararc.common.mixin.core.world;
 import com.llamalad7.mixinextras.sugar.Local;
 import io.lunararcdevs.lunararc.common.server.LunarArcServerSettings;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.npc.WanderingTraderSpawner;
+import net.minecraft.world.entity.npc.wanderingtrader.WanderingTraderSpawner;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.Constant;
 import org.spongepowered.asm.mixin.injection.ModifyConstant;

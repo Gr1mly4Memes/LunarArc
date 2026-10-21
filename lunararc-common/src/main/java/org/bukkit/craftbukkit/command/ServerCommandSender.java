@@ -115,7 +115,10 @@ public abstract class ServerCommandSender implements CommandSender {
         return net.kyori.adventure.text.Component.text(this.getName());
     }
 
-    public abstract @NotNull Server getServer();
+    @Override
+    public @NotNull Server getServer() {
+        return org.bukkit.Bukkit.getServer();
+    }
 
     @Override
     public net.kyori.adventure.pointer.@NotNull Pointers pointers() {
